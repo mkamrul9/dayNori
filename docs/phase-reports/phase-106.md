@@ -10,8 +10,8 @@
   - Settings hub unification: consolidated 6 settings groups into a single elegant notebook card with soft divided rows, vector icon badges, eliminating repetitive card borders while ensuring $\ge 48\text{dp}$ touch targets.
   - Local drafts & Back navigation stack: preserved local drafts in `CreateSheet.tsx` so opening/closing does not discard user input; maintained robust hardware `BackHandler` navigation stack (nested settings -> settings hub -> active modal -> subview -> today -> home minimize).
   - Truthful Ask Nori assistant presentation (`DEF-V2-008`): displayed visible gated banner and disabled prompt input/ask button when gated, preventing user confusion.
-  - Android emulator evidence capture: executed comprehensive 12-step verification script on Android emulator (`emulator-5554`, Android 15, `sdk_gphone64_x86_64`, classification: `emulator`), verifying Today, Plan, Library, Journal, Settings, Create, Assistant, Dark mode, Large text scaling (1.3x font scale), Landscape orientation, Account switching, and Workspace isolation.
-  - Separate classification: recorded emulator evidence strictly as emulator evidence; recorded physical phone hardware and spoken TalkBack listen-through as unavailable; maintained Phase 71 as blocked.
+  - Android emulator evidence capture: executed comprehensive 12-step verification script on Android emulator (`emulator-5554`, Android 15, `sdk_gphone64_x86_64`, classification: `emulator`), verifying Today, Plan, Library, Journal, Settings, Create, Assistant (gated under DEF-V2-008), Large text scaling (1.3x font scale), Landscape orientation, Account switching, and Workspace isolation (dark theme tokens evaluated in headless unit tests; no dark mode toggle executed in adb emulator runner).
+  - Separate classification: recorded emulator evidence strictly as emulator evidence; recorded physical phone hardware and spoken TalkBack listen-through as unavailable; maintained Phase 71 and Phase 106 release as strictly blocked under DEF-V2-011, OWNER-SIGNING-KEYS, and OWNER-RELEASE-AUTH. No physical device or live hardware evidence claimed.
 - Contributor/date: Antigravity agent, 2026-11-14.
 - Base revision/branch: `bd62c46cac22bff85c62afb84c9698559c08bdb3`, `codex/free-core-preview`.
 - Hard prerequisites: Phase **105** ([phase-105.md](phase-105.md)). Referenced: Phase **71** ([phase-71.md](phase-71.md)).
@@ -51,7 +51,7 @@
    - Converted quick capture buttons into modern rounded pills (`radii.pill`, `surfaceRaised`, `minHeight: 40`), eliminating repeated card borders.
 
 8. **Android Emulator Evidence Capture Tooling (`scripts/phase106-android-evidence.mjs`)**:
-   - Captured 12 automated verification steps on `emulator-5554` (Android 15, `sdk_gphone64_x86_64`):
+   - Captured 12 automated verification steps on `emulator-5554` (Android 15, `sdk_gphone64_x86_64`, emulator only):
      - `01-today-overview`: PASS — Today screen rendered with top header and bottom nav.
      - `02-plan-tab`: PASS — Plan tab activated cleanly.
      - `03-library-tab`: PASS — Library tab activated cleanly.
@@ -64,6 +64,7 @@
      - `10-landscape-adaptation`: PASS — Rotated to landscape (`lock 1`), captured cleanly.
      - `11-account-workspace-isolation`: PASS — Verified SQLite/SecureStore partitions state per workspace.
      - `12-device-settings-restored`: PASS — Device font scale and rotation restored to baseline.
+   - Note on theme and accessibility: Dark theme tokens were evaluated in automated unit tests (`tests/unit/phase106-native-android-tokens-and-a11y.test.ts`), not via adb night-mode toggle; physical ARM64 hardware and spoken TalkBack screen-reader ear listen-through were not executed and remain blocked under DEF-V2-011 and Phase 71.
    - Output artifacts stored in `artifacts/phase106/screenshots/`, `artifacts/phase106/ui-dumps/`, `artifacts/phase106/evidence-summary.json`, and `artifacts/phase106/capture-manifest.json`.
 
 ---

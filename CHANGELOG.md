@@ -1,5 +1,25 @@
 # Changelog
 
+## Phase 110 — Evidence-integrity audit and verification truth reconciliation — 2026-11-14
+
+- ADR 0110: Evidence-integrity audit and verification truth reconciliation across the Daynori project, diagnosing planning desynchronizations, restoring Phase 107 and 108 planning definitions, and systematically correcting reporting overclaims.
+- Planning Toolchain Reconciliation:
+  - Diagnosed uncommitted omission of Phases 107 and 108 in `docs/roadmap/plan.json` and `docs/roadmap/progress.json` caused by a stale editor/tool buffer save during Phase 102 candidate packaging.
+  - Restored authoritative Phase 107 and 108 specifications from git history (`314dde8`) without resetting or discarding any completed work.
+  - Appended Phase 110 sequentially; validated 111 phases with `node scripts/validate-planning.mjs`, `node scripts/build-phase-plans.mjs --check`, and regenerated `docs/blueprint.html`.
+- Evidence Integrity Audits & Report Corrections (Phases 104–109):
+  - Phase 104: Replaced claims of "real user journeys" with "synthetic persona user journeys" (automated simulation via `tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts` using synthetic email fixtures); reaffirmed that human participant usability testing remains blocked under `DEF-V2-013`.
+  - Phase 105: Clarified that light and dark theme captures across viewports were collected via automated headless Chrome CDP emulation (`scripts/capture-phase105-visual-evidence.mjs`) and programmatic token contrast checks; no physical display hardware or human visual sessions claimed.
+  - Phase 106: Corrected line 13 claim that the 12-step Android emulator script tested dark mode (dark theme tokens were evaluated strictly in headless unit tests; no adb dark mode toggle executed in the emulator runner); reaffirmed that physical ARM64 hardware and spoken TalkBack remain unavailable locally, keeping Phase 71 strictly blocked under `DEF-V2-011`.
+  - Phase 107: Corrected claim that "synthetic and live tests prove" folder boundaries to state that synthetic simulation tests proved the `drive.file` boundary, whereas live OAuth execution was attempted and truthfully blocked (`outcome=blocked`, `missing_oauth_config`) due to unconfigured owner credentials (`DEF-V2-005`); zero live Google tokens or Drive access granted.
+  - Phase 108: Clarified that the "live provider wire protocol" (`OpenAiCompatibleProvider`) was evaluated strictly using synthetic HTTP transport and local mock error handlers; live outbound cloud LLM network calls remain disabled fail-closed under `DEF-V2-008`.
+  - Phase 109: Clarified that voice recognition, Bengali Unicode preservation, silence detection, and confidence scoring were validated using synthetic in-memory audio byte fixtures and `MockAudioTranscriptionAdapter`; live multimodal audio streams and physical microphone hardware remain blocked fail-closed under `DEF-V2-008` and `DEF-V2-011`.
+- Machine-Readable Audit Register:
+  - Authored `artifacts/phase110/evidence-integrity-audit.json` mapping each audited claim across Phases 104–109 to its ground truth artifact and standing gate.
+  - Authored `artifacts/phase110/evidence-summary.json` consolidating planning reconciliation metrics.
+- Preserved Release Gates & Fail-Closed Boundaries:
+  - Preserved all standing release gates (`DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71) as strictly blocked. No blocked status was flipped to complete without genuine acceptance evidence.
+
 ## Phase 102 — Authorized Version 2 publication and live verification (Candidate Rebuild & Audit) — 2026-11-14
 
 - ADR 0102: Return to Phase 102 authorized publication and live verification following completion of Phase 104–109 core, design, drive, and assistant verifications. Rebuilt release candidate artifact, reconciled production auth redirects, synthetic sync flows, support triage, rollback procedures, usability gate boundaries, and owner approval package.

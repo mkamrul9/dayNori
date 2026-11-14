@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "audit": "Daynori Phase 104-109 Evidence Integrity and Verification Truth Audit",
+  "date": "2026-11-14",
+  "auditor": "Antigravity agent",
+  "authorizingDecision": "ADR-0110",
+  "planningReconciliation": {
+    "issue": "docs/roadmap/plan.json and progress.json uncommitted working tree omitted Phases 107 and 108 while retaining Phase 109, causing sequential ID violations, missing dependencies, and validate-planning.mjs failure",
+    "rootCause": "Stale editor/tool buffer overwrite during Phase 102 candidate rebuild turn",
+    "resolution": "Restored authoritative Phase 107 and 108 definitions from git commit history (314dde8); appended Phase 110 sequentially; validated 111 phases with node scripts/validate-planning.mjs",
+    "verifiedSequential": true
+  },
+  "phaseAudits": [
+    {
+      "phase": "104",
+      "title": "Current Daynori web/PWA readiness audit and critical core fixes",
+      "auditCategory": "user_journeys",
+      "previousClaim": "Audited and verified the full core organizer web/PWA experience across 8 distinct real user journeys",
+      "groundTruth": "Automated Vitest/Fastify integration tests (tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts) using synthetic test accounts (synthetic-alice-104@example.org, etc.); no real human users participated",
+      "correctedClaim": "Audited and verified the full core organizer web/PWA experience across 8 distinct synthetic persona user journeys using automated test credentials; real human usability evaluation is governed by release gate DEF-V2-013 and remains strictly blocked",
+      "releaseGateAffected": "DEF-V2-013",
+      "gateStatus": "BLOCKED"
+    },
+    {
+      "phase": "105",
+      "title": "Daynori web/PWA visual refinement and modern interface overhaul",
+      "auditCategory": "dark_mode_and_visual_captures",
+      "previousClaim": "Captured 80 baseline and 80 post-refinement screenshots across light and dark themes without specifying execution harness",
+      "groundTruth": "Automated headless Chrome CDP script (scripts/capture-phase105-visual-evidence.mjs) capturing synthetic viewport sizes and programmatic token WCAG AA contrast evaluations; no human visual inspection on physical monitors",
+      "correctedClaim": "Light and dark theme captures collected via automated headless Chrome CDP emulation across standard viewports with programmatic token contrast checks; no physical display or human visual evaluation claimed",
+      "releaseGateAffected": "DEF-V2-013",
+      "gateStatus": "BLOCKED"
+    },
+    {
+      "phase": "106",
+      "title": "Daynori native Android interface refinement and component overhaul",
+      "auditCategory": "physical_device_and_dark_mode",
+      "previousClaim": "Executed 12-step verification script on Android emulator verifying Today, Plan, Library, Journal, Settings, Create, Assistant, Dark mode, Large text scaling, Landscape, Account switching, and Workspace isolation",
+      "groundTruth": "Inspection of scripts/phase106-android-evidence.mjs confirms the 12 adb emulator steps tested Today, Plan, Library, Create sheet, Back nav create, Settings hub, Back nav settings, Assistant gated truthful, Large text (1.3x), Landscape, Account isolation assertion, and Settings restored. There was NO dark mode step in the emulator script (dark theme tokens were tested in headless unit tests only). Physical ARM64 phone and spoken TalkBack were unavailable",
+      "correctedClaim": "12-step emulator verification on emulator-5554 covered Today, Plan, Library, Create, Settings, Back navigation, Assistant gating, Large text, Landscape, and Account isolation. Dark theme tokens were evaluated in headless unit tests only (no adb dark mode toggle). Physical ARM64 hardware and spoken TalkBack remain strictly unavailable and blocked under DEF-V2-011 and Phase 71",
+      "releaseGateAffected": "DEF-V2-011",
+      "gateStatus": "BLOCKED"
+    },
+    {
+      "phase": "107",
+      "title": "Bounded Google Drive folder authorization and scope boundary review",
+      "auditCategory": "live_provider_google_oauth",
+      "previousClaim": "Synthetic and live tests prove that selecting a folder authorizes the folder container resource itself",
+      "groundTruth": "Live runner (tests/spikes/drive/run-spike.mjs --mode=live) returned outcome=blocked due to missing owner Google Cloud OAuth credentials (missing_oauth_config). The boundary proof was demonstrated exclusively through synthetic simulation tests (tests/integration/phase107-drive-folder-boundary.test.ts); no live Google tokens or Drive access were obtained",
+      "correctedClaim": "Synthetic simulation tests prove that selecting a folder authorizes the container only and denies unpicked descendants; live OAuth execution was attempted and truthfully recorded as blocked (outcome=blocked, missing_oauth_config) due to lack of owner Google Cloud project credentials (DEF-V2-005); zero live Google tokens or Drive access were granted",
+      "releaseGateAffected": "DEF-V2-005",
+      "gateStatus": "BLOCKED"
+    },
+    {
+      "phase": "108",
+      "title": "AI text-assistant release-gate and operational review",
+      "auditCategory": "live_ai_provider",
+      "previousClaim": "Live provider wire protocol evaluated under OpenAiCompatibleProvider; Provider Separation: Live vs. Mock Evaluation",
+      "groundTruth": "OpenAiCompatibleProvider was tested strictly using synthetic local HTTP mock responses and simulated error handlers; no outbound cloud network calls to OpenAI or external LLMs occurred; enterprise live AI provider access remains blocked fail-closed under DEF-V2-008",
+      "correctedClaim": "Live provider wire protocol evaluated strictly using synthetic HTTP transport and local simulated server responses (store: false, 429/503/401 mappings); zero external outbound network requests made to third-party AI APIs; live transmission remains disabled fail-closed under DEF-V2-008",
+      "releaseGateAffected": "DEF-V2-008",
+      "gateStatus": "BLOCKED"
+    },
+    {
+      "phase": "109",
+      "title": "Voice-assistant verification and operational review",
+      "auditCategory": "live_voice_transcription",
+      "previousClaim": "Bangla script Unicode preservation, English speech recognition, and Banglish fidelity verified; Gemini 1.5 Flash evaluated as primary live candidate",
+      "groundTruth": "Language recognition, script preservation, silence detection, and confidence scoring were tested using synthetic in-memory audio byte buffers and MockAudioTranscriptionAdapter in Vitest; Gemini 1.5 Flash was evaluated analytically for rate structure and theoretical suitability, not via live audio streaming over the network; physical phone microphone and spoken TalkBack were unavailable",
+      "correctedClaim": "Voice transcription, Bengali Unicode preservation, silence detection, and low-confidence flagging were evaluated using synthetic audio byte payloads and local mock adapters (MockAudioTranscriptionAdapter); live multimodal provider protocol was evaluated analytically without network streaming; physical microphone hardware and live cloud streams remain blocked fail-closed under DEF-V2-008 and DEF-V2-011",
+      "releaseGateAffected": "DEF-V2-008 / DEF-V2-011",
+      "gateStatus": "BLOCKED"
+    }
+  ],
+  "standingReleaseGates": {
+    "DEF-V2-004": { "name": "Vault external security audit", "status": "BLOCKED" },
+    "DEF-V2-005": { "name": "Google Drive OAuth credentials & CASA Tier 2 assessment", "status": "BLOCKED" },
+    "DEF-V2-007": { "name": "Commercial subscription billing & live store sandbox", "status": "BLOCKED" },
+    "DEF-V2-008": { "name": "Enterprise live AI provider contract and privacy compliance", "status": "BLOCKED" },
+    "DEF-V2-011": { "name": "Physical ARM64 phone hardware & spoken TalkBack screen-reader verification", "status": "BLOCKED" },
+    "DEF-V2-013": { "name": "Five-participant consenting human usability evaluation", "status": "BLOCKED" },
+    "OWNER-SIGNING-KEYS": { "name": "Production Android release keystore & credentials", "status": "BLOCKED" },
+    "OWNER-RELEASE-AUTH": { "name": "Explicit human owner publication authorization", "status": "BLOCKED" },
+    "Phase-71": { "name": "Android native phone verification", "status": "BLOCKED" }
+  }
+}

@@ -4,7 +4,7 @@
 
 - Phase: [104 — Current Daynori web/PWA readiness audit and critical core fixes](../roadmap/phases/104-current-daynori-web-pwa-readiness-audit-and-critical-core-fixes.md).
 - Status: **blocked** — Local web/PWA readiness audit, end-to-end user journeys verification, and critical core truthful UI fixes delivered. Full public deployment, live production publication, paid infrastructure spending, and unverified provider activation remain strictly blocked pending explicit owner authorization and open release gates.
-  - Core readiness evaluation: audited and verified the full core organizer web/PWA experience across 8 distinct real user journeys using synthetic test credentials (`synthetic-alice-104@example.org`, `synthetic-bob-104@example.org`, `synthetic-operator-104@example.org`).
+  - Core readiness evaluation: audited and verified the full core organizer web/PWA experience across 8 distinct synthetic persona user journeys using automated test credentials (`synthetic-alice-104@example.org`, `synthetic-bob-104@example.org`, `synthetic-operator-104@example.org`). Real human participant usability testing is governed by release gate `DEF-V2-013` and remains strictly blocked.
   - Gated feature truthfulness remediation (`DEF-V2-008`): identified that Ask Nori assistant previously appeared interactive before failing on API request. Updated `AssistantPanel.tsx` with a truthful gated banner informing users that live AI is gated under `DEF-V2-008` pending provider authorization and privacy compliance. Disabled input query textarea with explicit guidance placeholder, disabled "Ask" button, disabled starter suggestion pills, disabled voice recording, and updated `AppHeader.tsx` launcher button with explicit gating `aria-label` and tooltip.
   - Packaged candidate comparison: compared current commit (`3d65d14`) and dirty working tree against Phase 102 packaged distributable candidate (`artifacts/release/daynori-web-v2.0.0-rc1.tar.gz`, SHA-256: `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c`). Confirmed complete backward compatibility with core organizer data structures and verified all working-tree adaptations (API health version fallback, mobile Metro entry point resolution, mobile notification channel strict typing, web URL search param aliasing).
   - Preserved working-tree evidence: preserved all unrelated working-tree files, historical Android screenshots/XML hierarchy dumps, and performance rehearsal evidence intact without truncation or forced overwrites.
@@ -14,7 +14,7 @@
 - Contributor/date: Antigravity agent, 2026-11-13.
 - Base revision/branch: `3d65d1486a85f1efaf79d74dbb517b54d8a76fc2`, `codex/free-core-preview`.
 - Hard prerequisites: Phase **102** ([phase-102.md](phase-102.md)).
-- Owner Scheduling Authorization: The owner explicitly authorized selecting Phase 104 for a current Daynori web/PWA readiness audit and critical core fixes, testing real user journeys, comparing the current commit and dirty tree with the Phase 102 packaged candidate, fixing reproducible defects within this phase, verifying that gated features (especially Ask Nori) are presented truthfully, using synthetic accounts, recording exact commands and limitations, and pushing under the standing repository workflow ([ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0104](../decisions/0104-current-web-pwa-readiness-audit-and-critical-core-fixes.md)). No production deployment or release readiness claimed from local tests.
+- Owner Scheduling Authorization: The owner explicitly authorized selecting Phase 104 for a current Daynori web/PWA readiness audit and critical core fixes, testing synthetic persona user journeys, comparing the current commit and dirty tree with the Phase 102 packaged candidate, fixing reproducible defects within this phase, verifying that gated features (especially Ask Nori) are presented truthfully, using synthetic accounts, recording exact commands and limitations, and pushing under the standing repository workflow ([ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0104](../decisions/0104-current-web-pwa-readiness-audit-and-critical-core-fixes.md)). No real human users or production deployment claimed from local tests.
 
 ---
 
@@ -45,7 +45,7 @@
      - `apps/web/src/components/AssistantPanel.tsx` & `AppHeader.tsx`: Truthful gated banner and disabled controls (`DEF-V2-008`).
    - Finding: All working-tree changes maintain strict backward compatibility with existing SQLite schemas and API contracts.
 
-3. **Real User Journeys Audit (Synthetic Accounts)**:
+3. **Synthetic Persona User Journeys Audit (Automated Simulation)**:
    - **Journey 1: Sign-up / Sign-in & Profile Configuration**:
      - Registered synthetic user `synthetic-alice-104@example.org`.
      - Auto-provisioned personal workspace.
@@ -145,5 +145,5 @@
 
 ## Stop condition
 
-Phase 104 is complete and bounded. All 8 user journeys pass with zero regressions. Gated features (especially Ask Nori) are presented truthfully. Working-tree changes from prior phases have been strictly preserved. Staged changes will be committed in a single conventional commit and pushed to `origin/codex/free-core-preview` under the standing repository workflow (ADR 0074). No production deployment or release readiness claimed from local tests.
+Phase 104 is complete and bounded. All 8 synthetic persona user journeys pass with zero regressions. Gated features (especially Ask Nori) are presented truthfully. Working-tree changes from prior phases have been strictly preserved. Staged changes will be committed in a single conventional commit and pushed to `origin/codex/free-core-preview` under the standing repository workflow (ADR 0074). No real human users or production deployment claimed from local tests.
 

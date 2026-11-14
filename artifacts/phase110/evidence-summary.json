@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "phase": "110",
+  "title": "Evidence-integrity audit and verification truth reconciliation",
+  "status": "blocked",
+  "evaluatedAt": "2026-11-14T12:00:00.000Z",
+  "auditor": "Antigravity agent",
+  "authorizingDecision": "ADR-0110",
+  "scope": "EVIDENCE_INTEGRITY_AUDIT_AND_PLANNING_RECONCILIATION",
+  "reconciliationSummary": {
+    "planningValidatorPassed": true,
+    "phasesTotal": 111,
+    "requirementsMapped": 22,
+    "markdownFilesVerified": 483,
+    "sequentialPhaseIds": true,
+    "restoredPhases": ["107", "108"],
+    "auditedPhases": ["104", "105", "106", "107", "108", "109"]
+  },
+  "auditFindingsAndRemediations": {
+    "phase104": {
+      "finding": "Claims of 'real user journeys' replaced with 'synthetic persona user journeys'",
+      "groundTruth": "Vitest automated integration tests with synthetic email fixtures; no live human sessions",
+      "gate": "DEF-V2-013 retained as BLOCKED"
+    },
+    "phase105": {
+      "finding": "Dark theme and viewport captures clarified as headless Chrome CDP automation",
+      "groundTruth": "Automated headless CDP capture script and token contrast assertions; no physical monitor evaluation",
+      "gate": "DEF-V2-013 retained as BLOCKED"
+    },
+    "phase106": {
+      "finding": "Removed claim that 12-step Android emulator script tested dark mode; clarified emulator-only bounds",
+      "groundTruth": "Emulator script on emulator-5554 tested 12 navigation/orientation steps; dark mode tested in unit tests only; physical phone and TalkBack unavailable",
+      "gate": "DEF-V2-011 and Phase 71 retained as BLOCKED"
+    },
+    "phase107": {
+      "finding": "Corrected claim that 'synthetic and live tests prove' folder boundaries; clarified live OAuth blocked",
+      "groundTruth": "Synthetic tests proved drive.file container boundary; live OAuth attempt blocked (missing_oauth_config); no live Google tokens",
+      "gate": "DEF-V2-005 retained as BLOCKED"
+    },
+    "phase108": {
+      "finding": "Clarified live AI provider wire protocol evaluation used synthetic HTTP transport and mock errors",
+      "groundTruth": "OpenAiCompatibleProvider evaluated against synthetic transport; zero outbound cloud LLM network calls",
+      "gate": "DEF-V2-008 retained as BLOCKED"
+    },
+    "phase109": {
+      "finding": "Clarified voice recognition and Bangla script fidelity evaluated via synthetic audio byte fixtures",
+      "groundTruth": "MockAudioTranscriptionAdapter in Vitest; zero live microphone hardware or cloud multimodal streams",
+      "gate": "DEF-V2-008 and DEF-V2-011 retained as BLOCKED"
+    }
+  },
+  "standingReleaseGates": {
+    "DEF-V2-004": "BLOCKED",
+    "DEF-V2-005": "BLOCKED",
+    "DEF-V2-007": "BLOCKED",
+    "DEF-V2-008": "BLOCKED",
+    "DEF-V2-011": "BLOCKED",
+    "DEF-V2-013": "BLOCKED",
+    "OWNER-SIGNING-KEYS": "BLOCKED",
+    "OWNER-RELEASE-AUTH": "BLOCKED",
+    "Phase-71": "BLOCKED"
+  }
+}
