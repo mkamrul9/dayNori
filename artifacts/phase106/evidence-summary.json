@@ -1,0 +1,128 @@
+{
+  "phase": "106",
+  "title": "Daynori native Android interface refinement and component overhaul",
+  "createdAt": "2026-11-14T04:52:31.661Z",
+  "device": {
+    "serial": "emulator-5554",
+    "model": "sdk_gphone64_x86_64",
+    "androidRelease": "15",
+    "abi": "x86_64",
+    "density": "Physical density: 420",
+    "size": "Physical size: 1080x2400",
+    "classification": "emulator"
+  },
+  "steps": [
+    {
+      "step": "01-today-overview",
+      "ok": true,
+      "detail": "Today screen rendered with mobile header and navigation bar",
+      "at": "2026-11-14T04:51:27.930Z"
+    },
+    {
+      "step": "02-plan-tab",
+      "ok": true,
+      "detail": "Plan tab activated (tapped=true)",
+      "at": "2026-11-14T04:51:34.385Z"
+    },
+    {
+      "step": "03-library-tab",
+      "ok": true,
+      "detail": "Library tab activated (tapped=true)",
+      "at": "2026-11-14T04:51:40.671Z"
+    },
+    {
+      "step": "04-create-sheet",
+      "ok": true,
+      "detail": "Create sheet opened with entity chips (tapped=true)",
+      "at": "2026-11-14T04:51:52.406Z"
+    },
+    {
+      "step": "05-back-navigation-create",
+      "ok": true,
+      "detail": "Hardware Back button cleanly dismissed Create sheet",
+      "at": "2026-11-14T04:51:57.150Z"
+    },
+    {
+      "step": "06-settings-hub",
+      "ok": true,
+      "detail": "Settings hub opened with unified notebook card (tapped=true)",
+      "at": "2026-11-14T04:52:02.992Z"
+    },
+    {
+      "step": "07-back-navigation-settings",
+      "ok": true,
+      "detail": "Hardware Back button returned from Settings to Today",
+      "at": "2026-11-14T04:52:07.549Z"
+    },
+    {
+      "step": "08-assistant-gated-truthful",
+      "ok": true,
+      "detail": "Assistant sheet inspected (gated under DEF-V2-008, tapped=false)",
+      "at": "2026-11-14T04:52:12.882Z"
+    },
+    {
+      "step": "09-large-text-scaling",
+      "ok": true,
+      "detail": "System font_scale=1.3, navigation and header remained usable",
+      "at": "2026-11-14T04:52:20.573Z"
+    },
+    {
+      "step": "10-landscape-adaptation",
+      "ok": true,
+      "detail": "Rotated to landscape (mode=lock 1), screen captured cleanly",
+      "at": "2026-11-14T04:52:25.524Z"
+    },
+    {
+      "step": "11-account-workspace-isolation",
+      "ok": true,
+      "detail": "Account switching and workspace isolation verified: local SQLite/SecureStore partitions state per workspace",
+      "at": "2026-11-14T04:52:31.065Z"
+    },
+    {
+      "step": "12-device-settings-restored",
+      "ok": true,
+      "detail": "Device font scale and rotation restored to baseline",
+      "at": "2026-11-14T04:52:31.660Z"
+    }
+  ],
+  "passCount": 12,
+  "failCount": 0,
+  "captures": [
+    {
+      "filename": "01-today-overview.png",
+      "bytes": 269356
+    },
+    {
+      "filename": "02-plan-tab.png",
+      "bytes": 135004
+    },
+    {
+      "filename": "03-library-tab.png",
+      "bytes": 200847
+    },
+    {
+      "filename": "05-create-sheet.png",
+      "bytes": 169016
+    },
+    {
+      "filename": "07-settings-hub.png",
+      "bytes": 235683
+    },
+    {
+      "filename": "09-assistant-sheet.png",
+      "bytes": 270040
+    },
+    {
+      "filename": "11-large-text.png",
+      "bytes": 237870
+    },
+    {
+      "filename": "12-landscape.png",
+      "bytes": 272335
+    }
+  ],
+  "physicalDeviceStatus": "UNAVAILABLE (physical ARM64 device not connected; tested on x86_64 emulator-5554)",
+  "talkbackSpokenListenThrough": "UNAVAILABLE (TalkBack service verified via automated hierarchy dumps; human ear listen-through unperformed)",
+  "phase71Status": "BLOCKED (remains blocked per ADR 0074 and standing gates pending physical phone and live spoken TalkBack certification)",
+  "phase106Status": "BLOCKED (implementation and emulator verification complete; blocked pending live release gates OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, DEF-V2-011)"
+}

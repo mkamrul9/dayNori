@@ -27,7 +27,7 @@ const TABS: TabConfig[] = [
   { key: 'today', label: 'Today', icon: 'sun' },
   { key: 'plan', label: 'Plan', icon: 'clipboard' },
   { key: 'library', label: 'Library', icon: 'library' },
-  { key: 'journal', label: 'Journal', icon: 'edit' },
+  { key: 'journal', label: 'Journal', icon: 'book' },
 ];
 
 export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
@@ -79,15 +79,23 @@ export const MobileNavigationBar: React.FC<MobileNavigationBarProps> = ({
             style={({ pressed }) => [
               styles.tabItem,
               {
-                backgroundColor: isSelected
-                  ? palette.action.subtle
-                  : pressed
-                    ? palette.surfaceRaised
-                    : 'transparent',
+                backgroundColor: pressed ? palette.surfaceRaised : 'transparent',
               },
             ]}
           >
-            <Icon name={tab.icon} color={palette.text.primary} />
+            <View
+              style={[
+                styles.iconWrap,
+                {
+                  backgroundColor: isSelected ? palette.action.subtle : 'transparent',
+                },
+              ]}
+            >
+              <Icon
+                name={tab.icon}
+                color={isSelected ? palette.action.primary : palette.text.secondary}
+              />
+            </View>
             <Text
               numberOfLines={1}
               style={[
@@ -129,6 +137,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 2,
     position: 'relative',
+  },
+  iconWrap: {
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
   },
   tabIcon: {
     fontSize: 18,

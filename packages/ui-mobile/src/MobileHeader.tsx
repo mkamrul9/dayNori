@@ -9,6 +9,7 @@ export interface MobileHeaderProps {
   subtitle?: string;
   themeMode?: ThemeMode;
   onOpenSearch?: () => void;
+  onOpenAssistant?: () => void;
   onOpenCreate?: () => void;
   onOpenAllFeatures?: () => void;
   onOpenSettings?: () => void;
@@ -20,6 +21,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
   subtitle,
   themeMode = 'light',
   onOpenSearch,
+  onOpenAssistant,
   onOpenCreate,
   onOpenAllFeatures,
   onOpenSettings,
@@ -69,6 +71,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             accessibilityRole="button"
             accessibilityLabel="Search organizer"
             onPress={onOpenSearch}
+            android_ripple={{ color: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
             style={({ pressed }) => [
               styles.actionButton,
               {
@@ -80,12 +83,31 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
           </Pressable>
         )}
 
+        {onOpenAssistant && (
+          <Pressable
+            testID="header-assistant-btn"
+            accessibilityRole="button"
+            accessibilityLabel="Ask Nori assistant (Gated under DEF-V2-008)"
+            onPress={onOpenAssistant}
+            android_ripple={{ color: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
+            style={({ pressed }) => [
+              styles.actionButton,
+              {
+                backgroundColor: pressed ? palette.action.subtle : 'transparent',
+              },
+            ]}
+          >
+            <Icon name="nori" color={palette.text.primary} />
+          </Pressable>
+        )}
+
         {onOpenCreate && (
           <Pressable
             testID="header-create-btn"
             accessibilityLabel="Create item"
             accessibilityRole="button"
             onPress={onOpenCreate}
+            android_ripple={{ color: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
             style={({ pressed }) => [
               styles.actionButton,
               {
@@ -103,6 +125,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             accessibilityRole="button"
             accessibilityLabel="All features"
             onPress={onOpenAllFeatures}
+            android_ripple={{ color: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
             style={({ pressed }) => [
               styles.actionButton,
               {
@@ -120,6 +143,7 @@ export const MobileHeader: React.FC<MobileHeaderProps> = ({
             accessibilityRole="button"
             accessibilityLabel="Settings and help"
             onPress={onOpenSettings}
+            android_ripple={{ color: themeMode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }}
             style={({ pressed }) => [
               styles.actionButton,
               {

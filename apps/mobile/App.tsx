@@ -942,6 +942,9 @@ export default function App() {
             setActiveModal('search');
             setTourPendingEvidence({ type: 'target_activated', targetId: 'shell.search' });
           }}
+          onOpenAssistant={() => {
+            setActiveModal('assistant');
+          }}
           onOpenCreate={() => {
             setActiveModal('create');
             if (guidedTourVisible) {
@@ -1382,16 +1385,23 @@ export default function App() {
           </View>
         ) : null}
 
-        {/* Phase 56 provisional assistant — operator-gated */}
-        {activeModal === 'assistant' && isOperator && apiClient && userNamespace?.workspaceId ? (
+        {/* Assistant Entry Point — Truthfully gated under DEF-V2-008 */}
+        {activeModal === 'assistant' ? (
           <View
             style={[StyleSheet.absoluteFill, { backgroundColor: palette.background, zIndex: 102 }]}
           >
             <AssistantSheet
               themeMode={themeMode}
-              workspaceId={userNamespace.workspaceId}
-              apiClient={apiClient}
-              onClose={returnToSettingsFromNested}
+              workspaceId={userNamespace?.workspaceId ?? 'workspace-default'}
+              apiClient={apiClient ?? ({} as any)}
+              isGated={true}
+              onClose={() => {
+                if (settingsGroup) {
+                  returnToSettingsFromNested();
+                } else {
+                  setActiveModal('none');
+                }
+              }}
             />
           </View>
         ) : null}

@@ -3914,6 +3914,55 @@
         "docs/phase-reports/phase-104.md"
       ],
       "commit": "refactor(web): refine visual hierarchy, calm card borders, and modernize navigation"
+    },
+    {
+      "id": "106",
+      "group": "v2-release",
+      "title": "Daynori native Android interface refinement and component overhaul",
+      "dependsOn": [
+        "105"
+      ],
+      "scope": [
+        "apps/mobile",
+        "packages/ui-mobile",
+        "packages/design-tokens",
+        "tests/unit",
+        "tests/e2e",
+        "artifacts/phase106",
+        "docs/roadmap",
+        "docs/phase-reports"
+      ],
+      "steps": [
+        "Read Phase 71 and its remaining blockers; adapt the new visual hierarchy, navigation, menus, forms, and dark theme to native Android components rather than copying desktop layout.",
+        "Refine MobileCard, MobileListRow, MobileEmptyState, MobileHeader, and MobileNavigationBar to reduce repeated card borders, establish clean elevation, and ensure >= 48dp touch targets.",
+        "Modernize CreateSheet and SettingsHubView into clean native mobile cards and divided list rows while preserving local drafts, Back navigation, and accessibility.",
+        "Truthfully present gated Ask Nori assistant state (DEF-V2-008) in AssistantSheet and MobileHeader on native Android.",
+        "Test Today, Plan, Library, Journal, Settings, Create, and Assistant entry point across light/dark themes, large text scaling, landscape orientation, and keyboard-open states.",
+        "Recheck account switching and multi-tenant workspace isolation on native Android; record emulator evidence separately from physical hardware and spoken TalkBack, leaving Phase 71 blocked."
+      ],
+      "acceptance": [
+        "Native Android components (MobileCard, MobileListRow, MobileEmptyState, MobileHeader, MobileNavigationBar) adapted to calm modern warm notebook direction without copying desktop layouts.",
+        "Today, Plan, Library, Journal, Settings, Create, and Assistant entry point verified in light/dark themes, large text scaling, landscape orientation, and keyboard-open states.",
+        "Local drafts preserved on dismiss/cancel, Android hardware Back navigation verified across sheets and modals, and touch targets meet >= 48dp.",
+        "Account switching and workspace isolation verified with zero state leakage.",
+        "Emulator evidence recorded separately from physical device and spoken TalkBack evidence; Phase 71 remains blocked."
+      ],
+      "checks": [
+        "pnpm vitest run tests/unit/phase106-native-android-tokens-and-a11y.test.ts tests/e2e/phase106-native-android-refinement.test.ts apps/mobile/src/views/AccountSheet.test.ts apps/mobile/src/views/CreateSheet.test.ts",
+        "pnpm typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/design/design-system.md",
+        "docs/design/accessibility.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0106-daynori-native-android-interface-refinement-and-component-overhaul.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/phase-reports/phase-71.md",
+        "docs/phase-reports/phase-105.md"
+      ],
+      "commit": "refactor(mobile): adapt modern visual hierarchy and calm card borders to native android components"
     }
   ],
   "featureCoverage": [
@@ -4191,7 +4240,8 @@
         "70",
         "71",
         "99",
-        "105"
+        "105",
+        "106"
       ],
       "requirements": [
         "R-QUALITY",
@@ -4312,7 +4362,8 @@
         "102",
         "103",
         "104",
-        "105"
+        "105",
+        "106"
       ],
       "requirements": [
         "R-QUALITY",

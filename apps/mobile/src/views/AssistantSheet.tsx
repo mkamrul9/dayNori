@@ -28,6 +28,7 @@ export interface AssistantSheetProps {
   onOpenSource?: (kind: string, itemId: string) => void;
   recorderAdapter?: NativeAudioRecorderAdapter;
   testID?: string;
+  isGated?: boolean;
 }
 
 /**
@@ -44,6 +45,7 @@ export function AssistantSheet({
   onOpenSource,
   recorderAdapter,
   testID = 'assistant-sheet',
+  isGated = true,
 }: AssistantSheetProps) {
   const palette = colors[themeMode];
   const [question, setQuestion] = useState('');
@@ -90,6 +92,7 @@ export function AssistantSheet({
   const askAbortRef = useRef<AbortController | null>(null);
 
   const refreshHistory = useCallback(async () => {
+    if (!apiClient) return;
     try {
       const res = await apiClient.listAssistantHistory(workspaceId);
       setHistory(
@@ -110,6 +113,7 @@ export function AssistantSheet({
   }, [refreshHistory]);
 
   useEffect(() => {
+    if (!apiClient) return;
     let cancelled = false;
     void apiClient
       .getAssistantDraft(workspaceId)
@@ -638,6 +642,45 @@ export function AssistantSheet({
         intelligence. Vault is never accessed. Strictly read-only guidance.
       </Text>
 
+      {isGated && (
+        <View
+          testID="assistant-gated-banner"
+          accessibilityRole="alert"
+          style={{
+            backgroundColor: palette.status.infoBg,
+            borderColor: palette.status.infoBorder,
+            borderWidth: 1,
+            borderRadius: radii.sm,
+            padding: spacing.md,
+            marginTop: spacing.sm,
+            marginBottom: spacing.sm,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            <Icon name="info" color={palette.status.info} size={18} />
+            <Text
+              style={{
+                marginLeft: spacing.xs,
+                fontSize: 14,
+                fontWeight: '700',
+                color: palette.status.info,
+              }}
+            >
+              Ask Nori is Currently Gated (DEF-V2-008)
+            </Text>
+          </View>
+          <Text
+            style={{
+              fontSize: 13,
+              color: palette.text.primary,
+              lineHeight: 18,
+            }}
+          >
+            Live AI assistant queries and voice transcription are intentionally disabled in this release under release gate DEF-V2-008 pending enterprise provider privacy and operating authorization. Manual note, task, routine, and journal editing remain fully operational.
+          </Text>
+        </View>
+      )}
+
       {message ? (
         <Text
           accessibilityLiveRegion="polite"
@@ -867,9 +910,11 @@ export function AssistantSheet({
 
       <Text style={[styles.label, { color: palette.text.primary }]}>Question</Text>
       <TextInput
+        testID="input-assistant-prompt"
         accessibilityLabel="Assistant question"
         value={question}
         onChangeText={setQuestion}
+        editable={!isGated && !busy}
         multiline
         style={[
           styles.input,
@@ -877,16 +922,18 @@ export function AssistantSheet({
             color: palette.text.primary,
             borderColor: palette.border.subtle,
             backgroundColor: palette.surfaceRaised,
+            opacity: isGated ? 0.6 : 1,
           },
         ]}
-        placeholder="Ask about your organizer items or Daynori features..."
+        placeholder={isGated ? "Assistant is currently gated under DEF-V2-008. Use manual organizer controls." : "Ask about your organizer items or Daynori features..."}
         placeholderTextColor={palette.text.secondary}
       />
 
       <MobileButton
+        testID="btn-assistant-ask"
         variant="primary"
         themeMode={themeMode}
-        disabled={busy || !question.trim()}
+        disabled={isGated || busy || !question.trim()}
         onPress={() => void ask()}
         accessibilityLabel="Ask assistant"
       >
@@ -912,6 +959,7 @@ export function AssistantSheet({
         </MobileButton>
       ) : null}
       <MobileButton
+        testID="btn-assistant-close"
         variant="secondary"
         themeMode={themeMode}
         onPress={onClose}

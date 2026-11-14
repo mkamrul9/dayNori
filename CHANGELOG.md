@@ -1,5 +1,35 @@
 # Changelog
 
+## Phase 106 — Daynori native Android interface refinement and component overhaul — 2026-11-14
+
+- ADR 0106: Daynori native Android interface refinement and component overhaul adapting Phase 105's visual hierarchy to native mobile idioms (top app bar, bottom navigation bar, bottom modal sheets, subtle elevation/shadows, and calm hairline dividers), preserving shared domain contracts, local drafts, and hardware Back navigation.
+- Native Mobile Component Overhaul:
+  - Enhanced `packages/ui-mobile/src/MobileCard.tsx` with `variant?: 'subtle' | 'outlined' | 'elevated' | 'flat'`, native Android elevation (0, 1, 2dp), rounded card radii (`radii.card = 16`), subtle border (`palette.border.subtle`), and soft shadows. Flat variant applies `palette.surfaceRaised` with transparent borders to remove visual clutter.
+  - Enhanced `packages/ui-mobile/src/MobileListRow.tsx` with `variant?: 'card' | 'flat' | 'divided'`, `leading?: React.ReactNode`, `trailing?: React.ReactNode`, native Android ripple feedback (`android_ripple`), minimum 48dp touch targets, and subtle hairline dividers without perimeter box borders.
+  - Modernized `packages/ui-mobile/src/MobileEmptyState.tsx` with soft notebook border, `surfaceRaised` background, and 48×48dp circular icon badge container.
+  - Upgraded `packages/ui-mobile/src/MobileHeader.tsx` with vector icons, prominent title/subtitle, and dedicated Ask Nori assistant launcher button (`header-assistant-btn`) with truthful gated accessible label.
+  - Modernized `packages/ui-mobile/src/MobileNavigationBar.tsx` with active pill indicators (`action.subtle` bg + `action.primary` icon), tab icons (`book` for Journal), and automatic keyboard avoidance hiding when software keyboard is visible.
+  - Consolidated `apps/mobile/src/views/SettingsHubView.tsx` into a single unified notebook card (`settings-groups-card`) with divided rows and vector icon badges, eliminating repetitive card borders while ensuring $\ge 48\text{dp}$ touch targets.
+  - Redesigned `apps/mobile/src/views/CreateSheet.tsx` entity type selector into modern rounded pill chips (`radii.sm`, `minHeight: 48`) with vector icons, preserving local draft contracts across sheet open/close cycles.
+  - Modernized `apps/mobile/src/views/TodayView.tsx` Quick Capture actions into rounded pills (`radii.pill`, `surfaceRaised`, `minHeight: 40`).
+- Truthful Gating Presentation (`DEF-V2-008`):
+  - Updated `AssistantSheet.tsx` with truthful gating banner (`assistant-gated-banner`) and disabled prompt input / ask button when `isGated=true`.
+  - Added stable testIDs (`input-assistant-prompt`, `btn-assistant-ask`, `btn-assistant-close`).
+- Back Navigation & Local Draft Preservation:
+  - Maintained hardware `BackHandler` navigation stack (nested settings -> settings hub -> active modal -> subview -> today -> home minimize).
+  - Preserved draft state in `CreateSheet.tsx` across open/close cycles without discarding user input.
+- Android Emulator Evidence & Testing:
+  - Developed and executed automated evidence collection script `scripts/phase106-android-evidence.mjs` on `emulator-5554` (Android 15, `sdk_gphone64_x86_64`), passing all 12 checks (Today overview, Plan tab, Library tab, Create sheet, Back navigation on Create, Settings hub, Back navigation on Settings, Truthful Assistant gating under DEF-V2-008, Large text scaling 1.3x font scale, Landscape orientation lock, Account/workspace isolation, and clean device settings restoration).
+  - Recorded emulator evidence strictly as emulator evidence; recorded physical phone hardware and spoken TalkBack listen-through as unavailable; maintained Phase 71 as blocked under ADR 0074.
+  - Verified 19 automated tests across 3 test files (19/19 passed):
+    - `tests/unit/phase106-native-android-tokens-and-a11y.test.ts` (5 tests passed).
+    - `apps/mobile/src/phase106-native-android-views.test.ts` (10 tests passed).
+    - `tests/e2e/phase106-native-android-refinement.test.ts` (4 tests passed).
+- Gate-by-Gate Reporting:
+  - Phase 71 remains strictly `blocked` pending physical ARM64 phone and human ear TalkBack certification.
+  - Phase 106 status recorded as `blocked` pending live release gates (`OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, `DEF-V2-011`). No production deployment or release readiness claimed from local tests.
+
+
 ## Phase 105 — Daynori web/PWA visual refinement and modern interface overhaul — 2026-11-14
 
 - ADR 0105: Daynori web/PWA visual refinement and modern interface overhaul delivering a calmer, modern warm-notebook aesthetic, reducing repeated card borders, optimizing the first viewport, establishing cleaner type and spacing hierarchy, redesigning navigation and menus, and verifying complete responsive and accessibility compliance.

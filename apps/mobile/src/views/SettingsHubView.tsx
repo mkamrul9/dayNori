@@ -1,6 +1,6 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radii, spacing, touchTargets, type ThemeMode } from '@daynori/design-tokens';
-import { Icon, MobileButton, MobileCard } from '@daynori/ui-mobile';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
+import { Icon, MobileButton, MobileCard, MobileListRow } from '@daynori/ui-mobile';
 import {
   MOBILE_SETTINGS_GROUPS,
   type MobileSettingsGroupId,
@@ -14,7 +14,9 @@ export interface SettingsHubViewProps {
 }
 
 /**
- * Grouped Settings entry — Phase 71 native hub (parity with web /settings).
+ * Modern, calm native Settings hub — Phase 106 component overhaul.
+ * Consolidates settings groups into an elegant notebook card with soft divided rows,
+ * eliminating repetitive card borders while ensuring >= 48dp touch targets and clear type hierarchy.
  */
 export function SettingsHubView({
   themeMode,
@@ -50,37 +52,47 @@ export function SettingsHubView({
         Choose a group. Appearance, privacy, and workspace controls open on focused screens.
       </Text>
 
-      {MOBILE_SETTINGS_GROUPS.map((group) => (
-        <Pressable
-          key={group.id}
-          testID={`settings-group-${group.id}`}
-          accessibilityRole="button"
-          accessibilityLabel={`${group.title}. ${group.description}`}
-          onPress={() => onOpenGroup(group.id)}
-          style={{ marginBottom: spacing.sm }}
-        >
-          <MobileCard themeMode={themeMode}>
-            <View style={styles.row}>
-              <View
-                style={[styles.iconWrap, { backgroundColor: palette.surfaceRaised }]}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              >
-                <Icon name={group.icon} color={palette.action.primary} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.groupTitle, { color: palette.text.primary }]}>
-                  {group.title}
-                </Text>
-                <Text style={[styles.groupDesc, { color: palette.text.secondary }]}>
-                  {group.description}
-                </Text>
-              </View>
-              <Icon name="chevron-right" color={palette.text.secondary} />
-            </View>
-          </MobileCard>
-        </Pressable>
-      ))}
+      <MobileCard
+        testID="settings-groups-card"
+        variant="subtle"
+        themeMode={themeMode}
+        style={{ padding: 0, overflow: 'hidden' }}
+      >
+        {MOBILE_SETTINGS_GROUPS.map((group, index) => {
+          const isLast = index === MOBILE_SETTINGS_GROUPS.length - 1;
+          return (
+            <MobileListRow
+              key={group.id}
+              testID={`settings-group-${group.id}`}
+              title={group.title}
+              subtitle={group.description}
+              variant="divided"
+              themeMode={themeMode}
+              onPress={() => onOpenGroup(group.id)}
+              accessibilityLabel={`${group.title}. ${group.description}`}
+              leading={
+                <View
+                  style={[
+                    styles.iconWrap,
+                    { backgroundColor: palette.action.subtle },
+                  ]}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  <Icon name={group.icon} color={palette.action.primary} />
+                </View>
+              }
+              trailing={
+                <Icon name="chevron-right" color={palette.text.secondary} />
+              }
+              style={{
+                borderBottomWidth: isLast ? 0 : 1,
+                borderBottomColor: palette.border.subtle,
+              }}
+            />
+          );
+        })}
+      </MobileCard>
     </ScrollView>
   );
 }
@@ -107,26 +119,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.base,
     lineHeight: 20,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.base,
-    minHeight: touchTargets.mobileMin,
-  },
   iconWrap: {
-    width: touchTargets.mobileMin,
-    height: touchTargets.mobileMin,
+    width: 38,
+    height: 38,
     borderRadius: radii.sm,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  groupTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  groupDesc: {
-    fontSize: 13,
-    marginTop: 4,
-    lineHeight: 18,
   },
 });

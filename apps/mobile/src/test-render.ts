@@ -174,8 +174,32 @@ export class MiniTestRenderer implements ReactTestRenderer {
           }
           return hooks![idx] as { current: T };
         },
-        useMemo: <T>(fn: () => T): T => fn(),
-        useCallback: <T extends (...args: unknown[]) => unknown>(fn: T): T => fn,
+        useMemo: <T>(fn: () => T, deps?: readonly unknown[]): T => {
+          const idx = hookIndex++;
+          const prev = hooks![idx] as { val: T; deps?: readonly unknown[] } | undefined;
+          const hasChanged =
+            !prev || !deps || !prev.deps || deps.some((d, i) => !Object.is(d, prev.deps?.[i]));
+          if (hasChanged) {
+            const val = fn();
+            hooks![idx] = { val, deps };
+            return val;
+          }
+          return prev.val;
+        },
+        useCallback: <T extends (...args: unknown[]) => unknown>(
+          fn: T,
+          deps?: readonly unknown[]
+        ): T => {
+          const idx = hookIndex++;
+          const prev = hooks![idx] as { fn: T; deps?: readonly unknown[] } | undefined;
+          const hasChanged =
+            !prev || !deps || !prev.deps || deps.some((d, i) => !Object.is(d, prev.deps?.[i]));
+          if (hasChanged) {
+            hooks![idx] = { fn, deps };
+            return fn;
+          }
+          return prev.fn;
+        },
         useEffect: (cb: () => void | (() => void), deps?: readonly unknown[]) => {
           const idx = hookIndex++;
           const prev = hooks![idx] as HookEffect | undefined;
