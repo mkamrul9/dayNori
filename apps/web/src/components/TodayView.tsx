@@ -1493,17 +1493,18 @@ export const TodayView: React.FC = () => {
           >
             <Button
               id="today-create-btn"
-              variant="primary"
+              variant="secondary"
               size="compact"
               themeMode={themeMode}
               onClick={() => openModal('create')}
               aria-label="Create"
+              className="desktop-only"
             >
               <Icon name="plus" /> Create
             </Button>
             <Button
               id="customize-today-btn"
-              variant="secondary"
+              variant="primary"
               size="compact"
               themeMode={themeMode}
               onClick={() => setIsCustomizing(true)}

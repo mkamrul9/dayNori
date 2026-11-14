@@ -74,6 +74,13 @@ export default function SettingsPage() {
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.outline = `2px solid ${palette.border.focus}`;
+                      e.currentTarget.style.outlineOffset = '-2px';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.outline = 'none';
+                    }}
                   >
                     <span
                       aria-hidden="true"
@@ -86,6 +93,10 @@ export default function SettingsPage() {
                         borderRadius: `${radii.sm}px`,
                         backgroundColor: palette.action.subtle,
                         color: palette.action.primary,
+                        border:
+                          themeMode === 'dark'
+                            ? `1px solid ${palette.border.subtle}`
+                            : '1px solid transparent',
                         flexShrink: 0,
                       }}
                     >

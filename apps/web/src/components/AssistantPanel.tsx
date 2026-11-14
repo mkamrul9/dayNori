@@ -923,7 +923,10 @@ export function AssistantPanel({
         </div>
       ) : null}
 
-      {/* Selected Knowledge Sources Controls */}
+      {/* When gated under DEF-V2-008, collapse auxiliary non-functional controls to keep the mobile interface calm */}
+      {!isGated && (
+        <>
+          {/* Selected Knowledge Sources Controls */}
       <div
         style={{
           marginBottom: `${spacing.sm}px`,
@@ -1163,6 +1166,8 @@ export function AssistantPanel({
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Input area */}
       <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }} htmlFor="assistant-q">

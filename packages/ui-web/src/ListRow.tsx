@@ -11,6 +11,7 @@ import {
 } from '@daynori/design-tokens';
 
 export interface ListRowProps {
+  id?: string;
   title: string;
   subtitle?: string;
   meta?: string;
@@ -29,6 +30,7 @@ export interface ListRowProps {
  * Supports card, flat, and soft-divided variants with responsive text scaling.
  */
 export const ListRow: React.FC<ListRowProps> = ({
+  id,
   title,
   subtitle,
   meta,
@@ -72,6 +74,7 @@ export const ListRow: React.FC<ListRowProps> = ({
 
   return (
     <div
+      id={id}
       role={isInteractive ? 'button' : undefined}
       tabIndex={isInteractive ? 0 : undefined}
       aria-pressed={isInteractive ? selected : undefined}

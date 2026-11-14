@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 111 — Daynori web/PWA design verification and theme capture correction — 2026-11-14
+
+- ADR 0111: Daynori web/PWA design verification and theme capture correction, fixing the Phase 105 capture script to enforce genuine React theme toggles and zero byte-identical light/dark screenshot pairs, streamlining UI hierarchy across Today, Mobile Menu, Create dialog, Settings, and Ask Nori, and establishing automated theme contrast and interaction verification.
+- Theme Capture Pipeline Correction:
+  - Diagnosed root cause of Phase 105 defect (where all 40 baseline and 39 of 40 post-refinement pairs were byte-identical) as direct DOM attribute manipulation that bypassed React component state in `ShellContext.tsx`, combined with asynchronous CDP navigation race conditions.
+  - Implemented `scripts/capture-phase111-visual-evidence.mjs` with CDP `navigateAndWait` load/hydration synchronization, `prefers-color-scheme` emulation, UI/context theme selection, render settling delays, and an automated verification assertion that halts capture if any light/dark pair yields identical SHA-256 hashes.
+  - Captured 80 baseline (`artifacts/phase111/capture-manifest-before.json`) and 80 post-refinement (`artifacts/phase111/capture-manifest-after.json`) PNG screenshots across 8 core views and 5 viewports (desktop 1280px, mobile 320px, 360px, 390px, 412px). Verified 40/40 distinct pairs (0 identical) in both runs, with 39 of 80 captures exhibiting measurable SHA-256 visual diffs confirming intentional refinements.
+- Visual Hierarchy & Component Refinements:
+  - Today View: Demoted redundant `#today-create-btn` to secondary variant and hidden on mobile viewports (`className="desktop-only"`), eliminating button wrapping on 320px–412px screens; promoted `#customize-today-btn` to primary view-level action.
+  - Mobile Menu Drawer: Added `#mobile-menu-theme-toggle` in the Utilities section with >= 48px touch target, dynamic title ("Switch to Dark Theme" / "Switch to Light Theme"), mode subtitle, and high-contrast icon badge with dark mode border.
+  - Global Create Dialog: Replaced the redundant 80px `Feedback` informational banner with a compact, calm layout; brought all 5 entity creation chips (`New Task`, `New Routine`, `New Note`, `New Journal Entry`, `Upload File`) above the fold in the first viewport on 320px mobile screens; added dark mode boundary borders (`1px solid palette.border.subtle`) to icon badges.
+  - Settings: Added explicit `:focus-visible` styling (`outline: 2px solid ${palette.border.focus}`, `outlineOffset: -2px`) and dark mode boundary borders to all category icon badges.
+  - Ask Nori Assistant Panel: Preserved truthful gated banner (`data-testid="assistant-gated-banner"`, `DEF-V2-008`); collapsed non-functional interactive controls (knowledge sources checkboxes, starter suggestion pills, voice recording controls) when `isGated` is true, presenting a calm, truthful 220px view on mobile.
+- Automated Testing & Accessibility Verification:
+  - Authored `tests/unit/phase111-web-pwa-design-verification.test.ts` (9 unit tests) verifying theme persistence, mobile menu theme toggle, Today header streamlining, Create dialog compact chip layout, Settings focus rings, and Ask Nori gated UI collapse.
+  - Authored `tests/e2e/phase111-theme-capture-and-visual-verification.test.ts` (4 integration tests) validating capture manifest hash uniqueness, zero byte-identical pairs, and visual improvement deltas.
+  - Confirmed WCAG AA color contrast, touch target sizes >= 44px, focus rings on keyboard navigation, 200% text zoom stability without horizontal overflow or text truncation.
+- Separate Qualitative Review:
+  - Authored `artifacts/phase111/human-design-review.md` recording qualitative human design evaluations separately from automated machine checks.
+  - Authored `artifacts/phase111/visual-verification-report.md` and `artifacts/phase111/evidence-summary.json`.
+- Preserved Release Gates & Fail-Closed Boundaries:
+  - Preserved all standing release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71) as strictly blocked. Did not call screenshots production proof without testing the interaction.
+
 ## Phase 110 — Evidence-integrity audit and verification truth reconciliation — 2026-11-14
 
 - ADR 0110: Evidence-integrity audit and verification truth reconciliation across the Daynori project, diagnosing planning desynchronizations, restoring Phase 107 and 108 planning definitions, and systematically correcting reporting overclaims.

@@ -45,8 +45,15 @@ import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 export const AppModals: React.FC = () => {
   const tour = useTour();
   const router = useRouter();
-  const { themeMode, activeModal, openModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
-    useShell();
+  const {
+    themeMode,
+    toggleTheme,
+    activeModal,
+    openModal,
+    closeModal,
+    isMobileDrawerOpen,
+    setMobileDrawerOpen,
+  } = useShell();
   const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken, preferences, savePreferences } = useAuth();
   const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
@@ -1053,13 +1060,8 @@ export const AppModals: React.FC = () => {
         description="Add a new task, routine, note, or entry to your workspace."
         themeMode={themeMode}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px` }}>
-          <Feedback
-            severity="info"
-            message="Choose an item below to open its editor. Sign in and open your workspace to save and sync your content."
-            themeMode={themeMode}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '2px' }}>
             <ContextualHelpLink articleId="help.tasks-vs-routines" label="Tasks vs routines Help" />
           </div>
 
@@ -1091,6 +1093,10 @@ export const AppModals: React.FC = () => {
                       borderRadius: '8px',
                       backgroundColor: palette.action.subtle,
                       color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
                     }}
                   >
                     <Icon name="check-square" size={18} />
@@ -1117,6 +1123,10 @@ export const AppModals: React.FC = () => {
                       borderRadius: '8px',
                       backgroundColor: palette.action.subtle,
                       color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
                     }}
                   >
                     <Icon name="repeat" size={18} />
@@ -1143,6 +1153,10 @@ export const AppModals: React.FC = () => {
                       borderRadius: '8px',
                       backgroundColor: palette.action.subtle,
                       color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
                     }}
                   >
                     <Icon name="note" size={18} />
@@ -1169,6 +1183,10 @@ export const AppModals: React.FC = () => {
                       borderRadius: '8px',
                       backgroundColor: palette.action.subtle,
                       color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
                     }}
                   >
                     <Icon name="journal" size={18} />
@@ -1195,6 +1213,10 @@ export const AppModals: React.FC = () => {
                       borderRadius: '8px',
                       backgroundColor: palette.action.subtle,
                       color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
                     }}
                   >
                     <Icon name="file" size={18} />
@@ -1221,6 +1243,10 @@ export const AppModals: React.FC = () => {
                       borderRadius: '8px',
                       backgroundColor: palette.action.subtle,
                       color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
                     }}
                   >
                     <Icon name="wallet" size={18} />
@@ -1247,6 +1273,10 @@ export const AppModals: React.FC = () => {
                       borderRadius: '8px',
                       backgroundColor: palette.action.subtle,
                       color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
                     }}
                   >
                     <Icon name="folder" size={18} />
@@ -1490,6 +1520,36 @@ export const AppModals: React.FC = () => {
           >
             Utilities
           </p>
+          <ListRow
+            id="mobile-menu-theme-toggle"
+            title={themeMode === 'light' ? 'Switch to Dark Theme' : 'Switch to Light Theme'}
+            subtitle={`Current mode: ${themeMode === 'light' ? 'Warm paper (Light)' : 'Deep ink (Dark)'}`}
+            leading={
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: palette.action.subtle,
+                  color: palette.action.primary,
+                  border:
+                    themeMode === 'dark'
+                      ? `1px solid ${palette.border.subtle}`
+                      : '1px solid transparent',
+                }}
+              >
+                <Icon name={themeMode === 'light' ? 'moon' : 'sun'} size={18} />
+              </span>
+            }
+            onClick={() => {
+              toggleTheme();
+            }}
+            themeMode={themeMode}
+          />
           <ListRow
             title="All features"
             subtitle="Find, pin, hide, or restore modules"
