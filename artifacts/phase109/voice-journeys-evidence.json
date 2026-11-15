@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "phase": "109",
+  "title": "Voice Assistant Verification Journeys Evidence",
+  "date": "2026-11-14",
+  "environment": {
+    "node": "v24.11.1",
+    "platform": "windows-x64",
+    "testRunner": "vitest v4.1.11",
+    "suite": "tests/integration/phase109-voice-assistant-verification.test.ts"
+  },
+  "journeys": [
+    {
+      "journeyId": "VJ-01",
+      "name": "Microphone Hardware Permission Denied and Accessible Text Fallback",
+      "steps": [
+        { "action": "request_microphone_permission", "result": "denied", "granted": false },
+        { "action": "render_ui_notice", "feedback": "Microphone permission denied. You can continue typing below." },
+        { "action": "type_text_fallback", "input": "What features are in Daynori?" },
+        { "action": "submit_ask", "responseStatus": 200, "providerMode": "fake", "answerReceived": true }
+      ],
+      "invariants": {
+        "accessibleFallback": true,
+        "zeroHardwareLockout": true
+      }
+    },
+    {
+      "journeyId": "VJ-02",
+      "name": "Explicit Record, Stop, and Cancel Lifecycle (Local Discard)",
+      "steps": [
+        { "action": "start_recording", "isRecording": true, "timerStarted": true },
+        { "action": "cancel_recording", "isRecording": false, "discardMemory": true, "serverRequests": 0 },
+        { "action": "verify_database", "query": "SELECT count(*) FROM app.ai_transcriptions WHERE user_id = $1", "count": 0 },
+        { "action": "record_and_stop", "durationSeconds": 4, "mimeType": "audio/mp4", "payloadReady": true }
+      ],
+      "invariants": {
+        "localDiscardWithoutUpload": true,
+        "zeroDanglingRows": true
+      }
+    },
+    {
+      "journeyId": "VJ-03",
+      "name": "Native Bangla Voice Capture and Unicode Script Preservation",
+      "steps": [
+        { "action": "upload_audio", "languageHint": "bn", "durationSeconds": 5 },
+        { "action": "transcribe", "detectedLanguage": "bn", "confidence": 0.97, "uncertainSpeech": false },
+        { "action": "inspect_transcript", "transcript": "আগামীকাল সকাল দশটায় ডাক্তারের সাথে অ্যাপয়েন্টমেন্ট আছে", "unicodeRange": "[\u0980-\u09FF]" }
+      ],
+      "invariants": {
+        "nativeBanglaPreserved": true,
+        "zeroTransliterationLoss": true
+      }
+    },
+    {
+      "journeyId": "VJ-04",
+      "name": "English Voice Capture with Task Deadline Ambiguity Detection",
+      "steps": [
+        { "action": "transcribe_audio", "transcript": "set a task deadline: Submit quarterly report tomorrow" },
+        { "action": "detect_deadline_ambiguity", "isAmbiguous": true, "inferredDate": null },
+        { "action": "submit_ask_with_transcript", "allowSuggestProposal": true },
+        { "action": "verify_response", "clarificationPrompt": "What exact date is the deadline for this task? Please specify the date (YYYY-MM-DD).", "suggestedProposal": null },
+        { "action": "verify_organizer_tasks", "tasksCreated": 0 }
+      ],
+      "invariants": {
+        "antiHallucinationClarification": true,
+        "zeroUnreviewedWrites": true
+      }
+    },
+    {
+      "journeyId": "VJ-05",
+      "name": "Code-Switched (Banglish) Voice Capture, Proposal Review, and Explicit Save/Confirm",
+      "steps": [
+        { "action": "transcribe_audio", "languageHint": "bn-en", "durationSeconds": 6, "transcript": "Friday-তে project report submit করতে হবে 5pm-এর মধ্যে" },
+        { "action": "inspect_script", "hasBengali": true, "hasEnglish": true },
+        { "action": "create_note_proposal", "status": "pending", "confirmationTokenIssued": true },
+        { "action": "edit_proposal_preview", "patchedTitle": "Voice Architecture Note (Reviewed)", "freshTokenIssued": true },
+        { "action": "confirm_proposal_with_token", "status": "confirmed", "resultKind": "note" },
+        { "action": "verify_receipt", "table": "app.mutation_receipts", "deviceId": "ai-assistant-proposal", "deepLink": "/library?noteId=..." }
+      ],
+      "invariants": {
+        "codeSwitchedFidelity": true,
+        "editablePreviewEnforced": true,
+        "singleUseTokenInvalidated": true,
+        "durableReceiptLogged": true
+      }
+    },
+    {
+      "journeyId": "VJ-06",
+      "name": "Silence Detection and Uncertainty Warning",
+      "steps": [
+        { "action": "transcribe_silence_payload", "audioBytes": "all_zeros" },
+        { "action": "inspect_response", "transcript": "", "confidence": 0.0, "uncertainSpeech": true },
+        { "action": "evaluate_uncertainty", "reason": "silence", "prompt": "No clear speech was detected in this recording. Please check your microphone or try recording again." }
+      ],
+      "invariants": {
+        "emptyTranscriptOnSilence": true,
+        "promptReviewRequired": true
+      }
+    },
+    {
+      "journeyId": "VJ-07",
+      "name": "Low-Confidence Noisy Audio Uncertainty Warning and Manual Correction",
+      "steps": [
+        { "action": "transcribe_noisy_audio", "confidence": 0.45 },
+        { "action": "inspect_uncertainty", "uncertainSpeech": true, "reason": "low_confidence" },
+        { "action": "render_warning_banner", "message": "Speech recognition confidence was low. Please review and edit the transcript text before generating organizer items." },
+        { "action": "user_edits_textarea", "correctedTranscript": "Submit CS50 memory pset 4 by Friday" }
+      ],
+      "invariants": {
+        "confidenceThresholdEnforced": "0.70",
+        "manualEditPrecedesProposal": true
+      }
+    },
+    {
+      "journeyId": "VJ-08",
+      "name": "Interrupted Upload and Idempotent Retry",
+      "steps": [
+        { "action": "client_generates_op_id", "clientOperationId": "c6a1e944-..." },
+        { "action": "submit_transcribe", "status": 200, "transcriptionId": "tx-1" },
+        { "action": "simulate_network_drop_and_retry", "clientOperationId": "c6a1e944-..." },
+        { "action": "return_cached_transcript", "transcriptionId": "tx-1", "isCached": true },
+        { "action": "verify_db_rows", "query": "SELECT count(*) FROM app.ai_transcriptions WHERE client_operation_id = $1", "count": 1 }
+      ],
+      "invariants": {
+        "zeroDuplicateTranscriptions": true,
+        "zeroDoubleBilling": true
+      }
+    },
+    {
+      "journeyId": "VJ-09",
+      "name": "In-Flight Backgrounding and Request Cancellation",
+      "steps": [
+        { "action": "start_transcription_with_abort_signal" },
+        { "action": "trigger_abort", "signalAborted": true },
+        { "action": "catch_rejection", "error": "AbortError" },
+        { "action": "server_cleans_memory", "bufferZeroed": true, "reservationSettled": "cancelled" }
+      ],
+      "invariants": {
+        "zeroMemoryLeak": true,
+        "cancelledSettlementEnforced": true
+      }
+    },
+    {
+      "journeyId": "VJ-10",
+      "name": "Operational Security: 0-Day Retention, Consent Decoupling, Kill Switch, and Multi-Tenant Isolation",
+      "steps": [
+        { "action": "verify_0_day_retention", "policy": "transient_deleted", "rawAudioInDatabase": false },
+        { "action": "disable_ai_consent" },
+        { "action": "attempt_transcribe_without_consent", "httpStatus": 403, "code": "AI_CONSENT_REQUIRED" },
+        { "action": "enable_ai_kill_switch", "DAYNORI_AI_KILL_SWITCH": "true" },
+        { "action": "attempt_transcribe_under_kill_switch", "httpStatus": 503, "code": "AI_KILL_SWITCH_ACTIVE" },
+        { "action": "test_cross_workspace_idor", "userB_in_workspaceA": 404 }
+      ],
+      "invariants": {
+        "zeroRawAudioBinaryPersistence": true,
+        "consentDecoupledFromMic": true,
+        "killSwitchAuthoritative": true,
+        "multiTenantIsolationEnforced": true
+      }
+    }
+  ]
+}

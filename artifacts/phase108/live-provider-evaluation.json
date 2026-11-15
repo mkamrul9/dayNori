@@ -1,0 +1,80 @@
+{
+  "phase": "108",
+  "generatedAt": "2026-11-14T11:51:30.000Z",
+  "evaluationScope": "AI text-assistant live vs. mock provider release-gate and operational evaluation",
+  "releaseGate": "DEF-V2-008",
+  "gateStatus": "BLOCKED",
+  "reason": "Enterprise provider privacy review and commercial contract pending; real-user content transmission remains disabled fail-closed. Synthetic testing verifies wire format and operational failure recovery.",
+  "providerSeparation": {
+    "mockProvider": {
+      "adapterClass": "FakeAiProvider",
+      "mode": "fake",
+      "disclosureVersion": "2026-04-10.v1",
+      "externalNetworkCalls": false,
+      "realUserDataTransmission": false,
+      "evaluationResults": {
+        "verifiedCitations": true,
+        "abstainedWithoutContext": true,
+        "syntheticStreamChunks": true,
+        "pauseGateCancellation": true,
+        "status": "PASS"
+      }
+    },
+    "liveProvider": {
+      "adapterClass": "OpenAiCompatibleProvider",
+      "mode": "live",
+      "disclosureVersion": "2026-04-10.v1",
+      "targetModel": "gpt-4o-mini",
+      "externalNetworkCalls": "Gated under DEF-V2-008 (synthetic transport exercised for release gate)",
+      "realUserDataTransmission": false,
+      "wireProtocolInvariants": {
+        "storeExplicitlyFalse": true,
+        "temperature": 0,
+        "bearerAuthHeader": true,
+        "jsonContentType": true,
+        "redirectPolicy": "error",
+        "maxInputLength": 20000,
+        "maxSystemLength": 10000,
+        "maxResponseLength": 20000,
+        "timeoutMs": 30000
+      },
+      "operationalFailureRecovery": {
+        "http429RateLimit": {
+          "mappedCode": "AI_PROVIDER_RATE_LIMIT",
+          "handledGracefully": true
+        },
+        "http503Outage": {
+          "mappedCode": "AI_PROVIDER_OUTAGE",
+          "handledGracefully": true
+        },
+        "http401AuthError": {
+          "mappedCode": "AI_PROVIDER_AUTH_ERROR",
+          "handledGracefully": true
+        },
+        "malformedResponse": {
+          "mappedCode": "AI_PROVIDER_MALFORMED",
+          "handledGracefully": true
+        },
+        "inFlightCancellation": {
+          "abortSignalForwarded": true,
+          "outputDiscarded": true,
+          "handledGracefully": true
+        }
+      },
+      "costAccounting": {
+        "microUsdPricing": {
+          "inputPerMillion": 150000,
+          "outputPerMillion": 600000
+        },
+        "concurrencySafeReservations": true,
+        "idempotentSettlement": true
+      }
+    }
+  },
+  "compliance": {
+    "vaultExclusion": "Unconditional; vault items and keys are never indexed or transmitted",
+    "journalOptIn": "Strict; journal entries omitted unless user explicitly opts in",
+    "workspaceIsolation": "Multi-tenant tenant isolation verified across all queries and proposals",
+    "truthfulDiscovery": "Ask Nori sidebar and header entry points present truthful gating banner and disabled inputs"
+  }
+}

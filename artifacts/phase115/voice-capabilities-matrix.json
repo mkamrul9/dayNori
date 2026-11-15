@@ -1,0 +1,85 @@
+{
+  "phase": "115",
+  "title": "Voice Assistant Capabilities and Privacy Boundaries Matrix",
+  "timestamp": "2026-11-14T12:05:00.000Z",
+  "capabilities": [
+    {
+      "id": "CAP-01",
+      "name": "Microphone permission decoupling",
+      "status": "implemented_verified",
+      "description": "Hardware microphone capture permission is decoupled from external cloud AI transmission consent."
+    },
+    {
+      "id": "CAP-02",
+      "name": "Local audio cancellation / discard",
+      "status": "implemented_verified",
+      "description": "Canceling voice recording calls discardRecordingAsync, wiping local client buffer with zero network/DB requests."
+    },
+    {
+      "id": "CAP-03",
+      "name": "0-day transient audio retention",
+      "status": "implemented_verified",
+      "description": "app.ai_transcriptions stores metadata only (words, duration, confidence); zero raw audio columns in schema."
+    },
+    {
+      "id": "CAP-04",
+      "name": "Server in-place audio memory zeroing",
+      "status": "implemented_verified",
+      "description": "scrubAudioMemory / buffer.fill(0) inside try ... finally proactively overwrites binary buffer memory on all 7 exit paths."
+    },
+    {
+      "id": "CAP-05",
+      "name": "Practical V8 memory limits disclosure",
+      "status": "implemented_verified",
+      "description": "Truthfully discloses that immutable V8 string primitives (base64) and OS socket buffers rely on V8 GC and OS lifecycles."
+    },
+    {
+      "id": "CAP-06",
+      "name": "Bangla Unicode speech preservation",
+      "status": "implemented_verified",
+      "description": "Bengali script characters (\\u0980-\\u09FF) are preserved without character encoding corruption."
+    },
+    {
+      "id": "CAP-07",
+      "name": "Silence & low-confidence uncertainty detection",
+      "status": "implemented_verified",
+      "description": "Audio with 0.0 or <0.70 confidence is flagged as uncertain, requiring explicit clarification before action proposals."
+    },
+    {
+      "id": "CAP-08",
+      "name": "Editable transcript preview before write proposals",
+      "status": "implemented_verified",
+      "description": "User reviews and can edit transcribed text before any organizer proposal card is generated."
+    },
+    {
+      "id": "CAP-09",
+      "name": "Date ambiguity clarification gate",
+      "status": "implemented_verified",
+      "description": "Ambiguous dates ('tomorrow afternoon') flag clarification prompts; no speculative or unreviewed organizer writes."
+    },
+    {
+      "id": "CAP-10",
+      "name": "Explicit Save/Confirm with durable sync receipt",
+      "status": "implemented_verified",
+      "description": "Organizers writes require opaque confirmation token and produce mutation receipt with device_id = 'ai-assistant-proposal'."
+    },
+    {
+      "id": "CAP-11",
+      "name": "AI consent enforcement",
+      "status": "implemented_verified",
+      "description": "Transcription without active AI consent rejects with 403 AI_CONSENT_REQUIRED."
+    },
+    {
+      "id": "CAP-12",
+      "name": "Server kill-switch architecture",
+      "status": "implemented_verified",
+      "description": "DAYNORI_AI_KILL_SWITCH = 'true' immediately blocks all transcription requests with 503 AI_KILL_SWITCH_ACTIVE."
+    },
+    {
+      "id": "CAP-13",
+      "name": "Multi-tenant workspace isolation",
+      "status": "implemented_verified",
+      "description": "Transcription records and proposals are strictly scoped to the authorized workspace; cross-workspace access returns 404."
+    }
+  ]
+}

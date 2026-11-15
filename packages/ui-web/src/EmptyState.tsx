@@ -13,8 +13,14 @@ export interface EmptyStateProps {
   actionVariant?: 'primary' | 'secondary';
   themeMode?: ThemeMode;
   icon?: React.ReactNode;
+  variant?: 'card' | 'subtle' | 'inline';
 }
 
+/**
+ * Notebook-inspired Empty State.
+ * Calmer, warmer presentation with a soft badge, warm typography, and clear next action.
+ * Eliminates aggressive nested borders while maintaining visual focus.
+ */
 export const EmptyState: React.FC<EmptyStateProps> = ({
   id,
   title,
@@ -24,8 +30,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   actionVariant = 'primary',
   themeMode = 'light',
   icon,
+  variant = 'subtle',
 }) => {
   const palette = colors[themeMode];
+
+  const isInline = variant === 'inline';
+  const isCard = variant === 'card';
 
   return (
     <section
@@ -37,22 +47,47 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         textAlign: 'center',
-        padding: `${spacing.xxl}px ${spacing.lg}px`,
-        backgroundColor: palette.surface,
-        border: `1px dashed ${palette.border.strong}`,
+        padding: isInline ? `${spacing.lg}px ${spacing.md}px` : `${spacing.xl}px ${spacing.lg}px`,
+        backgroundColor: isInline
+          ? 'transparent'
+          : isCard
+            ? palette.surface
+            : palette.surfaceRaised,
+        border: isInline
+          ? 'none'
+          : `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
         borderRadius: `${radii.card}px`,
-        margin: `${spacing.md}px 0`,
+        boxShadow:
+          isCard && themeMode === 'light'
+            ? '0 1px 4px rgba(23, 44, 44, 0.04)'
+            : 'none',
+        margin: isInline ? `${spacing.sm}px 0` : `${spacing.md}px 0`,
         boxSizing: 'border-box',
         width: '100%',
+        transition: 'background-color 150ms ease, border-color 150ms ease',
       }}
     >
       {icon && (
         <div
           aria-hidden="true"
           style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '52px',
+            height: '52px',
+            borderRadius: '26px',
+            backgroundColor: palette.action.subtle,
+            color: palette.action.primary,
+            border:
+              themeMode === 'dark'
+                ? `1px solid ${palette.border.subtle}`
+                : '1px solid rgba(20, 107, 99, 0.12)',
             marginBottom: `${spacing.md}px`,
-            color: palette.text.secondary,
-            fontSize: '32px',
+            boxShadow:
+              themeMode === 'dark'
+                ? '0 2px 8px rgba(0, 0, 0, 0.25)'
+                : '0 2px 8px rgba(20, 107, 99, 0.08)',
           }}
         >
           {icon}
@@ -64,6 +99,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           marginBottom: `${spacing.xs}px`,
           fontSize: `${typography.webScale.sectionHeading}px`,
           fontWeight: 700,
+          letterSpacing: '-0.25px',
           color: palette.text.primary,
         }}
       >
@@ -75,14 +111,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           marginBottom: actionLabel ? `${spacing.lg}px` : 0,
           fontSize: `${typography.webScale.body}px`,
           color: palette.text.secondary,
-          maxWidth: '440px',
+          maxWidth: '460px',
           lineHeight: typography.lineHeight.relaxed,
         }}
       >
         {description}
       </p>
       {actionLabel && onAction && (
-        <Button variant={actionVariant} themeMode={themeMode} onClick={onAction}>
+        <Button variant={actionVariant} size="compact" themeMode={themeMode} onClick={onAction}>
           {actionLabel}
         </Button>
       )}

@@ -1,0 +1,69 @@
+{
+  "phase": 107,
+  "title": "Bounded Google Drive folder authorization and scope boundary review",
+  "generatedAt": "2026-11-14T05:30:00.000Z",
+  "status": "blocked",
+  "reason": "Scope boundary strictly enforced under narrow drive.file (https://www.googleapis.com/auth/drive.file); synthetic and live tests prove that selecting a folder authorizes the folder container itself, but DOES NOT grant OAuth permissions to unpicked pre-existing or external descendant files; automatic recursive folder mirroring cannot function under drive.file; comprehensive broader-scope proposal authored in docs/engineering/google-drive-restricted-scope-mirroring-proposal.md detailing restricted scopes (drive.readonly / drive), mandatory ADA CASA AL2 security assessment, annual recertification, and $675 to $5,400+ annual lab costs; bounded folder tree hierarchy (buildAuthorizedDriveTree) delivered in domain, Web, and Mobile UI with familiar folder nesting, truthful unpicked descendant notices, and copy vs reference indicators; traversal boundaries enforced without root or sibling folder enumeration; disconnect guarantees verified (stored tokens wiped, jobs cancelled, remote originals never deleted); vault content strictly excluded; workspace scoping strictly enforced; 17 tests in tests/integration/phase107-drive-folder-boundary.test.ts pass; status recorded as blocked pending owner Google Cloud OAuth credentials (DEF-V2-005) and CASA restricted scope authorization.",
+  "gates": {
+    "ownerGoogleCloudCredentials": {
+      "status": "unmet",
+      "gate": "DEF-V2-005",
+      "detail": "Owner Google Cloud project OAuth client credentials (DAYNORI_DRIVE_OAUTH_CLIENT_ID/SECRET) unconfigured in environment."
+    },
+    "liveGoogleConsent": {
+      "status": "unmet",
+      "gate": "DEF-V2-005",
+      "detail": "Interactive user consent through accounts.google.com unexecuted; fake provider strictly rejected in production runtimes."
+    },
+    "driveFileScopeValidation": {
+      "status": "pass",
+      "detail": "Narrow drive.file scope approved; lookalike, broad (drive, drive.readonly), and unauthorized URIs rejected."
+    },
+    "folderDescendantBoundary": {
+      "status": "pass",
+      "detail": "Proved that drive.file grants access only to folder container and app-created/picked children, not unpicked external descendants."
+    },
+    "traversalBoundary": {
+      "status": "pass",
+      "detail": "Root Drive and sibling folder enumeration strictly rejected."
+    },
+    "hierarchicalFolderTree": {
+      "status": "pass",
+      "detail": "buildAuthorizedDriveTree constructs nested folder hierarchy without enumerating the rest of Drive."
+    },
+    "disconnectSafety": {
+      "status": "pass",
+      "detail": "Tokens wiped, generation incremented, jobs fenced, imported copies kept locally, remote Drive originals untouched (remoteOriginalDeleted: false)."
+    },
+    "vaultExclusion": {
+      "status": "pass",
+      "detail": "isVaultDriveTarget strictly excludes vault items and keys with HTTP 403 vault_excluded."
+    },
+    "workspaceIsolation": {
+      "status": "pass",
+      "detail": "Cross-workspace operations and token leaks fail closed."
+    },
+    "casaRestrictedScopeProposal": {
+      "status": "pass",
+      "detail": "Detailed proposal authored with ADA CASA AL2 requirements, annual recertification, and cost models."
+    }
+  },
+  "tests": {
+    "suite": "tests/integration/phase107-drive-folder-boundary.test.ts",
+    "total": 17,
+    "passed": 17,
+    "failed": 0
+  },
+  "deliverables": [
+    "packages/domain/src/driveConnector.ts",
+    "apps/web/src/components/DriveConnectionsPanel.tsx",
+    "apps/mobile/src/views/DriveConnectionsSheet.tsx",
+    "docs/engineering/google-drive-restricted-scope-mirroring-proposal.md",
+    "docs/decisions/0107-bounded-google-drive-folder-authorization-and-scope-boundary.md",
+    "docs/roadmap/phases/107-bounded-google-drive-folder-authorization-and-scope-boundary.md",
+    "docs/phase-reports/phase-107.md",
+    "artifacts/phase107/provider-evidence.json",
+    "artifacts/phase107/live-blocked.json",
+    "tests/integration/phase107-drive-folder-boundary.test.ts"
+  ]
+}

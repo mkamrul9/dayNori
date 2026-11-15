@@ -109,16 +109,17 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
         <View style={styles.typeSelectorRow}>
           {(
             [
-              { key: 'task', label: 'Task' },
-              { key: 'routine', label: 'Routine' },
-              { key: 'note', label: 'Note' },
-              { key: 'file', label: 'File' },
-              { key: 'journal', label: 'Journal' },
+              { key: 'task', label: 'Task', icon: 'check-square' },
+              { key: 'routine', label: 'Routine', icon: 'repeat' },
+              { key: 'note', label: 'Note', icon: 'note' },
+              { key: 'file', label: 'File', icon: 'file' },
+              { key: 'journal', label: 'Journal', icon: 'book' },
             ] as const
           )
             .filter((t) => !isCorePreview || t.key !== 'file')
             .map((t) => {
               const isSelected = itemType === t.key;
+              const itemColor = isSelected ? palette.action.label : palette.text.primary;
               return (
                 <Pressable
                   key={t.key}
@@ -136,10 +137,11 @@ export const CreateSheet: React.FC<CreateSheetProps> = ({
                     },
                   ]}
                 >
+                  <Icon name={t.icon} size={15} color={itemColor} />
                   <Text
                     style={[
                       styles.typeButtonText,
-                      { color: isSelected ? palette.action.label : palette.text.primary },
+                      { color: itemColor, marginLeft: 4 },
                     ]}
                   >
                     {t.label}
@@ -239,8 +241,10 @@ const styles = StyleSheet.create({
     minHeight: touchTargets.mobileMin, // 48dp minimum touch target
     borderRadius: radii.sm,
     borderWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   typeButtonText: {
     fontSize: 13,

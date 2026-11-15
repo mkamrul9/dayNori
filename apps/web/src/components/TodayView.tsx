@@ -1430,9 +1430,11 @@ export const TodayView: React.FC = () => {
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'stretch',
-            gap: `${spacing.sm}px`,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: `${spacing.base}px`,
+            flexWrap: 'wrap',
             minWidth: 0,
           }}
         >
@@ -1491,17 +1493,18 @@ export const TodayView: React.FC = () => {
           >
             <Button
               id="today-create-btn"
-              variant="primary"
+              variant="secondary"
               size="compact"
               themeMode={themeMode}
               onClick={() => openModal('create')}
               aria-label="Create"
+              className="desktop-only"
             >
               <Icon name="plus" /> Create
             </Button>
             <Button
               id="customize-today-btn"
-              variant="secondary"
+              variant="primary"
               size="compact"
               themeMode={themeMode}
               onClick={() => setIsCustomizing(true)}
@@ -1623,16 +1626,23 @@ export const TodayView: React.FC = () => {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  padding: '6px 12px',
+                  padding: '5px 12px',
                   borderRadius: `${radii.pill}px`,
                   backgroundColor: palette.surfaceRaised,
-                  border: `1px solid ${palette.border.subtle}`,
+                  border: '1px solid transparent',
                   color: palette.text.primary,
                   fontSize: '13px',
-                  fontWeight: 600,
+                  fontWeight: 500,
                   textDecoration: 'none',
                   maxWidth: '100%',
                   minWidth: 0,
+                  transition: 'background-color 140ms ease, border-color 140ms ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = palette.border.subtle;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'transparent';
                 }}
               >
                 <span>
@@ -1760,7 +1770,7 @@ export const TodayView: React.FC = () => {
             // 1. Tasks Card
             if (widget.id === 'tasks') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -1977,7 +1987,7 @@ export const TodayView: React.FC = () => {
             // 2. Routines Card
             if (widget.id === 'routines') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2138,7 +2148,7 @@ export const TodayView: React.FC = () => {
             // 3. Upcoming Summary Card (Next 7 Days)
             if (widget.id === 'upcoming_summary') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2192,7 +2202,7 @@ export const TodayView: React.FC = () => {
                           padding: `${spacing.sm}px`,
                           backgroundColor: palette.surfaceRaised,
                           borderRadius: `${radii.sm}px`,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                         }}
                       >
                         <div
@@ -2216,7 +2226,7 @@ export const TodayView: React.FC = () => {
                           padding: `${spacing.sm}px`,
                           backgroundColor: palette.surfaceRaised,
                           borderRadius: `${radii.sm}px`,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                         }}
                       >
                         <div
@@ -2241,7 +2251,7 @@ export const TodayView: React.FC = () => {
             // 4. Quick Capture Card
             if (widget.id === 'quick_capture') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <h2
                       id="quick-capture-heading"
@@ -2271,21 +2281,22 @@ export const TodayView: React.FC = () => {
                         href="/plan?create=task"
                         id="quick-capture-task"
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="check" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="check" size={16} />
                         </span>{' '}
                         New Task
                       </Link>
@@ -2294,21 +2305,22 @@ export const TodayView: React.FC = () => {
                         href="/library?create=note"
                         id="quick-capture-note"
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="note" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="note" size={16} />
                         </span>{' '}
                         New Note
                       </Link>
@@ -2321,21 +2333,22 @@ export const TodayView: React.FC = () => {
                           setIsEditorOpen(true);
                         }}
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           cursor: 'pointer',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="refresh" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="repeat" size={16} />
                         </span>{' '}
                         Routine
                       </button>
@@ -2344,21 +2357,22 @@ export const TodayView: React.FC = () => {
                         href="/journal"
                         id="quick-capture-journal"
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="book" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="journal" size={16} />
                         </span>{' '}
                         Write Journal
                       </Link>
@@ -2367,21 +2381,22 @@ export const TodayView: React.FC = () => {
                         href="/library"
                         id="quick-capture-file"
                         style={{
-                          padding: '6px 12px',
-                          borderRadius: `${radii.sm}px`,
+                          padding: '6px 14px',
+                          borderRadius: `${radii.pill}px`,
                           backgroundColor: palette.surfaceRaised,
-                          border: `1px solid ${palette.border.subtle}`,
+                          border: '1px solid transparent',
                           color: palette.text.primary,
                           fontSize: '13px',
-                          fontWeight: 600,
+                          fontWeight: 500,
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '4px',
+                          gap: '6px',
+                          transition: 'background-color 140ms ease, border-color 140ms ease',
                         }}
                       >
-                        <span>
-                          <Icon name="folder" />
+                        <span style={{ color: palette.action.primary }}>
+                          <Icon name="folder" size={16} />
                         </span>{' '}
                         Upload File
                       </Link>
@@ -2394,7 +2409,7 @@ export const TodayView: React.FC = () => {
             // 5. Journal Reflection Card (No body preview!)
             if (widget.id === 'journal_prompt') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2434,7 +2449,13 @@ export const TodayView: React.FC = () => {
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          minHeight: '32px',
+                          gap: '6px',
+                          minHeight: '34px',
+                          boxShadow:
+                            themeMode === 'dark'
+                              ? '0 2px 8px rgba(0, 0, 0, 0.4)'
+                              : '0 2px 8px rgba(20, 107, 99, 0.2)',
+                          transition: 'background-color 140ms ease, transform 100ms ease',
                         }}
                       >
                         Write reflection <Icon name="arrow-right" />
@@ -2448,7 +2469,7 @@ export const TodayView: React.FC = () => {
             // 6. Recent Items Card
             if (widget.id === 'recent_items') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2538,7 +2559,7 @@ export const TodayView: React.FC = () => {
               );
 
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2589,21 +2610,22 @@ export const TodayView: React.FC = () => {
                             key={f.id}
                             href={`/library?folderId=${f.id}`}
                             style={{
-                              padding: '6px 12px',
-                              borderRadius: `${radii.sm}px`,
+                              padding: '6px 14px',
+                              borderRadius: `${radii.pill}px`,
                               backgroundColor: palette.surfaceRaised,
-                              border: `1px solid ${palette.border.subtle}`,
+                              border: '1px solid transparent',
                               color: palette.text.primary,
                               fontSize: '13px',
-                              fontWeight: 600,
+                              fontWeight: 500,
                               textDecoration: 'none',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '4px',
+                              gap: '6px',
+                              transition: 'background-color 140ms ease, border-color 140ms ease',
                             }}
                           >
-                            <span>
-                              <Icon name="folder" />
+                            <span style={{ color: palette.action.primary }}>
+                              <Icon name="folder" size={16} />
                             </span>{' '}
                             {f.name}
                           </Link>

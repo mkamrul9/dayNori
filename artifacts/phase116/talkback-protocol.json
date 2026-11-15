@@ -1,0 +1,154 @@
+{
+  "phase": "116",
+  "protocol": "android-talkback-spoken-verification-checklist",
+  "timestamp": "2026-11-14T12:30:00.000Z",
+  "status": "protocol_specified_execution_blocked",
+  "gateId": "DEF-V2-011",
+  "environmentPrerequisites": {
+    "deviceType": "Physical ARM64 Android Smartphone (Google Pixel 7/8/9, Samsung Galaxy S23/S24)",
+    "androidVersion": "Android 14 or 15",
+    "screenReader": "Android Accessibility Suite v14.0+ (Google TalkBack)",
+    "ttsEngine": "Google Speech Services",
+    "audioOutput": "Audible speaker or headphones (>= 50% volume)",
+    "tester": "Human ear auditor"
+  },
+  "sections": [
+    {
+      "id": "SEC-01",
+      "name": "Navigation Chrome and Header Announcements",
+      "items": [
+        {
+          "testId": "header-search-btn",
+          "expectedSpeech": "Search organizer, button. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "header-assistant-btn",
+          "expectedSpeech": "Ask Nori assistant (Gated under DEF-V2-008), button. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "header-create-btn",
+          "expectedSpeech": "Create item, button. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "header-settings-btn",
+          "expectedSpeech": "Settings and help, button. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "nav-tab-today",
+          "expectedSpeech": "Today tab, selected, 1 of 4. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "nav-tab-plan",
+          "expectedSpeech": "Plan tab, not selected, 2 of 4. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "nav-tab-library",
+          "expectedSpeech": "Library tab, not selected, 3 of 4. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "nav-tab-journal",
+          "expectedSpeech": "Journal tab, not selected, 4 of 4. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        }
+      ]
+    },
+    {
+      "id": "SEC-02",
+      "name": "Forms, Inputs, and Entity Selector Chips",
+      "items": [
+        {
+          "testId": "create-type-task",
+          "expectedSpeech": "Item type Task, selected, button. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "create-type-routine",
+          "expectedSpeech": "Item type Routine, not selected, button. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "create-title-input",
+          "expectedSpeech": "Title, edit box. Give your task a clear title. Double-tap to edit text.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "create-details-input",
+          "expectedSpeech": "Details or Notes (optional), edit box. Add tags, deadlines, or additional context. Double-tap to edit text.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "create-submit-btn",
+          "expectedSpeech": "Create Task, button. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "testId": "create-cancel-btn",
+          "expectedSpeech": "Cancel item creation, button. Double-tap to activate.",
+          "status": "pending_human_ear_audit"
+        }
+      ]
+    },
+    {
+      "id": "SEC-03",
+      "name": "Live Validation Errors and Alerts",
+      "items": [
+        {
+          "trigger": "Submit with empty title",
+          "expectedSpeech": "Please provide a title for the item, alert.",
+          "role": "alert",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "trigger": "Refocus title input on error",
+          "expectedSpeech": "Title, error: Please provide a title for the item, edit box.",
+          "status": "pending_human_ear_audit"
+        }
+      ]
+    },
+    {
+      "id": "SEC-04",
+      "name": "Modal Containment and Confirmations",
+      "items": [
+        {
+          "feature": "Modal focus trapping",
+          "attribute": "accessibilityViewIsModal=true",
+          "expectedBehavior": "TalkBack swipe gestures cannot escape modal boundaries",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "feature": "Account deletion confirmation",
+          "expectedSpeech": "Delete account confirmation, dialog. Are you sure you want to permanently delete your account?",
+          "status": "pending_human_ear_audit"
+        }
+      ]
+    },
+    {
+      "id": "SEC-05",
+      "name": "Accessibility Focus Return Lifecycle",
+      "items": [
+        {
+          "action": "Dismiss Create sheet via Cancel or Back",
+          "expectedFocusReturn": "header-create-btn",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "action": "Dismiss Settings hub via Close or Back",
+          "expectedFocusReturn": "header-settings-btn",
+          "status": "pending_human_ear_audit"
+        },
+        {
+          "action": "Dismiss Search sheet via Close or Back",
+          "expectedFocusReturn": "header-search-btn",
+          "status": "pending_human_ear_audit"
+        }
+      ]
+    }
+  ]
+}

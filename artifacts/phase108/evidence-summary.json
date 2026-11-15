@@ -1,0 +1,28 @@
+{
+  "phase": "108",
+  "generatedAt": "2026-11-14T11:51:55.000Z",
+  "title": "AI text-assistant release-gate and operational review",
+  "status": "blocked",
+  "releaseGate": "DEF-V2-008",
+  "summary": "Completed comprehensive release-gate and operational review of Ask Nori text-assistant. Enhanced discoverability on web with prominent sidebar and header entry points while presenting truthful gated banners under DEF-V2-008. Verified proposal review flow with editable previews, ambiguous date clarification questions (preventing hallucinations for relative dates), explicit Save/Confirm requirement, durable sync mutation receipts, and canonical deep links. Separated mock provider evaluation from live wire protocol evaluation with store: false, error mapping, and cancellation fencing. Gated fail-closed pending enterprise privacy authorization.",
+  "results": {
+    "totalTests": 16,
+    "passedTests": 16,
+    "failedTests": 0,
+    "testDurationMs": 1288
+  },
+  "keyEvidence": [
+    "artifacts/phase108/live-provider-evaluation.json",
+    "artifacts/phase108/proposals-journey-evidence.json",
+    "tests/integration/phase108-ai-assistant-release-gate.test.ts"
+  ],
+  "gatesChecked": {
+    "DEF-V2-008": "BLOCKED (requires enterprise provider privacy authorization & commercial contract; fail-closed)",
+    "vaultExclusion": "PASSED (unconditional exclusion of vault items and keys)",
+    "journalOptIn": "PASSED (strict opt-in required to propose or index journals)",
+    "workspaceIsolation": "PASSED (multi-tenant tenant boundary verified)",
+    "antiHallucinationDateAmbiguity": "PASSED (clarification prompts required for relative dates)",
+    "durableReceipts": "PASSED (app.mutation_receipts written under AI_DEVICE_ID)",
+    "canonicalDeepLinks": "PASSED (getOrganizerDeepLink verified for tasks, notes, journals)"
+  }
+}

@@ -9,9 +9,14 @@ import { useShell } from './ShellContext';
 import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 import { TourTarget } from '../tours/TourTarget';
 
+/**
+ * Modern desktop navigation sidebar.
+ * Features a calm warm-notebook visual hierarchy with soft pill active states,
+ * distinct section categorizations, and accessible focus outlines.
+ */
 export const AppSidebar: React.FC = () => {
   const pathname = usePathname();
-  const { themeMode } = useShell();
+  const { themeMode, openModal } = useShell();
   const palette = colors[themeMode];
   const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
@@ -47,24 +52,38 @@ export const AppSidebar: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'space-between',
             minHeight: `${touchTargets.webMin}px`,
-            padding: `${spacing.xs}px ${spacing.sm}px ${spacing.xs}px ${
-              isNested ? spacing.xl : spacing.sm
-            }px`,
+            padding: `6px ${spacing.sm}px 6px ${isNested ? spacing.lg : spacing.sm}px`,
             borderRadius: `${radii.sm}px`,
-            backgroundColor: isActive ? palette.surfaceRaised : 'transparent',
+            backgroundColor: isActive ? palette.action.subtle : 'transparent',
             color: isActive ? palette.action.primary : palette.text.primary,
-            fontWeight: isActive ? 700 : 500,
+            fontWeight: isActive ? 600 : 500,
             textDecoration: 'none',
             fontSize: isNested ? '13px' : '14px',
             borderLeft: isActive ? `3px solid ${palette.action.primary}` : '3px solid transparent',
-            marginBottom: '2px',
+            marginBottom: '3px',
             boxSizing: 'border-box',
-            transition: 'background-color 120ms ease, color 120ms ease',
+            transition: 'background-color 140ms ease, color 140ms ease',
+          }}
+          onMouseEnter={(e) => {
+            if (!isActive) e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+          }}
+          onMouseLeave={(e) => {
+            if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
           }}
         >
-          <span style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
-            <span aria-hidden="true" style={{ fontSize: isNested ? '14px' : '16px' }}>
-              <Icon name={item.icon} />
+          <span style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
+            <span
+              aria-hidden="true"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                color: isActive ? palette.action.primary : palette.text.secondary,
+              }}
+            >
+              <Icon name={item.icon} size={isNested ? 16 : 18} />
             </span>
             <span>{item.label}</span>
           </span>
@@ -83,7 +102,7 @@ export const AppSidebar: React.FC = () => {
         justifyContent: 'space-between',
         padding: `${spacing.base}px ${spacing.sm}px`,
         backgroundColor: palette.surface,
-        borderRight: `1px solid ${palette.border.subtle}`,
+        borderRight: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
         boxSizing: 'border-box',
         minHeight: `calc(100vh - ${density.headerHeight}px)`,
         flexShrink: 0,
@@ -95,7 +114,7 @@ export const AppSidebar: React.FC = () => {
           style={{
             fontSize: '11px',
             textTransform: 'uppercase',
-            letterSpacing: '0.05em',
+            letterSpacing: '0.06em',
             color: palette.text.muted,
             padding: `0 ${spacing.sm}px ${spacing.xs}px`,
             fontWeight: 700,
@@ -110,7 +129,7 @@ export const AppSidebar: React.FC = () => {
           style={{
             fontSize: '11px',
             textTransform: 'uppercase',
-            letterSpacing: '0.05em',
+            letterSpacing: '0.06em',
             color: palette.text.muted,
             padding: `${spacing.md}px ${spacing.sm}px ${spacing.xs}px`,
             fontWeight: 700,
@@ -126,8 +145,9 @@ export const AppSidebar: React.FC = () => {
           <p
             style={{
               margin: `0 ${spacing.sm}px`,
-              fontSize: 12,
+              fontSize: '12px',
               color: palette.text.secondary,
+              lineHeight: 1.4,
             }}
           >
             Pin modules from All features
@@ -136,13 +156,16 @@ export const AppSidebar: React.FC = () => {
       </div>
 
       <div
-        style={{ borderTop: `1px solid ${palette.border.subtle}`, paddingTop: `${spacing.sm}px` }}
+        style={{
+          borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+          paddingTop: `${spacing.sm}px`,
+        }}
       >
         <div
           style={{
             fontSize: '11px',
             textTransform: 'uppercase',
-            letterSpacing: '0.05em',
+            letterSpacing: '0.06em',
             color: palette.text.muted,
             padding: `0 ${spacing.sm}px ${spacing.xs}px`,
             fontWeight: 700,
@@ -150,6 +173,69 @@ export const AppSidebar: React.FC = () => {
         >
           Utilities
         </div>
+        <button
+          type="button"
+          data-testid="sidebar-assistant-btn"
+          aria-label="Ask Nori assistant (Gated under DEF-V2-008)"
+          onClick={() => openModal('assistant')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            minHeight: `${touchTargets.webMin}px`,
+            padding: `6px ${spacing.sm}px`,
+            borderRadius: `${radii.sm}px`,
+            backgroundColor: 'transparent',
+            color: palette.text.primary,
+            fontWeight: 500,
+            border: 'none',
+            borderLeft: '3px solid transparent',
+            cursor: 'pointer',
+            fontSize: '14px',
+            marginBottom: '3px',
+            boxSizing: 'border-box',
+            textAlign: 'left',
+            fontFamily: 'inherit',
+            transition: 'background-color 140ms ease, color 140ms ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = palette.surfaceRaised;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px` }}>
+            <span
+              aria-hidden="true"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '24px',
+                height: '24px',
+                color: palette.text.secondary,
+              }}
+            >
+              <Icon name="nori" size={18} />
+            </span>
+            <span>Ask Nori</span>
+          </span>
+          <span
+            style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: '999px',
+              backgroundColor: palette.surfaceRaised,
+              color: palette.text.secondary,
+              fontWeight: 600,
+              border: `1px solid ${palette.border.subtle}`,
+            }}
+          >
+            Gated
+          </span>
+        </button>
         {utilityItems.map((item) => renderNavLink(item))}
       </div>
     </nav>

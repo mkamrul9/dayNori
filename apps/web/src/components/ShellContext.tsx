@@ -42,13 +42,34 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const router = useRouter();
   const pathname = usePathname();
 
-  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.localStorage.getItem('daynori_theme');
+        if (stored === 'light' || stored === 'dark' || stored === 'system') {
+          return stored;
+        }
+      } catch {
+        /* ignore storage access error */
+      }
+    }
+    return 'system';
+  });
   const [systemIsDark, setSystemIsDark] = useState<boolean>(() => {
     if (typeof window !== 'undefined' && window.matchMedia) {
       return window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
     return false;
   });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('daynori_theme', themePreference);
+    } catch {
+      /* ignore storage access error */
+    }
+  }, [themePreference]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
@@ -87,7 +108,14 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     document.documentElement.setAttribute('data-theme', themeMode);
     document.documentElement.style.colorScheme = themeMode;
     document.documentElement.dir = direction;
-  }, [themeMode, direction]);
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __daynoriShell?: unknown }).__daynoriShell = {
+        setTheme,
+        toggleTheme,
+        getTheme: () => themeMode,
+      };
+    }
+  }, [themeMode, direction, toggleTheme, setTheme]);
 
   // Announce route changes to assistive technology
   useEffect(() => {

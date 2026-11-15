@@ -1580,7 +1580,7 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     "essentialOffline": false,
     "gatedFeature": true,
     "id": "help.drive-optional",
-    "contentVersion": 1,
+    "contentVersion": 2,
     "categoryId": "optional",
     "title": {
       "key": "help.help.drive-optional.title",
@@ -1588,12 +1588,15 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     },
     "summary": {
       "key": "help.help.drive-optional.summary",
-      "defaultText": "Connect Drive only with reviewed scopes; disconnect revokes access."
+      "defaultText": "Connect Drive under narrow drive.file; choose folders or files; disconnect revokes access without deleting remote originals."
     },
     "keywords": [
       "optional",
       "google",
-      "drive"
+      "drive",
+      "folder",
+      "mirroring",
+      "disconnect"
     ],
     "relatedActionIds": [
       "drive.connect",
@@ -1604,25 +1607,37 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
       {
         "instruction": {
           "key": "help.help.drive-optional.step.0",
-          "defaultText": "Open Drive settings when the feature is released for your account."
+          "defaultText": "Open Drive settings in Settings > Drive when the feature is enabled for your workspace."
         }
       },
       {
         "instruction": {
           "key": "help.help.drive-optional.step.1",
-          "defaultText": "Review scopes before authorizing. Select what to sync."
+          "defaultText": "Review requested scope (https://www.googleapis.com/auth/drive.file). Authorize only specific folders or files."
         }
       },
       {
         "instruction": {
           "key": "help.help.drive-optional.step.2",
-          "defaultText": "Disconnect/revoke when you no longer want access."
+          "defaultText": "Selecting a folder authorizes the folder container. Pre-existing or external unpicked files inside the folder require individual picker selection unless created by Daynori."
+        }
+      },
+      {
+        "instruction": {
+          "key": "help.help.drive-optional.step.3",
+          "defaultText": "Choose between Imported Copy (offline-ready, malware-scanned) and Provider Reference (zero local storage, online only)."
+        }
+      },
+      {
+        "instruction": {
+          "key": "help.help.drive-optional.step.4",
+          "defaultText": "Disconnect or revoke access anytime: Daynori wipes stored tokens and cancels jobs, keeping remote Google Drive files completely untouched."
         }
       }
     ],
     "expectedResult": {
       "key": "help.help.drive-optional.expected",
-      "defaultText": "Unavailable Drive is explained — Help does not invent a connected account."
+      "defaultText": "Authorized files and folders appear in a familiar tree hierarchy. Disconnect never deletes remote files."
     },
     "learningChapterId": "chapter.optional-gated"
   },
@@ -1764,15 +1779,19 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
     "categoryId": "optional",
     "title": {
       "key": "help.help.assistant-optional.title",
-      "defaultText": "Optional assistant"
+      "defaultText": "Ask Nori optional assistant"
     },
     "summary": {
       "key": "help.help.assistant-optional.summary",
-      "defaultText": "Consent-bound assistant with grounded answers; voice capture is separate from Library audio attach."
+      "defaultText": "Consent-bound assistant with grounded citations, editable previews, ambiguous date verification, and durable receipts. Gated under DEF-V2-008."
     },
     "keywords": [
       "optional",
-      "assistant"
+      "assistant",
+      "nori",
+      "gated",
+      "proposals",
+      "citations"
     ],
     "relatedActionIds": [
       "assistant.consent",
@@ -1785,25 +1804,37 @@ export const HELP_ARTICLES: readonly HelpArticle[] = [
       {
         "instruction": {
           "key": "help.help.assistant-optional.step.0",
-          "defaultText": "Open the assistant only if enabled. Review consent."
+          "defaultText": "Open Ask Nori from the header or sidebar. In this preview, Ask Nori is truthfully gated under DEF-V2-008 pending enterprise provider authorization; manual organizer tools remain fully operational."
         }
       },
       {
         "instruction": {
           "key": "help.help.assistant-optional.step.1",
-          "defaultText": "Ask within allowed scope. Edit proposals before Confirm save."
+          "defaultText": "When enabled, Ask Nori operates under explicit consent, workspace isolation, strict journal opt-in, and unconditional vault exclusion (vault items/keys are never sent to AI providers)."
         }
       },
       {
         "instruction": {
           "key": "help.help.assistant-optional.step.2",
-          "defaultText": "Voice capture for the assistant is separate from Library audio attachments."
+          "defaultText": "Requests such as 'write this journal entry', 'create a note', or 'set a task deadline' produce editable preview proposals. For ambiguous dates (e.g. 'yesterday', 'tomorrow'), Nori prompts for exact YYYY-MM-DD clarification rather than guessing."
+        }
+      },
+      {
+        "instruction": {
+          "key": "help.help.assistant-optional.step.3",
+          "defaultText": "Saving requires explicit Confirm/Save. Confirming records a durable sync mutation receipt and returns a direct link to the created item. Unreviewed or cancelled proposals never modify your organizer tables."
+        }
+      },
+      {
+        "instruction": {
+          "key": "help.help.assistant-optional.step.4",
+          "defaultText": "Voice capture uses 0-day transient retention and is strictly separate from permanent Library audio attachments. In-flight requests can be cancelled immediately."
         }
       }
     ],
     "expectedResult": {
       "key": "help.help.assistant-optional.expected",
-      "defaultText": "Live AI may be off in preview; Help remains usable without AI."
+      "defaultText": "Truthful gating protects user privacy; reviewed preview proposals ensure no unreviewed writes or invented data occur."
     },
     "learningChapterId": "chapter.optional-gated"
   },

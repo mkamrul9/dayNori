@@ -1,0 +1,53 @@
+{
+  "phase": 107,
+  "evaluatedAt": "2026-11-14T05:22:34.000Z",
+  "evaluatedBy": "Antigravity",
+  "provider": "google_drive",
+  "requestedScope": "https://www.googleapis.com/auth/drive.file",
+  "liveExecution": {
+    "command": "node tests/spikes/drive/run-spike.mjs --mode=live",
+    "outcome": "blocked",
+    "observedCount": 0,
+    "reason": "missing_oauth_config: set DAYNORI_DRIVE_CLIENT_ID and DAYNORI_DRIVE_CLIENT_TYPE=web|installed",
+    "evidencePath": "artifacts/phase107/live-blocked.json"
+  },
+  "scopeBehavioralFindings": {
+    "scope": "https://www.googleapis.com/auth/drive.file",
+    "pickerFolderSelection": {
+      "folderItselfAuthorized": true,
+      "preExistingChildrenAuthorized": false,
+      "externallyAddedChildrenAuthorized": false,
+      "appCreatedChildrenAuthorized": true,
+      "independentlyPickedChildrenAuthorized": true,
+      "unauthorizedDescendantBehavior": "Google Drive files.list returns empty or permission_denied for non-app-created / non-picked children"
+    },
+    "traversalBoundary": {
+      "outsideFolderEnumerationForbidden": true,
+      "parentFolderEnumerationForbidden": true,
+      "rootDriveEnumerationForbidden": true
+    },
+    "disconnectGuarantees": {
+      "tokensWiped": true,
+      "jobsFenced": true,
+      "importedCopiesRetainedLocally": true,
+      "remoteDriveOriginalsDeleted": false
+    },
+    "vaultExclusion": {
+      "isVaultDriveTargetEnforced": true,
+      "plaintextsAndKeysExcluded": true
+    },
+    "multiTenantScoping": {
+      "workspaceScoped": true,
+      "actorBound": true
+    }
+  },
+  "restrictedScopeRequirement": {
+    "requiredForRecursiveMirroring": "https://www.googleapis.com/auth/drive.readonly",
+    "isRestricted": true,
+    "casaValidationRequired": true,
+    "casaAssuranceLevel": "AL2",
+    "annualRecertificationRequired": true,
+    "estimatedAnnualLabCost": "$675 to $5,400+ baseline (up to $15,000+ for enterprise labs)",
+    "status": "gated_fail_closed"
+  }
+}

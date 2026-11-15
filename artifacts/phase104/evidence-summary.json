@@ -1,0 +1,123 @@
+{
+  "phase": "104",
+  "status": "blocked",
+  "evaluatedAt": "2026-11-13T23:15:00.000Z",
+  "gitRevision": "3d65d1486a85f1efaf79d74dbb517b54d8a76fc2",
+  "auditVerdict": "WEB_PWA_READINESS_AUDIT_PASS_WITH_GATED_PRESENTATION",
+  "publicationAuthorized": false,
+  "scope": "CURRENT_DAYNORI_WEB_PWA_AUDIT_AND_CRITICAL_CORE_FIXES",
+  "packagedCandidateComparison": {
+    "packagedCandidate": "artifacts/release/daynori-web-v2.0.0-rc1.tar.gz",
+    "packagedSha256": "663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c",
+    "baseCommit": "5b5c4f8cbb8002a77f87b114174bd5db81867af7",
+    "currentHead": "3d65d1486a85f1efaf79d74dbb517b54d8a76fc2",
+    "compatibilityStatus": "COMPATIBLE_WITH_CORE_ORGANIZER",
+    "codeDeltasEvaluated": [
+      "apps/api/src/routes/v1/health.ts: Dynamic package version fallback string",
+      "apps/mobile/metro.config.js: Entry resolution remapping for monorepo root bundling",
+      "apps/mobile/src/notifications/adapter.ts: Strictly typed Android notification channels",
+      "apps/web/src/app/library/page.tsx, plan/page.tsx, journal/page.tsx: URL search parameter aliasing (?entryId=/?id=, ?type=/?view=)",
+      "apps/web/src/components/AssistantPanel.tsx: Truthful gated presentation banner and disabled controls (DEF-V2-008)",
+      "apps/web/src/components/AppHeader.tsx: Accessible label and tooltip explicitly noting DEF-V2-008 gating"
+    ]
+  },
+  "remediatedDefects": [
+    {
+      "id": "DEF-V2-008",
+      "title": "Live AI assistant unavailable; local provisional only",
+      "remediationScope": "TRUTHFUL_GATED_UI_PRESENTATION",
+      "details": "Added truthful gated banner in AssistantPanel, disabled query textarea with informative placeholder, disabled Ask button, disabled starter suggestion pills, disabled voice recording button, and updated AppHeader assistant launcher with explicit gating aria-label."
+    }
+  ],
+  "blockingGates": [
+    {
+      "gate": "OWNER-RELEASE-AUTH",
+      "scope": "WEB_PWA_BETA",
+      "description": "Explicit owner authorization required for candidate revision, distributable web archive, target domain/host, testing cohort, and operating budget."
+    },
+    {
+      "gate": "DEF-V2-001",
+      "scope": "WEB_PWA_BETA",
+      "description": "Production Supabase / Google OAuth identity provider configuration and redirect URLs for web domain."
+    },
+    {
+      "gate": "DEF-V2-008",
+      "scope": "WEB_PWA_BETA",
+      "description": "Live AI provider contract, budget allocation, and enterprise privacy compliance authorization pending owner sign-off. Assistant UI now truthfully communicates gating."
+    },
+    {
+      "gate": "DEF-V2-013",
+      "scope": "WEB_PWA_BETA",
+      "description": "Live consenting human participant usability evaluation (>= 5 representative consenting people, with >= 4 capturing/reopening an item and finding Help unassisted) to be conducted on the invited web beta cohort."
+    },
+    {
+      "gate": "OWNER-SIGNING-KEYS",
+      "scope": "ANDROID_TRACK",
+      "description": "Production Android release keystore and signing credentials (DAYNORI_RELEASE_STORE_*) are not present in workspace; release builds fail closed."
+    },
+    {
+      "gate": "DEF-V2-011",
+      "scope": "ANDROID_TRACK",
+      "description": "Physical Android ARM64 hardware startup verification and physical TalkBack screen-reader latency profiling remain unmet."
+    }
+  ],
+  "verifiedJourneys": [
+    {
+      "journey": "Journey 1: Sign-up / Sign-in",
+      "status": "PASS",
+      "suite": "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+      "assertions": "Synthetic user registration, personal workspace auto-provisioning, profile retrieval, user preferences update (dark mode, monday weekStart, timezone)."
+    },
+    {
+      "journey": "Journey 2: Workspace Isolation",
+      "status": "PASS",
+      "suite": "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+      "assertions": "Alice creates private note in Alice workspace; Bob attempt to read/update/delete returns 404/403; cross-tenant boundary strictly enforced."
+    },
+    {
+      "journey": "Journey 3: Note / Task / Routine / Journal CRUD",
+      "status": "PASS",
+      "suite": "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+      "assertions": "Full create-save-reopen lifecycle verified for rich text notes (AST nodes), tasks with typed deadlines and priorities, daily routines with timezone scheduling, and journal entries with mood tags."
+    },
+    {
+      "journey": "Journey 4: Omni Search",
+      "status": "PASS",
+      "suite": "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+      "assertions": "Global search query indexes and retrieves notes, tasks, routines, and journal entries with distinct entity metadata."
+    },
+    {
+      "journey": "Journey 5: Offline Reopen & Sync Conflict Recovery",
+      "status": "PASS",
+      "suite": "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+      "assertions": "Simulated offline editing; baseRevision tracking; stale baseRevision triggers 409 Conflict without overwriting server state; subsequent re-read and resolved baseRevision update succeeds."
+    },
+    {
+      "journey": "Journey 6: Help & Guided Walkthroughs",
+      "status": "PASS",
+      "suite": "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+      "assertions": "Help how-to articles, FAQ index, and 19-chapter guided tour navigation verified."
+    },
+    {
+      "journey": "Journey 7: Support & Operator Feedback Triage",
+      "status": "PASS",
+      "suite": "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+      "assertions": "User feedback submission receipt; operator feedback triage state transition ('received' -> 'investigating'); priority assignment; internal note audit record."
+    },
+    {
+      "journey": "Journey 8: Gated Features Fail Closed & Presented Truthfully",
+      "status": "PASS",
+      "suite": "tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+      "assertions": "Assistant (403), Vault unlock (403), Rooms invite (403), Billing catalog (403) all fail closed under production gate; UI barriers present gating status truthfully."
+    }
+  ],
+  "verifiedLocalChecks": [
+    "pnpm vitest run tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts (8/8 passed in 925ms)",
+    "pnpm vitest run tests/unit/phase104-gated-features-truthfulness.test.ts (5/5 passed in 6ms)",
+    "pnpm typecheck (13/13 projects passed)",
+    "pnpm lint (0 errors, 0 warnings)",
+    "node scripts/validate-planning.mjs (105 phases, 22 requirements, 464 markdown files)",
+    "pnpm validate:function-register (109 actions, 13 defects, 22 families)"
+  ]
+}
+

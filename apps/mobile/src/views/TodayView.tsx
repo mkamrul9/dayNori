@@ -1718,35 +1718,65 @@ export const TodayView: React.FC<TodayViewProps> = ({
                     <View style={{ flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' }}>
                       <Pressable
                         testID="mobile-quick-task"
+                        accessibilityRole="button"
+                        accessibilityLabel="Quick capture task"
                         onPress={onOpenCreate}
-                        style={[styles.quickButton, { borderColor: palette.border.subtle }]}
+                        android_ripple={{ color: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}
+                        style={[
+                          styles.quickButton,
+                          {
+                            borderColor: 'transparent',
+                            backgroundColor: palette.surfaceRaised,
+                            borderRadius: radii.pill,
+                          },
+                        ]}
                       >
                         <Text
                           style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
                         >
-                          <Icon name="check" /> Task
+                          <Icon name="check" size={16} color={palette.text.primary} /> Task
                         </Text>
                       </Pressable>
                       <Pressable
                         testID="mobile-quick-routine"
+                        accessibilityRole="button"
+                        accessibilityLabel="Quick capture routine"
                         onPress={onOpenCreate}
-                        style={[styles.quickButton, { borderColor: palette.border.subtle }]}
+                        android_ripple={{ color: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}
+                        style={[
+                          styles.quickButton,
+                          {
+                            borderColor: 'transparent',
+                            backgroundColor: palette.surfaceRaised,
+                            borderRadius: radii.pill,
+                          },
+                        ]}
                       >
                         <Text
                           style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
                         >
-                          <Icon name="refresh" /> Routine
+                          <Icon name="repeat" size={16} color={palette.text.primary} /> Routine
                         </Text>
                       </Pressable>
                       <Pressable
                         testID="mobile-quick-journal"
+                        accessibilityRole="button"
+                        accessibilityLabel="Quick capture journal entry"
                         onPress={onNavigateToJournal}
-                        style={[styles.quickButton, { borderColor: palette.border.subtle }]}
+                        android_ripple={{ color: themeMode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}
+                        style={[
+                          styles.quickButton,
+                          {
+                            borderColor: 'transparent',
+                            backgroundColor: palette.surfaceRaised,
+                            borderRadius: radii.pill,
+                          },
+                        ]}
                       >
                         <Text
                           style={{ fontSize: 13, color: palette.text.primary, fontWeight: '600' }}
                         >
-                          <Icon name="book" /> Journal
+                          <Icon name="book" size={16} color={palette.text.primary} /> Journal
                         </Text>
                       </Pressable>
                     </View>
@@ -2531,10 +2561,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   quickButton: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
     borderWidth: 1,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   undoToast: {
     position: 'absolute',

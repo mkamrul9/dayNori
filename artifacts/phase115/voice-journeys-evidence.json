@@ -1,0 +1,118 @@
+{
+  "phase": "115",
+  "title": "Voice Assistant Speech Journeys and Hardware Interaction Evidence",
+  "timestamp": "2026-11-14T12:05:00.000Z",
+  "journeys": [
+    {
+      "id": "VJ-01",
+      "name": "Bangla Speech Recognition with Native Bengali Script",
+      "fixture": "tests/fixtures/audio/synthetic-bangla-appointment.wav",
+      "durationSeconds": 5.0,
+      "detectedLanguage": "bn",
+      "unicodePreserved": true,
+      "unicodePattern": "[\\u0980-\\u09FF]",
+      "confidence": 0.96,
+      "adapter": "mock",
+      "testRef": "P115-07",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-02",
+      "name": "English Task Creation Speech Recognition",
+      "fixture": "tests/fixtures/audio/synthetic-english-deadline.wav",
+      "durationSeconds": 4.0,
+      "detectedLanguage": "en",
+      "confidence": 0.97,
+      "adapter": "mock",
+      "testRef": "P115-08",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-03",
+      "name": "Banglish (Code-Switched) Speech Recognition",
+      "fixture": "tests/fixtures/audio/synthetic-banglish-report.wav",
+      "durationSeconds": 6.0,
+      "detectedLanguage": "bn-en",
+      "confidence": 0.94,
+      "adapter": "mock",
+      "testRef": "P115-09",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-04",
+      "name": "Silence Audio Detection & Uncertainty Flagging",
+      "fixture": "tests/fixtures/audio/synthetic-silence-5s.wav",
+      "durationSeconds": 5.0,
+      "confidence": 0.0,
+      "uncertainSpeech": true,
+      "uncertaintyReason": "silence",
+      "clarificationPrompted": true,
+      "adapter": "mock",
+      "testRef": "P115-10",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-05",
+      "name": "Low-Confidence Noisy Audio Detection",
+      "fixture": "tests/fixtures/audio/synthetic-low-confidence-noise.wav",
+      "durationSeconds": 3.0,
+      "confidence": 0.52,
+      "uncertainSpeech": true,
+      "uncertaintyReason": "low_confidence",
+      "clarificationPrompted": true,
+      "adapter": "mock",
+      "testRef": "P115-11",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-06",
+      "name": "Microphone Permission Denied Behavior",
+      "platform": "Web & Mobile",
+      "permissionGranted": false,
+      "fallbackMechanism": "Accessible text typing fallback (input-assistant-prompt)",
+      "keyboardUsable": true,
+      "testRef": "P115-12 / VUI-02",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-07",
+      "name": "Cancel Recording Semantics",
+      "action": "cancelVoiceRecording",
+      "clientBehavior": "discardRecordingAsync destroys local memory/file",
+      "networkRequests": 0,
+      "databaseRows": 0,
+      "testRef": "P115-13",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-08",
+      "name": "Stop Recording Finalization",
+      "action": "stopVoiceRecording",
+      "clientBehavior": "Finalizes in-memory byte payload before dispatching POST",
+      "testRef": "P115-14",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-09",
+      "name": "Ambiguous Date Clarification in Voice Proposal",
+      "transcript": "Schedule project review tomorrow afternoon",
+      "isAmbiguous": true,
+      "clarificationRequired": true,
+      "unreviewedWritesPrevented": true,
+      "testRef": "P115-15",
+      "status": "passed"
+    },
+    {
+      "id": "VJ-10",
+      "name": "Unambiguous Proposal Explicit Confirmation & Receipt",
+      "transcript": "Schedule sprint retro on 2026-11-20 at 15:00",
+      "confirmationTokenIssued": true,
+      "confirmedByClient": true,
+      "receiptCreated": true,
+      "deviceId": "ai-assistant-proposal",
+      "deepLink": "/tasks?taskId=...",
+      "testRef": "P115-16",
+      "status": "passed"
+    }
+  ]
+}

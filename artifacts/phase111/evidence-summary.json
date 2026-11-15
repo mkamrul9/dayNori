@@ -1,0 +1,69 @@
+{
+  "phase": "111",
+  "title": "Daynori Web/PWA Design Verification and Theme Capture Correction",
+  "status": "blocked",
+  "completedAt": "2026-11-14T08:29:00Z",
+  "governingAdr": "docs/decisions/0111-web-pwa-design-verification-and-theme-capture-correction.md",
+  "captureScript": "scripts/capture-phase111-visual-evidence.mjs",
+  "manifests": {
+    "before": "artifacts/phase111/capture-manifest-before.json",
+    "after": "artifacts/phase111/capture-manifest-after.json"
+  },
+  "metrics": {
+    "screensCaptured": 8,
+    "viewportsCaptured": 5,
+    "themesCaptured": 2,
+    "totalCapturesBefore": 80,
+    "totalCapturesAfter": 80,
+    "pairsTestedBefore": 40,
+    "pairsDistinctBefore": 40,
+    "pairsIdenticalBefore": 0,
+    "pairsTestedAfter": 40,
+    "pairsDistinctAfter": 40,
+    "pairsIdenticalAfter": 0,
+    "capturesChangedBeforeToAfter": 39,
+    "horizontalOverflowCount": 0
+  },
+  "zeroIdenticalLightDarkVerified": true,
+  "humanDesignReview": "artifacts/phase111/human-design-review.md",
+  "visualVerificationReport": "artifacts/phase111/visual-verification-report.md",
+  "targetedAreasRefined": [
+    {
+      "area": "Today View",
+      "component": "apps/web/src/components/TodayView.tsx",
+      "refinement": "Demoted #today-create-btn to secondary and desktop-only to remove mobile button duplication with AppHeader; promoted #customize-today-btn to primary variant to establish clear page-level action; eliminated button row wrapping at 320px."
+    },
+    {
+      "area": "Mobile Menu Drawer",
+      "component": "apps/web/src/components/AppModals.tsx",
+      "refinement": "Added #mobile-menu-theme-toggle under Utilities in the mobile navigation drawer with >= 48px touch target, mode icon, and dynamic mode subtitle."
+    },
+    {
+      "area": "Global Create Dialog",
+      "component": "apps/web/src/components/AppModals.tsx",
+      "refinement": "Removed redundant 80px Feedback informational banner, bringing all 5 entity creation chips into the first viewport on 320px screens; added dark mode border to chip icon badges."
+    },
+    {
+      "area": "Settings Hub",
+      "component": "apps/web/src/app/settings/page.tsx",
+      "refinement": "Added explicit :focus-visible ring outline (2px solid border.focus, -2px offset) and dark mode icon badge boundary borders."
+    },
+    {
+      "area": "Ask Nori Assistant Panel",
+      "component": "apps/web/src/components/AssistantPanel.tsx",
+      "refinement": "Cleanly collapsed non-functional auxiliary interactive controls (knowledge sources, starter suggestions, voice capture) when gated under DEF-V2-008, presenting a calm, truthful, compact 220px view on mobile."
+    }
+  ],
+  "standingGates": [
+    "DEF-V2-001",
+    "DEF-V2-004",
+    "DEF-V2-005",
+    "DEF-V2-007",
+    "DEF-V2-008",
+    "DEF-V2-011",
+    "DEF-V2-013",
+    "OWNER-SIGNING-KEYS",
+    "OWNER-RELEASE-AUTH"
+  ],
+  "localTestDisclaimer": "Screenshots are not production proof without testing the interaction. All tests run in local synthetic headless environments."
+}

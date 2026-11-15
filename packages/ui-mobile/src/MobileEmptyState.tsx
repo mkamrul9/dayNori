@@ -10,9 +10,14 @@ export interface MobileEmptyStateProps {
   onAction?: () => void;
   themeMode?: ThemeMode;
   containerStyle?: StyleProp<ViewStyle>;
+  icon?: React.ReactNode;
   testID?: string;
 }
 
+/**
+ * Calm, notebook-inspired native mobile empty state.
+ * Features a circular icon badge, warm typography, and clear recovery action.
+ */
 export const MobileEmptyState: React.FC<MobileEmptyStateProps> = ({
   title,
   description,
@@ -20,6 +25,7 @@ export const MobileEmptyState: React.FC<MobileEmptyStateProps> = ({
   onAction,
   themeMode = 'light',
   containerStyle,
+  icon,
   testID = 'mobile-empty-state',
 }) => {
   const palette = colors[themeMode];
@@ -32,12 +38,26 @@ export const MobileEmptyState: React.FC<MobileEmptyStateProps> = ({
       style={[
         styles.container,
         {
-          backgroundColor: palette.surface,
+          backgroundColor: palette.surfaceRaised,
           borderColor: palette.border.subtle,
         },
         containerStyle,
       ]}
     >
+      {icon && (
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              backgroundColor: palette.action.subtle,
+            },
+          ]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          {icon}
+        </View>
+      )}
       <Text accessibilityRole="header" style={[styles.title, { color: palette.text.primary }]}>
         {title}
       </Text>
@@ -67,6 +87,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginVertical: spacing.md,
   },
+  iconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
   title: {
     fontSize: 18,
     fontWeight: '700',
@@ -77,10 +105,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: spacing.md,
+    maxWidth: 320,
   },
   actionContainer: {
-    width: '100%',
-    maxWidth: 240,
+    marginTop: spacing.md,
   },
 });

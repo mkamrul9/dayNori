@@ -1,0 +1,83 @@
+{
+  "phase": "113",
+  "generatedAt": "2026-11-14T09:44:22.000Z",
+  "capabilitiesMatrix": [
+    {
+      "capability": "selected-folder-container",
+      "driveFile": "allowed",
+      "driveReadonly": "allowed",
+      "driveFull": "allowed",
+      "notes": "User explicitly picks folder via Picker. drive.file authorizes folder metadata."
+    },
+    {
+      "capability": "existing-unpicked-children-in-folder",
+      "driveFile": "denied",
+      "driveReadonly": "allowed",
+      "driveFull": "allowed",
+      "notes": "Pre-existing files inside folder return 404 under drive.file; require broader restricted scope for automatic discovery."
+    },
+    {
+      "capability": "external-additions-after-folder-selection",
+      "driveFile": "denied",
+      "driveReadonly": "allowed",
+      "driveFull": "allowed",
+      "notes": "Files dropped into folder via drive.google.com lack per-file grant under drive.file."
+    },
+    {
+      "capability": "nested-folders-hierarchy",
+      "driveFile": "bounded_to_picked",
+      "driveReadonly": "allowed_recursive",
+      "driveFull": "allowed_recursive",
+      "notes": "Nested subfolders must be individually picked under drive.file; once picked, nested tree is preserved."
+    },
+    {
+      "capability": "individually-picked-files",
+      "driveFile": "allowed",
+      "driveReadonly": "allowed",
+      "driveFull": "allowed",
+      "notes": "Explicit Picker selection grants per-file access under drive.file."
+    },
+    {
+      "capability": "app-created-files-in-folder",
+      "driveFile": "allowed",
+      "driveReadonly": "denied_read_only",
+      "driveFull": "allowed",
+      "notes": "Files created by Daynori inside folder are authorized under drive.file."
+    },
+    {
+      "capability": "move-and-delete",
+      "driveFile": "bounded_app_only",
+      "driveReadonly": "denied_read_only",
+      "driveFull": "allowed",
+      "notes": "Daynori NEVER deletes remote Drive originals on disconnect or unlinking. Status transitions to source_unavailable."
+    },
+    {
+      "capability": "permission-loss-and-revocation",
+      "driveFile": "handled_fail_closed",
+      "driveReadonly": "handled_fail_closed",
+      "driveFull": "handled_fail_closed",
+      "notes": "Token revocation or permission loss transitions link to permission_lost / revoked."
+    },
+    {
+      "capability": "pagination-handling",
+      "driveFile": "bounded_pages",
+      "driveReadonly": "full_pages",
+      "driveFull": "full_pages",
+      "notes": "Page tokens chunk authorized items without crossing folder boundary."
+    },
+    {
+      "capability": "token-expiry-and-refresh",
+      "driveFile": "handled_crypto_aad",
+      "driveReadonly": "handled_crypto_aad",
+      "driveFull": "handled_crypto_aad",
+      "notes": "Short-lived access tokens expire; refresh tokens sealed with AES-256-GCM + AAD."
+    },
+    {
+      "capability": "revoke-and-disconnect",
+      "driveFile": "handled_zero_leakage",
+      "driveReadonly": "handled_zero_leakage",
+      "driveFull": "handled_zero_leakage",
+      "notes": "Disconnect wipes tokens, increments generation, cancels jobs, preserves imported copies."
+    }
+  ]
+}

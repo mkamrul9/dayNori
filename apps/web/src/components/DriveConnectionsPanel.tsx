@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { colors, radii, spacing, typography, type ThemeMode } from '@daynori/design-tokens';
 import { Button, Feedback, type FeedbackSeverity } from '@daynori/ui-web';
 import type { DriveConnection, DriveLinkedFile, DriveLinkMode } from '@daynori/contracts';
+import { buildAuthorizedDriveTree } from '@daynori/domain';
 import { createWebApiClient } from '../data/webApiClient';
 
 export interface DriveConnectionsPanelProps {
@@ -447,85 +448,180 @@ export function DriveConnectionsPanel({
         </div>
       ) : null}
 
-      {/* Linked Files Inventory List */}
+      {/* Linked Files & Authorized Folders Hierarchy (Phase 107) */}
       {files.length > 0 ? (
         <div style={{ marginTop: spacing.lg }}>
-          <h3
+          <div
             style={{
-              fontSize: `${typography.webScale.body}px`,
-              fontWeight: 600,
-              color: palette.text.primary,
-              margin: '0 0 8px 0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '8px',
             }}
           >
-            Linked & Imported Files ({files.length})
-          </h3>
-          <ul
+            <h3
+              style={{
+                fontSize: `${typography.webScale.body}px`,
+                fontWeight: 600,
+                color: palette.text.primary,
+                margin: 0,
+              }}
+            >
+              Authorized Folders & Files ({files.length})
+            </h3>
+            <span style={{ fontSize: '12px', color: palette.text.secondary }}>
+              Bounded to user-picked selections
+            </span>
+          </div>
+
+          <div
             style={{
-              listStyle: 'none',
-              padding: 0,
-              margin: 0,
               display: 'flex',
               flexDirection: 'column',
               gap: spacing.sm,
             }}
           >
-            {files.map((f) => (
-              <li
-                key={f.id}
+            {buildAuthorizedDriveTree(files).map((node) => (
+              <div
+                key={node.id}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: spacing.sm,
                   borderRadius: radii.sm,
                   border: `1px solid ${palette.border.subtle}`,
                   backgroundColor: palette.surface,
+                  overflow: 'hidden',
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 600, color: palette.text.primary, fontSize: '13px' }}>
-                    {f.displayName}
-                  </div>
-                  <div style={{ fontSize: '12px', color: palette.text.secondary }}>
-                    Mode: <code>{f.linkMode}</code> · Availability:{' '}
-                    <strong
-                      style={{
-                        color:
-                          f.availability === 'permission_lost' || f.availability === 'source_unavailable'
-                            ? palette.status.danger
-                            : f.availability === 'imported' || f.availability === 'offline_cached'
-                              ? palette.status.success
-                              : palette.text.primary,
-                      }}
-                    >
-                      {f.availability === 'permission_lost'
-                        ? 'Permission lost (check Drive access)'
-                        : f.availability === 'source_unavailable'
-                          ? 'Source deleted externally'
-                          : f.availability === 'imported'
-                            ? 'Imported copy (stored in Daynori)'
-                            : f.availability === 'offline_cached'
-                              ? 'Cached offline'
-                              : f.availability === 'pending_offline'
-                                ? 'Pending offline acknowledgment'
-                                : 'Live provider reference'}
-                    </strong>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="subtle"
-                  size="compact"
-                  themeMode={themeMode}
-                  onClick={() => void onUnlink(f.id, f.displayName)}
-                  disabled={busy || unlinkingId === f.id}
+                {/* Node Row */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: spacing.sm,
+                    backgroundColor: node.isFolder ? palette.surfaceRaised : palette.surface,
+                  }}
                 >
-                  {unlinkingId === f.id ? 'Unlinking…' : 'Unlink'}
-                </Button>
-              </li>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {node.isFolder ? (
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: radii.sm,
+                            backgroundColor: palette.action.subtle,
+                            color: palette.action.primary,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          Folder
+                        </span>
+                      ) : null}
+                      <span style={{ fontWeight: 600, color: palette.text.primary, fontSize: '13px' }}>
+                        {node.displayName}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: palette.text.secondary, marginTop: '2px' }}>
+                      Mode: <code>{node.linkMode}</code> · Availability:{' '}
+                      <strong
+                        style={{
+                          color:
+                            node.availability === 'permission_lost' || node.availability === 'source_unavailable'
+                              ? palette.status.danger
+                              : node.availability === 'imported' || node.availability === 'offline_cached'
+                                ? palette.status.success
+                                : palette.text.primary,
+                        }}
+                      >
+                        {node.availability === 'permission_lost'
+                          ? 'Permission lost (check Drive access)'
+                          : node.availability === 'source_unavailable'
+                            ? 'Source deleted externally'
+                            : node.availability === 'imported'
+                              ? 'Imported copy (stored in Daynori)'
+                              : node.availability === 'offline_cached'
+                                ? 'Cached offline'
+                                : node.availability === 'pending_offline'
+                                  ? 'Pending offline acknowledgment'
+                                  : 'Live provider reference'}
+                      </strong>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="subtle"
+                    size="compact"
+                    themeMode={themeMode}
+                    onClick={() => void onUnlink(node.id, node.displayName)}
+                    disabled={busy || unlinkingId === node.id}
+                  >
+                    {unlinkingId === node.id ? 'Unlinking…' : 'Unlink'}
+                  </Button>
+                </div>
+
+                {/* Folder Children / Boundary Notice */}
+                {node.isFolder ? (
+                  <div
+                    style={{
+                      borderTop: `1px solid ${palette.border.subtle}`,
+                      padding: `${spacing.xs}px ${spacing.sm}px ${spacing.sm}px 24px`,
+                      backgroundColor: palette.surface,
+                    }}
+                  >
+                    {node.children.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.xs, marginTop: spacing.xs }}>
+                        {node.children.map((child) => (
+                          <div
+                            key={child.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '6px 8px',
+                              borderRadius: radii.sm,
+                              border: `1px dashed ${palette.border.subtle}`,
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 500, fontSize: '12px', color: palette.text.primary }}>
+                                {child.displayName}
+                              </div>
+                              <div style={{ fontSize: '11px', color: palette.text.secondary }}>
+                                Mode: <code>{child.linkMode}</code> · {child.availability}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="subtle"
+                              size="compact"
+                              themeMode={themeMode}
+                              onClick={() => void onUnlink(child.id, child.displayName)}
+                              disabled={busy || unlinkingId === child.id}
+                            >
+                              {unlinkingId === child.id ? '…' : 'Unlink'}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p
+                        style={{
+                          fontSize: '11px',
+                          color: palette.text.secondary,
+                          margin: '4px 0 0 0',
+                          fontStyle: 'italic',
+                        }}
+                      >
+                        Under narrow drive.file, unpicked pre-existing or external files in this folder are invisible.
+                        Select specific files via the picker, or request broader sync permissions.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       ) : null}
     </section>

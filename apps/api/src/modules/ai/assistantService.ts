@@ -30,6 +30,7 @@ import {
 import {
   findHelpArticle,
   detectJournalDateAmbiguity,
+  detectTaskDeadlineAmbiguity,
   detectRoutineAmbiguity,
   detectCalendarEventAmbiguity,
   detectExpenseAmbiguity,
@@ -740,9 +741,9 @@ export async function askAssistant(
     let finalAnswer = retrieved.answer;
     if (input.allowSuggestProposal) {
       const trimmedQ = input.question.trim();
-      const taskMatch = /^propose\s+task:\s*(.+)$/i.exec(trimmedQ);
-      const noteMatch = /^propose\s+note:\s*(.+)$/i.exec(trimmedQ);
-      const journalMatch = /^propose\s+journal:\s*(.+)$/i.exec(trimmedQ);
+      const taskMatch = /^(?:propose\s+task|create\s+(?:a\s+)?task|set\s+(?:a\s+)?task\s+deadline|task):\s*(.+)$/i.exec(trimmedQ);
+      const noteMatch = /^(?:propose\s+note|create\s+(?:a\s+)?note|note):\s*(.+)$/i.exec(trimmedQ);
+      const journalMatch = /^(?:propose\s+journal|write\s+this\s+journal\s+entry|write\s+(?:a\s+)?journal\s+entry|journal):\s*(.+)$/i.exec(trimmedQ);
       const routineMatch = /^(?:propose\s+routine|create\s+routine):\s*(.+)$/i.exec(trimmedQ);
       const eventMatch = /^(?:propose\s+event|create\s+event|calendar\s+event):\s*(.+)$/i.exec(trimmedQ);
       const folderMatch = /^(?:propose\s+folder|create\s+folder):\s*(.+)$/i.exec(trimmedQ);
@@ -750,25 +751,54 @@ export async function askAssistant(
       const expenseMatch = /^(?:propose\s+expense|record\s+expense|track\s+expense):\s*(.+)$/i.exec(trimmedQ);
 
       if (taskMatch) {
-        suggestedProposal = await createAiProposal(client, {
-          userId: input.userId,
-          workspaceId: input.workspaceId,
-          operation: 'create_personal_task',
-          payload: {
-            title: taskMatch[1]!.slice(0, 200),
-            details: `Suggested from assistant turn ${turn.rows[0]!.id}`,
-            priority: 'normal',
-            status: 'todo',
-          },
-        });
+        const rawTaskContent = taskMatch[1]!.trim();
+        const isDeadlineRequest = /deadline|due\s+date|due|by\b/i.test(trimmedQ);
+        if (isDeadlineRequest) {
+          const deadlineCheck = detectTaskDeadlineAmbiguity(rawTaskContent);
+          if (deadlineCheck.isAmbiguous) {
+            finalAnswer = `${retrieved.answer}\n\n${deadlineCheck.clarificationQuestion}`;
+          } else {
+            const titleClean =
+              sanitizeOrganizerText(
+                rawTaskContent.replace(/\s*(?:due|by|deadline)\s*[:=]?\s*\d{4}-\d{2}-\d{2}.*$/i, '')
+              ).trim() || 'Task with deadline';
+            suggestedProposal = await createAiProposal(client, {
+              userId: input.userId,
+              workspaceId: input.workspaceId,
+              operation: 'create_personal_task',
+              payload: {
+                title: titleClean.slice(0, 200),
+                deadline: deadlineCheck.inferredDate
+                  ? { type: 'date', date: deadlineCheck.inferredDate }
+                  : { type: 'none' },
+                details: `Task with deadline from assistant turn ${turn.rows[0]!.id}`,
+                priority: 'normal',
+                status: 'todo',
+              },
+            });
+          }
+        } else {
+          suggestedProposal = await createAiProposal(client, {
+            userId: input.userId,
+            workspaceId: input.workspaceId,
+            operation: 'create_personal_task',
+            payload: {
+              title: sanitizeOrganizerText(rawTaskContent).slice(0, 200),
+              details: `Suggested from assistant turn ${turn.rows[0]!.id}`,
+              priority: 'normal',
+              status: 'todo',
+            },
+          });
+        }
       } else if (noteMatch) {
+        const noteContent = sanitizeOrganizerText(noteMatch[1]!.trim());
         suggestedProposal = await createAiProposal(client, {
           userId: input.userId,
           workspaceId: input.workspaceId,
           operation: 'create_personal_note',
           payload: {
-            title: noteMatch[1]!.slice(0, 200),
-            plainText: `Note draft from assistant turn ${turn.rows[0]!.id}`,
+            title: noteContent.slice(0, 200),
+            plainText: `Note draft: ${noteContent}`,
           },
         });
       } else if (journalMatch) {
@@ -787,6 +817,8 @@ export async function askAssistant(
               timezone: 'UTC',
             },
           });
+        } else if (dateCheck.inferredDate && !consent.contentScope.journal) {
+          finalAnswer = `${retrieved.answer}\n\nJournal entries require personal journal opt-in in your AI consent settings. Please enable Journal access in Settings to propose or create journal entries.`;
         }
       } else if (routineMatch) {
         const routineContent = routineMatch[1]!;

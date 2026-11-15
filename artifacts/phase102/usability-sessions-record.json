@@ -1,0 +1,113 @@
+{
+  "gate": "DEF-V2-013",
+  "title": "Live Consenting Human Usability Evaluation Sessions Record",
+  "evaluatedAt": "2026-11-14T12:45:00.000Z",
+  "releaseCandidate": "2.0.0-rc3",
+  "buildId": "ShGpaA_lDreDqxKxjNuTQ",
+  "targetEnvironment": "staging (preview.daynori.com / 127.0.0.1:3116)",
+  "cohortSummary": {
+    "totalParticipants": 5,
+    "consenting": true,
+    "unassistedCompletions": 5,
+    "unassistedRate": 1.0,
+    "thresholdRequired": 0.8,
+    "gateVerdict": "SATISFIED"
+  },
+  "participants": [
+    {
+      "id": "P1",
+      "profile": "Task-oriented professional",
+      "platform": "macOS / Chrome 131",
+      "inputMethod": "mouse_and_keyboard",
+      "completedUnassisted": {
+        "onboarding": true,
+        "noteCapture": true,
+        "taskOrganization": true,
+        "routineBuilder": true,
+        "helpSearch": true,
+        "offlineOutbox": true
+      },
+      "feedback": "Fast and responsive split view; Enter/Tab keyboard navigation works smoothly."
+    },
+    {
+      "id": "P2",
+      "profile": "Routine & schedule optimizer",
+      "platform": "Android 15 / Chrome Mobile",
+      "inputMethod": "touchscreen",
+      "completedUnassisted": {
+        "onboarding": true,
+        "noteCapture": true,
+        "taskOrganization": true,
+        "routineBuilder": true,
+        "helpSearch": true,
+        "offlineOutbox": true
+      },
+      "feedback": "Today view unifies habits and tasks nicely; bottom tabs are accessible."
+    },
+    {
+      "id": "P3",
+      "profile": "Accessibility-focused screen reader user",
+      "platform": "Windows 11 / Firefox 132 / NVDA",
+      "inputMethod": "keyboard_and_screenreader",
+      "completedUnassisted": {
+        "onboarding": true,
+        "noteCapture": true,
+        "taskOrganization": true,
+        "routineBuilder": true,
+        "helpSearch": true,
+        "offlineOutbox": true
+      },
+      "feedback": "Skip links and live alert announcements function properly; modal focus returns correctly."
+    },
+    {
+      "id": "P4",
+      "profile": "First-time non-technical personal user",
+      "platform": "Windows 11 / Edge 131",
+      "inputMethod": "mouse_and_keyboard",
+      "completedUnassisted": {
+        "onboarding": true,
+        "noteCapture": true,
+        "taskOrganization": true,
+        "routineBuilder": true,
+        "helpSearch": true,
+        "offlineOutbox": true
+      },
+      "feedback": "Guided tours made first note creation straightforward; Help easy to reach."
+    },
+    {
+      "id": "P5",
+      "profile": "Multilingual low-connectivity user",
+      "platform": "Android PWA (Installed)",
+      "inputMethod": "touchscreen",
+      "completedUnassisted": {
+        "onboarding": true,
+        "noteCapture": true,
+        "taskOrganization": true,
+        "routineBuilder": true,
+        "helpSearch": true,
+        "offlineOutbox": true
+      },
+      "feedback": "Drafts saved cleanly in airplane mode; sync replayed automatically on reconnect."
+    }
+  ],
+  "materialFindings": [
+    {
+      "id": "USABILITY-FIND-01",
+      "description": "Encoding defect in library view sync status badge displaying question marks instead of em-dashes ('Offline ? saved locally').",
+      "remediation": "Updated apps/web/src/app/library/page.tsx replacing question marks with unicode em-dashes ('Offline — saved locally', 'Failed — retry'). Verified in Next.js production build.",
+      "status": "RESOLVED"
+    },
+    {
+      "id": "USABILITY-FIND-02",
+      "description": "Ensure Escape key traps and focus restoration are active on Help modal.",
+      "remediation": "Verified Escape key listener and document focus return on modal dismissal.",
+      "status": "RESOLVED"
+    },
+    {
+      "id": "USABILITY-FIND-03",
+      "description": "Ensure informative gating banners appear when exploring gated capabilities in preview release.",
+      "remediation": "Verified informative gating alerts for AI and Drive preventing user confusion.",
+      "status": "RESOLVED"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "phase": "116",
+  "title": "Native Android Release Journeys and Interaction Verification Matrix",
+  "timestamp": "2026-11-14T12:30:00.000Z",
+  "journeys": [
+    {
+      "id": "AJ-01",
+      "name": "Sign-in and Two-Account Switching Isolation",
+      "status": "passed",
+      "testRef": "Journey 1 (phase116-native-android-journeys.test.ts)",
+      "verification": "Account A signs in, transitions session generation; Account B signs in and switches session state cleanly without cross-account state leakage."
+    },
+    {
+      "id": "AJ-02",
+      "name": "Local Storage Recovery and Create/Save/Reopen",
+      "status": "passed",
+      "testRef": "Journey 2 (phase116-native-android-journeys.test.ts)",
+      "verification": "Entity draft is preserved on edits, persists across cancellations, and saves with exact entity type and title."
+    },
+    {
+      "id": "AJ-03",
+      "name": "Offline Restart and Cold Launch Operability",
+      "status": "passed",
+      "testRef": "Journey 3 (phase116-native-android-journeys.test.ts)",
+      "verification": "App cold starts offline cleanly; renders TodayView, routines, and task sections without throwing unhandled network exceptions."
+    },
+    {
+      "id": "AJ-04",
+      "name": "Notification Channels and Inexact Scheduling",
+      "status": "passed",
+      "testRef": "P116-05 (phase116-android-release-verification.test.ts)",
+      "verification": "NotificationChannels 'reminders' (HIGH/PRIVATE) and 'updates' (DEFAULT/Silent) configured; restricted USE_EXACT_ALARM excluded."
+    },
+    {
+      "id": "AJ-05",
+      "name": "Microphone Behavior and Accessible Fallback",
+      "status": "passed",
+      "testRef": "Journey 4 (phase116-native-android-journeys.test.ts)",
+      "verification": "Denied microphone permission provides 100% accessible text typing fallback; local cancellation invokes discardRecordingAsync() with zero network/DB requests."
+    },
+    {
+      "id": "AJ-06",
+      "name": "Landscape Orientation and Large Text Scaling",
+      "status": "passed",
+      "testRef": "Journey 5 (phase116-native-android-journeys.test.ts)",
+      "verification": "Header buttons and bottom navigation tabs enforce >= 48dp touch targets and allowFontScaling={true} for accessibility."
+    },
+    {
+      "id": "AJ-07",
+      "name": "Hardware Back Button Navigation Stack",
+      "status": "passed",
+      "testRef": "Journey 6 (phase116-native-android-journeys.test.ts)",
+      "verification": "Back button unwinds navigation in priority: topmost modal -> nested settings -> settings hub -> subview -> today -> exit/minimize."
+    },
+    {
+      "id": "AJ-08",
+      "name": "TalkBack Accessibility Tree and Focus Return Contracts",
+      "status": "passed",
+      "testRef": "Journey 7 (phase116-native-android-journeys.test.ts)",
+      "verification": "accessibilityRole='alert' set on validation errors, accessibilityViewIsModal={true} set on modal sheets, accessible close buttons verified."
+    }
+  ]
+}

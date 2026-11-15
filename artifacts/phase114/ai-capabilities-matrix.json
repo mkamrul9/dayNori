@@ -1,0 +1,84 @@
+{
+  "phase": "114",
+  "generatedAt": "2026-11-14T11:27:00.000Z",
+  "capabilitiesMatrix": [
+    {
+      "capability": "grounded-answers-and-citations",
+      "mockProvider": "supported",
+      "liveProvider": "supported_wire_protocol",
+      "notes": "Answers cite exact [source:<id>#rN] or [source:help:<id>#vN] markers; citations resolved against authorized sources."
+    },
+    {
+      "capability": "abstention-on-insufficient-context",
+      "mockProvider": "supported",
+      "liveProvider": "supported_wire_protocol",
+      "notes": "Queries without matching context return ABSTAIN: insufficient authorized sources rather than fabricating facts."
+    },
+    {
+      "capability": "multi-tenant-workspace-isolation",
+      "mockProvider": "strictly_enforced",
+      "liveProvider": "strictly_enforced",
+      "notes": "Cross-workspace retrieval, proposal updates, confirmations, or cancellations fail closed with 403/404."
+    },
+    {
+      "capability": "journal-opt-in-gate",
+      "mockProvider": "strictly_enforced",
+      "liveProvider": "strictly_enforced",
+      "notes": "Excluded when contentScope.journal is false; asking to draft prompts settings opt-in guidance."
+    },
+    {
+      "capability": "unconditional-vault-exclusion",
+      "mockProvider": "strictly_enforced",
+      "liveProvider": "strictly_enforced",
+      "notes": "isVaultAiTarget rejects all vault targets with HTTP 403 vault_excluded / AI_VAULT_FORBIDDEN."
+    },
+    {
+      "capability": "in-flight-cancellation",
+      "mockProvider": "supported",
+      "liveProvider": "supported",
+      "notes": "AbortSignal aborts provider HTTP transport; user draft retained; no orphaned background operations."
+    },
+    {
+      "capability": "outage-and-rate-limit-mapping",
+      "mockProvider": "supported",
+      "liveProvider": "supported",
+      "notes": "429 -> AI_PROVIDER_RATE_LIMIT, 503 -> AI_PROVIDER_OUTAGE, 401 -> AI_PROVIDER_AUTH_ERROR."
+    },
+    {
+      "capability": "budget-reservation-and-settlement",
+      "mockProvider": "supported",
+      "liveProvider": "supported",
+      "notes": "Token reservations tracked in DB; exceeding budget throws HTTP 429 AI_BUDGET_EXHAUSTED."
+    },
+    {
+      "capability": "date-ambiguity-clarification",
+      "mockProvider": "supported",
+      "liveProvider": "supported",
+      "notes": "Relative dates ('yesterday', 'tomorrow') without ISO YYYY-MM-DD trigger clarification questions; zero unreviewed writes."
+    },
+    {
+      "capability": "editable-proposal-previews",
+      "mockProvider": "supported",
+      "liveProvider": "supported",
+      "notes": "PATCH /v1/ai/proposals/:id updates payload, re-hashes request, and issues fresh single-use confirmation token."
+    },
+    {
+      "capability": "explicit-confirmation-and-durable-receipt",
+      "mockProvider": "supported",
+      "liveProvider": "supported",
+      "notes": "Save/Confirm executes proposal, writes to domain tables, records durable mutation receipt (AI_DEVICE_ID), returns deep link."
+    },
+    {
+      "capability": "idempotent-retry-and-cancel-safety",
+      "mockProvider": "supported",
+      "liveProvider": "supported",
+      "notes": "Re-confirming returns existing entity without duplication; cancellation writes zero rows."
+    },
+    {
+      "capability": "multi-tier-kill-switch",
+      "mockProvider": "supported",
+      "liveProvider": "supported",
+      "notes": "DAYNORI_ASSISTANT_KILL_SWITCH halts with 503; workspace toggle disables; UI gating banner displayed."
+    }
+  ]
+}

@@ -170,3 +170,198 @@ export const DRIVE_CONNECTOR_REQUESTED_SCOPE = DRIVE_FILE_SCOPE;
 
 /** Short-lived Picker access-token handoff constraints (never refresh tokens). */
 export const PICKER_ACCESS_TOKEN_TTL_MS = 5 * 60 * 1000;
+
+/** Google Drive MIME type for folder containers. */
+export const GOOGLE_DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder';
+
+export function isDriveFolder(mimeType: string): boolean {
+  return mimeType === GOOGLE_DRIVE_FOLDER_MIME;
+}
+
+export interface DescendantEvaluationInput {
+  parentFolderId: string;
+  childFileId: string;
+  provenance: 'app_created' | 'picker_selected' | 'external_unpicked' | 'pre_existing_unpicked';
+  grantedScope: string;
+}
+
+export interface DescendantEvaluationResult {
+  authorized: boolean;
+  reason: string | null;
+  scopeCategory: 'narrow_drive_file' | 'broader_restricted' | 'invalid_scope';
+}
+
+/**
+ * Phase 107: Under narrow drive.file scope, selecting a folder authorizes the folder
+ * resource itself, but DOES NOT grant OAuth permissions to pre-existing or external unpicked descendants.
+ * Only app-created files or individually picked files within that folder are authorized.
+ */
+export function evaluateDescendantAuthorization(
+  input: DescendantEvaluationInput
+): DescendantEvaluationResult {
+  const scopeCheck = validateGrantedDriveScopes(input.grantedScope, { allowOpenIdExtras: true });
+  if (!scopeCheck.ok) {
+    return {
+      authorized: false,
+      reason: 'invalid_or_forbidden_scope',
+      scopeCategory: 'invalid_scope',
+    };
+  }
+
+  if (input.provenance === 'app_created' || input.provenance === 'picker_selected') {
+    return {
+      authorized: true,
+      reason: null,
+      scopeCategory: 'narrow_drive_file',
+    };
+  }
+
+  return {
+    authorized: false,
+    reason: 'drive_file_scope_does_not_grant_unpicked_descendants',
+    scopeCategory: 'narrow_drive_file',
+  };
+}
+
+/**
+ * Enforces bounded traversal: Daynori never traverses or queries parents, sibling
+ * folders, or root drive outside the user's explicitly selected folder IDs.
+ */
+export function validateTraversalBoundary(input: {
+  targetFolderId: string;
+  authorizedFolderIds: ReadonlySet<string>;
+}): { withinBoundary: boolean; error?: string } {
+  if (input.targetFolderId === 'root' || input.targetFolderId === '') {
+    return {
+      withinBoundary: false,
+      error: 'Root Drive traversal is strictly prohibited without full drive.readonly/drive scope and CASA verification',
+    };
+  }
+  if (!input.authorizedFolderIds.has(input.targetFolderId)) {
+    return {
+      withinBoundary: false,
+      error: 'Target folder is outside authorized folder boundary — sibling or parent folders cannot be enumerated',
+    };
+  }
+  return { withinBoundary: true };
+}
+
+export interface DriveFolderTreeNode {
+  id: string;
+  providerFileId: string;
+  displayName: string;
+  mimeType: string;
+  isFolder: boolean;
+  linkMode: DriveLinkMode;
+  availability: string;
+  provenance: string;
+  parentProviderFolderId: string | null;
+  children: DriveFolderTreeNode[];
+  childCount: number;
+}
+
+export interface MinimalDriveItem {
+  id: string;
+  providerFileId: string;
+  displayName: string;
+  mimeType: string;
+  linkMode: DriveLinkMode;
+  availability: string;
+  provenance?: string;
+  parentProviderFolderId?: string | null;
+}
+
+/**
+ * Constructs a familiar hierarchical folder tree for authorized Drive items.
+ * Items that have a known authorized parent folder are nested under that folder.
+ */
+export function buildAuthorizedDriveTree<T extends MinimalDriveItem>(
+  items: readonly T[],
+  parentLookup?: (item: T) => string | null
+): DriveFolderTreeNode[] {
+  const nodes = new Map<string, DriveFolderTreeNode>();
+  for (const it of items) {
+    const parentId = parentLookup ? parentLookup(it) : it.parentProviderFolderId ?? null;
+    nodes.set(it.providerFileId, {
+      id: it.id,
+      providerFileId: it.providerFileId,
+      displayName: it.displayName,
+      mimeType: it.mimeType,
+      isFolder: isDriveFolder(it.mimeType),
+      linkMode: it.linkMode,
+      availability: it.availability,
+      provenance: it.provenance ?? 'picker_selected',
+      parentProviderFolderId: parentId,
+      children: [],
+      childCount: 0,
+    });
+  }
+
+  const roots: DriveFolderTreeNode[] = [];
+  for (const node of nodes.values()) {
+    if (node.parentProviderFolderId && nodes.has(node.parentProviderFolderId)) {
+      const parent = nodes.get(node.parentProviderFolderId)!;
+      parent.children.push(node);
+      parent.childCount = parent.children.length;
+    } else {
+      roots.push(node);
+    }
+  }
+
+  return roots;
+}
+
+export interface BroaderScopeRequirements {
+  requiredScope: string;
+  isRestricted: boolean;
+  requiresCASA: boolean;
+  casaLevel: 'AL1' | 'AL2' | 'none';
+  annualCostRangeUsd: { min: number; max: number };
+  recurringAnnualRecertification: boolean;
+  googleVerificationRequired: boolean;
+  rationale: string;
+}
+
+/**
+ * Evaluates scope tier, CASA assessment requirements, and cost estimates for broader Google Drive permissions.
+ */
+export function evaluateBroaderScopeRequirement(
+  feature: 'bounded_selected_folder' | 'recursive_folder_mirroring' | 'full_drive_sync'
+): BroaderScopeRequirements {
+  switch (feature) {
+    case 'bounded_selected_folder':
+      return {
+        requiredScope: DRIVE_FILE_SCOPE,
+        isRestricted: false,
+        requiresCASA: false,
+        casaLevel: 'none',
+        annualCostRangeUsd: { min: 0, max: 0 },
+        recurringAnnualRecertification: false,
+        googleVerificationRequired: false,
+        rationale: 'Granular per-file authorization through Google Picker without CASA audit requirement.',
+      };
+    case 'recursive_folder_mirroring':
+      return {
+        requiredScope: 'https://www.googleapis.com/auth/drive.readonly',
+        isRestricted: true,
+        requiresCASA: true,
+        casaLevel: 'AL2',
+        annualCostRangeUsd: { min: 675, max: 5400 },
+        recurringAnnualRecertification: true,
+        googleVerificationRequired: true,
+        rationale: 'Read-only recursive folder crawling requires restricted scope and annual ADA CASA AL2 security assessment.',
+      };
+    case 'full_drive_sync':
+      return {
+        requiredScope: 'https://www.googleapis.com/auth/drive',
+        isRestricted: true,
+        requiresCASA: true,
+        casaLevel: 'AL2',
+        annualCostRangeUsd: { min: 1500, max: 15000 },
+        recurringAnnualRecertification: true,
+        googleVerificationRequired: true,
+        rationale: 'Two-way synchronization requires unrestricted drive scope and comprehensive multi-tier lab assessment.',
+      };
+  }
+}
+

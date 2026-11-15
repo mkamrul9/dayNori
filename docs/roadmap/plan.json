@@ -3827,6 +3827,860 @@
         "docs/roadmap/v2/antigravity-handoff.md"
       ],
       "commit": "docs(product): review Version 2 outcomes and prioritize follow-up"
+    },
+    {
+      "id": "104",
+      "group": "v2-release",
+      "title": "Current Daynori web/PWA readiness audit and critical core fixes",
+      "dependsOn": [
+        "102"
+      ],
+      "scope": [
+        "apps/web",
+        "apps/api",
+        "tests/e2e",
+        "docs/roadmap",
+        "docs/phase-reports"
+      ],
+      "steps": [
+        "Audit real user journeys for sign-up/sign-in, workspace isolation, note/task/routine/journal create-save-reopen, search, offline reopen, and support.",
+        "Compare current commit and dirty tree with the Phase 102 packaged candidate.",
+        "Present gated features, especially Ask Nori, truthfully with clear explanations instead of looking available and failing on submit.",
+        "Fix reproducible defects and record other defects with owners and gates in the function register."
+      ],
+      "acceptance": [
+        "All 8 real user journeys pass with synthetic accounts and verified responses.",
+        "Gated Ask Nori assistant is presented truthfully with disabled inputs and explanatory links under DEF-V2-008.",
+        "Release candidate diff is documented and function register barriers are reconciled.",
+        "No deployment or release readiness claimed from local tests."
+      ],
+      "checks": [
+        "pnpm vitest run tests/e2e/phase104-v2-web-pwa-audit-journeys.test.ts",
+        "node scripts/phase60-web-production-smoke.mjs",
+        "pnpm validate:function-register",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0104-current-web-pwa-readiness-audit-and-critical-core-fixes.md",
+        "docs/phase-reports/phase-102.md"
+      ],
+      "commit": "test(release): audit web/PWA readiness and present gated assistant truthfully"
+    },
+    {
+      "id": "105",
+      "group": "v2-release",
+      "title": "Daynori web/PWA visual refinement and modern interface overhaul",
+      "dependsOn": [
+        "104"
+      ],
+      "scope": [
+        "apps/web",
+        "packages/ui-web",
+        "packages/design-tokens",
+        "tests/e2e",
+        "tests/unit",
+        "artifacts/phase105",
+        "docs/roadmap",
+        "docs/phase-reports"
+      ],
+      "steps": [
+        "Capture fresh current-build screenshots of Today, Plan, Library, Journal, Create, menus, Settings, and Ask Nori at desktop and 320-412px mobile widths in light and dark themes.",
+        "Make interface calmer and more modern: reduce repeated large card borders, simplify first viewport, establish clearer type and spacing hierarchy, and remove redundant actions.",
+        "Redesign navigation, header, sidebar, and mobile bottom nav so common tasks are obvious while preserving Daynori warm notebook identity, vector icons, and no-emoji chrome.",
+        "Improve dark surfaces, selected states, contrast, focus rings, empty/error/offline states, and 200% text scaling resilience with before/after visual evidence."
+      ],
+      "acceptance": [
+        "Before and after screenshots captured across desktop and 320-412px mobile viewports in light and dark themes.",
+        "Card borders reduced and simplified across Today, Plan, Library, Journal, Settings, and Create modal.",
+        "Header quick actions, sidebar navigation, and mobile bottom nav redesigned without repeated border boxes and with clear touch targets (>= 44px).",
+        "WCAG AA contrast maintained across light and dark themes, focus-visible rings verified, and 200% text scaling verified without horizontal overflow.",
+        "Zero app-authored emoji introduced into application chrome."
+      ],
+      "checks": [
+        "pnpm vitest run tests/unit/phase105-visual-tokens-and-a11y.test.ts tests/e2e/phase105-v2-web-visual-refinement.test.ts",
+        "pnpm typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/design/design-system.md",
+        "docs/design/accessibility.md",
+        "docs/design/information-architecture.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0105-daynori-web-pwa-visual-refinement-and-modern-interface-overhaul.md",
+        "docs/phase-reports/phase-104.md"
+      ],
+      "commit": "refactor(web): refine visual hierarchy, calm card borders, and modernize navigation"
+    },
+    {
+      "id": "106",
+      "group": "v2-release",
+      "title": "Daynori native Android interface refinement and component overhaul",
+      "dependsOn": [
+        "105"
+      ],
+      "scope": [
+        "apps/mobile",
+        "packages/ui-mobile",
+        "packages/design-tokens",
+        "tests/unit",
+        "tests/e2e",
+        "artifacts/phase106",
+        "docs/roadmap",
+        "docs/phase-reports"
+      ],
+      "steps": [
+        "Read Phase 71 and its remaining blockers; adapt the new visual hierarchy, navigation, menus, forms, and dark theme to native Android components rather than copying desktop layout.",
+        "Refine MobileCard, MobileListRow, MobileEmptyState, MobileHeader, and MobileNavigationBar to reduce repeated card borders, establish clean elevation, and ensure >= 48dp touch targets.",
+        "Modernize CreateSheet and SettingsHubView into clean native mobile cards and divided list rows while preserving local drafts, Back navigation, and accessibility.",
+        "Truthfully present gated Ask Nori assistant state (DEF-V2-008) in AssistantSheet and MobileHeader on native Android.",
+        "Test Today, Plan, Library, Journal, Settings, Create, and Assistant entry point across light/dark themes, large text scaling, landscape orientation, and keyboard-open states.",
+        "Recheck account switching and multi-tenant workspace isolation on native Android; record emulator evidence separately from physical hardware and spoken TalkBack, leaving Phase 71 blocked."
+      ],
+      "acceptance": [
+        "Native Android components (MobileCard, MobileListRow, MobileEmptyState, MobileHeader, MobileNavigationBar) adapted to calm modern warm notebook direction without copying desktop layouts.",
+        "Today, Plan, Library, Journal, Settings, Create, and Assistant entry point verified in light/dark themes, large text scaling, landscape orientation, and keyboard-open states.",
+        "Local drafts preserved on dismiss/cancel, Android hardware Back navigation verified across sheets and modals, and touch targets meet >= 48dp.",
+        "Account switching and workspace isolation verified with zero state leakage.",
+        "Emulator evidence recorded separately from physical device and spoken TalkBack evidence; Phase 71 remains blocked."
+      ],
+      "checks": [
+        "pnpm vitest run tests/unit/phase106-native-android-tokens-and-a11y.test.ts tests/e2e/phase106-native-android-refinement.test.ts apps/mobile/src/views/AccountSheet.test.ts apps/mobile/src/views/CreateSheet.test.ts",
+        "pnpm typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/design/design-system.md",
+        "docs/design/accessibility.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0106-daynori-native-android-interface-refinement-and-component-overhaul.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/phase-reports/phase-71.md",
+        "docs/phase-reports/phase-105.md"
+      ],
+      "commit": "refactor(mobile): adapt modern visual hierarchy and calm card borders to native android components"
+    },
+    {
+      "id": "107",
+      "group": "v2-capabilities",
+      "title": "Bounded Google Drive folder authorization and scope boundary review",
+      "dependsOn": [
+        "87",
+        "106"
+      ],
+      "scope": [
+        "packages/domain",
+        "apps/web",
+        "apps/mobile",
+        "docs/engineering",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase107",
+        "tests/integration"
+      ],
+      "steps": [
+        "Review deferred Phase 50 decision (ADR 0046) and Phase 87 audit (ADR 0087); run live and synthetic Google Picker/OAuth tests to evaluate whether drive.file grants descendants and future additions.",
+        "Formulate bounded folder tree hierarchy (buildAuthorizedDriveTree) in domain and present authorized folder structures with familiar hierarchy and truthful empty/unpicked notices in Web and Mobile UI.",
+        "Enforce strict traversal boundaries preventing root Drive enumeration or unselected parent/sibling folder crawling; preserve vault exclusion and multi-tenant workspace isolation.",
+        "Verify disconnect and revocation guarantees: tokens wiped, in-flight jobs fenced, imported copies retained in app storage, and remote Drive originals never deleted or trashed.",
+        "Since drive.file does not authorize unpicked descendants, author a comprehensive broader-scope proposal detailing candidate restricted scopes (drive.readonly, drive), mandatory ADA CASA AL2 security assessment, annual recertification, and cost requirements; keep recursive mirroring gated fail-closed under DEF-V2-005."
+      ],
+      "acceptance": [
+        "Synthetic tests prove drive.file authorizes folder container and app-created/picked children, but denies unpicked pre-existing or external descendants.",
+        "Authorized folder tree hierarchy rendered with familiar nesting and clear copy vs. reference indicators on Web and Mobile.",
+        "Disconnect and revocation cleanly wipe tokens without deleting or trashing remote Google Drive originals.",
+        "Vault items and keys are strictly excluded (isVaultDriveTarget), failing closed with 403 vault_excluded.",
+        "Multi-tenant workspace scoping verified with zero cross-workspace data leakage.",
+        "Concrete broader-scope proposal authored with current Google verification and CASA AL2 cost requirements; recursive mirroring remains gated."
+      ],
+      "checks": [
+        "pnpm vitest run tests/integration/phase107-drive-folder-boundary.test.ts tests/integration/phase87-drive-connection-readiness.test.ts tests/spikes/drive/drive-scope.synthetic.test.ts",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm --filter @daynori/mobile typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0046-drive-scope-and-folder-access.md",
+        "docs/decisions/0087-google-drive-connection-and-scope-readiness.md",
+        "docs/decisions/0107-bounded-google-drive-folder-authorization-and-scope-boundary.md",
+        "docs/engineering/google-drive-restricted-scope-mirroring-proposal.md",
+        "docs/phase-reports/phase-50.md",
+        "docs/phase-reports/phase-87.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "feat(drive): verify bounded drive folder trees and proposal for restricted scope"
+    },
+    {
+      "id": "108",
+      "group": "v2-capabilities",
+      "title": "AI text-assistant release-gate and operational review",
+      "dependsOn": [
+        "94",
+        "107"
+      ],
+      "scope": [
+        "packages/domain",
+        "apps/api",
+        "apps/web",
+        "apps/mobile",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase108",
+        "tests/integration"
+      ],
+      "steps": [
+        "Evaluate existing Phase 90–94 AI text-assistant implementation against release gate DEF-V2-008, ensuring Ask Nori is easily discoverable on desktop and mobile while presenting truthful unavailability explanations when gated.",
+        "Implement anti-hallucination date ambiguity verification for task deadlines (detectTaskDeadlineAmbiguity) and journal entries, prompting clarifying questions for relative dates without creating unreviewed proposals.",
+        "Verify proposal review lifecycle: preview editing, single-use confirmation tokens, explicit Save/Confirm execution, durable mutation receipts under AI_DEVICE_ID in app.mutation_receipts, and canonical deep links via getOrganizerDeepLink.",
+        "Enforce strict privacy fencing: current disclosure versions, multi-tenant workspace isolation, strict journal opt-in (contentScope.journal), and unconditional vault exclusion.",
+        "Separate mock provider testing (FakeAiProvider) from live provider wire protocol evaluation (OpenAiCompatibleProvider with store: false, error mapping for HTTP 429/503/401/malformed, and in-flight cancellation) and keep live enterprise transmission gated under DEF-V2-008."
+      ],
+      "acceptance": [
+        "Ask Nori surfaced in desktop sidebar navigation and header with truthful gating banner and disabled inputs under DEF-V2-008.",
+        "Ambiguous date queries for journals and task deadlines trigger clarifying questions rather than guessing or saving unreviewed items.",
+        "Explicit Confirm/Save produces durable sync mutation receipts in app.mutation_receipts and canonical deep links to created items.",
+        "Unreviewed and cancelled proposals never modify domain organizer tables.",
+        "Vault items and keys are unconditionally excluded with 403 AI_VAULT_FORBIDDEN.",
+        "Mock and live provider evaluation records generated separately; live provider wire protocol verified with store: false."
+      ],
+      "checks": [
+        "pnpm vitest run tests/integration/phase108-ai-assistant-release-gate.test.ts tests/integration/phase90-ai-consent-privacy-readiness.test.ts tests/integration/phase91-scoped-retrieval-evaluation.test.ts tests/integration/phase92-assistant-chat-stream-guidance.test.ts tests/integration/phase93-reviewed-organizer-creation.test.ts tests/integration/phase94-structured-organizer-tools.test.ts",
+        "pnpm --filter @daynori/domain typecheck",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm --filter @daynori/mobile typecheck",
+        "pnpm --filter @daynori/api typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0090-ai-provider-consent-privacy-and-operating-decisions.md",
+        "docs/decisions/0091-scoped-retrieval-indexing-and-grounding-quality.md",
+        "docs/decisions/0093-reviewed-note-task-and-journal-creation.md",
+        "docs/decisions/0108-ai-text-assistant-release-gate-and-operational-review.md",
+        "docs/phase-reports/phase-90.md",
+        "docs/phase-reports/phase-94.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(ai): verify assistant release gate proposals and provider operational limits"
+    },
+    {
+      "id": "109",
+      "group": "v2-capabilities",
+      "title": "Voice-assistant verification and operational review",
+      "dependsOn": [
+        "95",
+        "108"
+      ],
+      "scope": [
+        "packages/domain",
+        "apps/api",
+        "apps/web",
+        "apps/mobile",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase109",
+        "tests/integration"
+      ],
+      "steps": [
+        "Verify microphone hardware permission handling across supported browsers and mobile platforms, confirming accessible text fallback when hardware access is denied or unsupported.",
+        "Verify explicit record/stop/cancel lifecycle, confirming that cancel discards audio locally in memory with zero network calls and zero database rows, while duration (0.5s-600s) and payload size (<=25 MiB) limits are strictly enforced.",
+        "Verify speech recognition across Bangla (native Unicode script preservation), English, and code-switched (Banglish) inputs, alongside silence detection and low-confidence (<0.70) uncertainty flagging.",
+        "Verify upload resilience, idempotent retries via clientOperationId preventing duplicate records or double billing, and in-flight cancellation via AbortSignal clearing memory buffers.",
+        "Enforce editable transcript review preceding proposal generation, anti-hallucination task deadline clarification, explicit Save/Confirm proposal execution with durable sync mutation receipts (AI_DEVICE_ID), canonical deep links, strict 0-day transient retention (Buffer.alloc(0), zero raw audio in database), decoupled consent, server kill switch, and fail-closed release gating under DEF-V2-008 and DEF-V2-011."
+      ],
+      "acceptance": [
+        "Microphone permission denial provides clear accessible text fallback without feature lockout.",
+        "Cancelling a recording discards captured audio locally without network egress or database rows.",
+        "Duration bounds (0.5s-600s) and byte size bounds (<=25 MiB) strictly enforced.",
+        "Bangla speech preserves native Unicode script; English and Banglish code-switched speech accurately transcribed.",
+        "Silence and low confidence (<0.70) detected and flagged with uncertainty warning alerts.",
+        "Interrupted uploads retried with identical clientOperationId return cached results without duplicate records or double-charging.",
+        "In-flight cancellation via AbortSignal returns 499 AI_CANCELLED and zeroes server memory buffers.",
+        "Audio transcription produces text into editable review surface before action proposals can be generated; transcription alone writes zero domain records.",
+        "Ambiguous dates in task deadlines trigger clarifying questions rather than unreviewed tasks.",
+        "Explicit Confirm/Save produces durable sync mutation receipts in app.mutation_receipts and canonical deep links to created items.",
+        "0-day transient audio retention verified: server memory zeroed, retention_policy set to transient_deleted, and zero raw audio columns in database.",
+        "Microphone permission decoupled from external AI transmission consent (403 AI_CONSENT_REQUIRED); server kill switch halts transcription (503 AI_KILL_SWITCH_ACTIVE); multi-tenant workspace isolation enforced.",
+        "Voice assistant remains gated fail-closed under DEF-V2-008 and DEF-V2-011."
+      ],
+      "checks": [
+        "pnpm vitest run tests/integration/phase109-voice-assistant-verification.test.ts tests/integration/phase95-voice-transcription-reviewed-creation.test.ts tests/integration/phase108-ai-assistant-release-gate.test.ts",
+        "pnpm --filter @daynori/domain typecheck",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm --filter @daynori/mobile typecheck",
+        "pnpm --filter @daynori/api typecheck",
+        "pnpm lint",
+        "node scripts/validate-planning.mjs",
+        "pnpm validate:function-register"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0095-voice-capture-transcription-and-reviewed-creation.md",
+        "docs/decisions/0108-ai-text-assistant-release-gate-and-operational-review.md",
+        "docs/decisions/0109-voice-assistant-verification-and-operational-review.md",
+        "docs/phase-reports/phase-95.md",
+        "docs/phase-reports/phase-108.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(voice): verify voice assistant capture uncertainty and reviewed creation pipeline"
+    },
+    {
+      "id": "110",
+      "group": "v2-release",
+      "title": "Evidence-integrity audit and verification truth reconciliation",
+      "dependsOn": [
+        "104",
+        "105",
+        "106",
+        "107",
+        "108",
+        "109"
+      ],
+      "scope": [
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase110",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Diagnose and reconcile uncommitted omissions in plan.json and progress.json, restoring Phases 107 and 108 and repairing dependency and sequencing invariants so pnpm validate:planning passes cleanly.",
+        "Audit Phase 104–109 reports against actual test suites, execution logs, and artifacts, systematically identifying overclaims of live execution, real users, dark mode, or physical hardware.",
+        "Reconcile Phase 104: replace claims of 'real user journeys' with 'synthetic persona user journeys', explicitly documenting that real human participant sessions remain blocked under DEF-V2-013.",
+        "Reconcile Phase 105: clarify that desktop and mobile light/dark theme captures and contrast verifications were executed via automated headless Chrome CDP scripts and token assertions, not physical display or human visual evaluations.",
+        "Reconcile Phase 106: correct the claim that the 12-step Android emulator script tested dark mode (dark theme tokens were evaluated in headless unit tests only; no emulator dark mode toggle was executed in the adb runner), and reinforce that physical phone hardware and spoken TalkBack remain strictly blocked under DEF-V2-011 and Phase 71.",
+        "Reconcile Phase 107: correct the claim that 'synthetic and live tests prove' folder boundaries to state that synthetic simulation tests proved the drive.file boundary, whereas live OAuth was attempted and recorded as blocked (outcome=blocked, missing_oauth_config) due to absent owner credentials under DEF-V2-005, with zero live Google tokens or Drive access granted.",
+        "Reconcile Phase 108: clarify that the 'live provider wire protocol' (OpenAiCompatibleProvider) was exercised exclusively against synthetic HTTP transport and local mock error mappings; live third-party cloud LLM network calls remain blocked fail-closed under DEF-V2-008.",
+        "Reconcile Phase 109: clarify that voice recognition, Bangla script preservation, silence, and low confidence were evaluated using synthetic audio byte fixtures and local mock adapters (MockAudioTranscriptionAdapter); no physical microphone hardware or cloud multimodal provider streams were active; DEF-V2-008 and DEF-V2-011 remain blocked fail-closed.",
+        "Preserve every blocked status and release gate across the entire roadmap, author ADR 0110, update the phase reports, CHANGELOG.md, progress.json, and regenerate docs/blueprint.html."
+      ],
+      "acceptance": [
+        "docs/roadmap/plan.json and progress.json contain all phases sequentially without gaps or missing dependencies, passing pnpm validate:planning.",
+        "Reports for Phases 104–109 truthfully distinguish synthetic, simulated, emulator, and mock evidence from live, real user, dark mode, or physical hardware evidence.",
+        "No blocked status or standing release gate (DEF-V2-004, DEF-V2-005, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) is marked complete without genuine acceptance evidence.",
+        "Machine-readable audit matrix authored in artifacts/phase110/evidence-integrity-audit.json mapping each corrected claim to its ground truth artifact.",
+        "ADR 0110 authored in docs/decisions/0110-evidence-integrity-audit-and-verification-truth-reconciliation.md.",
+        "docs/blueprint.html regenerated and verified current.",
+        "CHANGELOG.md and progress.json updated to reflect Phase 110 evidence-integrity corrections."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/integration/phase107-drive-folder-boundary.test.ts tests/integration/phase108-ai-assistant-release-gate.test.ts tests/integration/phase109-voice-assistant-verification.test.ts",
+        "pnpm --filter @daynori/domain typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0104-current-web-pwa-readiness-audit-and-critical-core-fixes.md",
+        "docs/decisions/0105-daynori-web-pwa-visual-refinement-and-modern-interface-overhaul.md",
+        "docs/decisions/0106-daynori-native-android-interface-refinement-and-component-overhaul.md",
+        "docs/decisions/0107-bounded-google-drive-folder-authorization-and-scope-boundary.md",
+        "docs/decisions/0108-ai-text-assistant-release-gate-and-operational-review.md",
+        "docs/decisions/0109-voice-assistant-verification-and-operational-review.md",
+        "docs/decisions/0110-evidence-integrity-audit-and-verification-truth-reconciliation.md",
+        "docs/phase-reports/phase-104.md",
+        "docs/phase-reports/phase-105.md",
+        "docs/phase-reports/phase-106.md",
+        "docs/phase-reports/phase-107.md",
+        "docs/phase-reports/phase-108.md",
+        "docs/phase-reports/phase-109.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "docs(audit): reconcile evidence integrity and audit verification claims across phases 104-109"
+    },
+    {
+      "id": "111",
+      "group": "v2-release",
+      "title": "Daynori web/PWA design verification and theme capture correction",
+      "dependsOn": [
+        "105",
+        "110"
+      ],
+      "scope": [
+        "apps/web",
+        "packages/ui-web",
+        "scripts",
+        "tests",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase111",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Diagnose the Phase 105 capture defect where 40/40 baseline and 39/40 post-refinement light/dark captures were byte-identical due to direct DOM attribute setting bypassing React state in ShellContext.",
+        "Update ShellContext to initialize themePreference from localStorage, persist preference mutations, and synchronize documentElement data-theme and style.colorScheme while exposing window.__daynoriShell for verified interaction.",
+        "Enhance ListRow primitive to support custom IDs, ensuring mobile drawer theme toggle and interactive rows have robust touch targets and accessibility semantics.",
+        "Streamline Today view header hierarchy by demoting #today-create-btn to secondary desktop-only and promoting #customize-today-btn to primary, eliminating button wrapping on 320px–412px viewports.",
+        "Add #mobile-menu-theme-toggle in the mobile drawer Utilities section with dynamic labels and >= 48px touch targets.",
+        "Eliminate the redundant 80px Feedback informational banner in the Global Create Dialog to bring all 5 entity creation chips into the first viewport on mobile, and add dark mode boundary borders to chip badges.",
+        "Add explicit :focus-visible ring styles (2px solid border.focus, -2px offset) and dark mode icon badge borders in the Settings Hub.",
+        "Collapse non-functional auxiliary interactive controls in Ask Nori AssistantPanel when gated under DEF-V2-008, presenting a calm, truthful 220px view with direct links to Privacy and Help.",
+        "Implement scripts/capture-phase111-visual-evidence.mjs with CDP navigation and hydration synchronization, UI/React theme selection, render settling, and mandatory failure upon identical image hashes.",
+        "Capture 80 baseline (before) and 80 post-refinement (after) screenshots across desktop (1280px) and mobile (320-412px) viewports in light and dark themes, verifying 40/40 distinct pairs and zero horizontal overflow.",
+        "Record qualitative human design feedback separately from automated checks in artifacts/phase111/human-design-review.md, author ADR 0111, update phase report, progress.json, CHANGELOG.md, and regenerate blueprint."
+      ],
+      "acceptance": [
+        "scripts/capture-phase111-visual-evidence.mjs fails verification immediately if any light and dark capture pair shares the same SHA-256 hash.",
+        "artifacts/phase111/capture-manifest-before.json and capture-manifest-after.json both record exactly 80 captures with 40/40 pairs verified distinct (0 identical).",
+        "Zero horizontal overflow across all 80 captures and 5 viewports (1280px, 412px, 390px, 360px, 320px).",
+        "Human design review recorded separately from automated checks in artifacts/phase111/human-design-review.md.",
+        "Visual verification report authored in artifacts/phase111/visual-verification-report.md.",
+        "Automated unit and integration test suites in tests/unit/phase111-web-pwa-design-verification.test.ts and tests/e2e/phase111-theme-capture-and-visual-verification.test.ts pass cleanly.",
+        "Standing release gates (DEF-V2-004, DEF-V2-005, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) remain strictly blocked.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html updated and pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/unit/phase111-web-pwa-design-verification.test.ts tests/e2e/phase111-theme-capture-and-visual-verification.test.ts",
+        "pnpm --filter @daynori/domain typecheck",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0105-daynori-web-pwa-visual-refinement-and-modern-interface-overhaul.md",
+        "docs/decisions/0110-evidence-integrity-audit-and-verification-truth-reconciliation.md",
+        "docs/decisions/0111-web-pwa-design-verification-and-theme-capture-correction.md",
+        "docs/phase-reports/phase-105.md",
+        "docs/phase-reports/phase-110.md",
+        "docs/phase-reports/phase-111.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "refactor(ui): verify web design with genuine theme captures and calm hierarchy"
+    },
+    {
+      "id": "112",
+      "group": "v2-release",
+      "title": "Daynori core web/PWA browser release verification and staging isolation audit",
+      "dependsOn": [
+        "104",
+        "111"
+      ],
+      "scope": [
+        "apps/api",
+        "apps/web",
+        "packages/api-client",
+        "scripts",
+        "tests",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase112",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Establish isolated local staging infrastructure comprising PostgreSQL daynori_test (80 applied migrations), Synthetic RS256 Auth Provider on port 54321, Fastify API on port 3114 with MemoryStorageProvider and PolicyMalwareScanner, production Next.js PWA server on port 3116, and Headless Chrome CDP on port 9232.",
+        "Remediate Fastify ZodError handling in apps/api/src/plugins/errorHandler.ts to catch cross-package Zod instances, preventing 500 internal crashes and returning structured HTTP 400 Bad Request responses.",
+        "Expose recoverPassword and provisionPersonalWorkspace on window.__daynoriAuth in apps/web/src/components/AuthContext.tsx to facilitate automated browser DOM auth verification.",
+        "Execute 10 end-to-end browser journeys via scripts/run-phase112-staging-release-verification.mjs covering auth lifecycle, two-account isolation, CRUD, search, attachments scope, PWA offline reopen, concurrency conflicts (409), deletion/export, Help/support triage, and failure/gating.",
+        "Assert isolation at UI, API (404), and Database SQL boundaries (zero cross-tenant note leakage, 80 schema migrations).",
+        "Capture full-page PNG screenshots for all 10 journeys in artifacts/phase112/screenshots/ with SHA-256 checksums.",
+        "Author ADR 0112, Phase 112 report, evidence-summary.json, staging-release-verification.json, and tests/e2e/phase112-browser-release-verification.test.ts."
+      ],
+      "acceptance": [
+        "All 10 production-style browser journeys pass cleanly against isolated staging topology.",
+        "Database SQL isolation assertions confirm 0 cross-tenant records visible across Alice and Bob workspaces.",
+        "PWA cold offline reopen via CDP network emulation verifies offline shell asset loading and offline indicator.",
+        "Optimistic concurrency conflict detection enforces HTTP 409 REVISION_CONFLICT on stale revision updates.",
+        "All 10 journey screenshots exist in artifacts/phase112/screenshots/ with valid SHA-256 hashes.",
+        "Standing release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) remain strictly blocked.",
+        "Automated tests in tests/e2e/phase112-browser-release-verification.test.ts pass cleanly.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html updated and pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/e2e/phase112-browser-release-verification.test.ts",
+        "pnpm --filter @daynori/api typecheck",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0104-current-web-pwa-readiness-audit-and-critical-core-fixes.md",
+        "docs/decisions/0111-web-pwa-design-verification-and-theme-capture-correction.md",
+        "docs/decisions/0112-core-web-pwa-browser-release-verification-and-staging-isolation.md",
+        "docs/phase-reports/phase-104.md",
+        "docs/phase-reports/phase-111.md",
+        "docs/phase-reports/phase-112.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(release): verify core web pwa release journeys against isolated staging"
+    },
+    {
+      "id": "113",
+      "group": "v2-release",
+      "title": "Daynori Google Drive provider-verification and authorized folder access audit",
+      "dependsOn": [
+        "87",
+        "107",
+        "112"
+      ],
+      "scope": [
+        "packages/domain",
+        "apps/api",
+        "docs/engineering",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase113",
+        "tests/spikes/drive",
+        "tests/integration",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Prepare owner review package in docs/engineering/google-drive-oauth-verification-guide.md specifying Google Cloud Console setup, OAuth consent screen with drive.file, Web Application OAuth 2.0 client IDs, HTTP referrer-restricted API keys, and synthetic test account requirements.",
+        "Provide gitignored tests/spikes/drive/config.local.env.example template to ensure zero credential or secret leakage into Git or logs.",
+        "Execute live spike runner via node tests/spikes/drive/run-spike.mjs --mode=live, truthfully recording outcome=blocked with missing_oauth_config under DEF-V2-005.",
+        "Author comprehensive integration test suite in tests/integration/phase113-drive-provider-verification.test.ts auditing all 11 required scenarios (selected folder with existing files, new externally added file, nested folders, individually picked files, app-created files, move/delete, permission loss, pagination, token expiry, revoke and disconnect, vault exclusion & workspace isolation).",
+        "Verify buildAuthorizedDriveTree hierarchy presentation, suppression of unpicked descendants, and remote original preservation on disconnect (remoteOriginalDeleted: false).",
+        "Assess broader restricted scope (drive.readonly / drive) CASA AL2 third-party lab audit obligations ($2,500-$6,000+/yr) and preserve recursive mirroring fail-closed under DEF-V2-005.",
+        "Update Help article help.drive-optional to contentVersion 2 explaining narrow drive.file boundaries, folder container selection, copy vs. reference distinctions, and remote original preservation.",
+        "Author ADR 0113, Phase 113 report, evidence-summary.json, drive-scope-capabilities-matrix.json, and provider-evidence.json."
+      ],
+      "acceptance": [
+        "All 11 required provider scenarios are thoroughly tested and passing in tests/integration/phase113-drive-provider-verification.test.ts.",
+        "Google Cloud OAuth configuration package and synthetic test account requirements prepared for owner review in docs/engineering/google-drive-oauth-verification-guide.md.",
+        "Zero credentials, client secrets, API keys, or tokens committed to Git; config.local.env strictly gitignored.",
+        "Live provider execution outcome recorded truthfully as blocked (DEF-V2-005 fail-closed) in artifacts/phase113/live-blocked.json.",
+        "Disconnect and revocation guarantee remote Google Drive originals are never deleted or trashed (remoteOriginalDeleted: false).",
+        "Vault items and cryptographic keys fail closed under isVaultDriveTarget with HTTP 403 vault_excluded.",
+        "CASA AL2 restricted scope requirements and annual cost model ($2,500-$6,000+/yr) fully documented; recursive mirroring remains gated.",
+        "Help article help.drive-optional updated to version 2 with accurate scope and folder boundary guidance.",
+        "Standing release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) remain strictly blocked.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html updated and pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/integration/phase113-drive-provider-verification.test.ts",
+        "pnpm --filter @daynori/domain typecheck",
+        "pnpm --filter @daynori/api typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0087-google-drive-connection-and-scope-readiness.md",
+        "docs/decisions/0107-bounded-google-drive-folder-authorization-and-scope-boundary.md",
+        "docs/decisions/0113-google-drive-provider-verification-and-scope-boundary-audit.md",
+        "docs/phase-reports/phase-87.md",
+        "docs/phase-reports/phase-107.md",
+        "docs/phase-reports/phase-112.md",
+        "docs/phase-reports/phase-113.md",
+        "docs/engineering/google-drive-oauth-verification-guide.md",
+        "docs/engineering/google-drive-restricted-scope-mirroring-proposal.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(drive): verify google drive provider boundaries and folder access scope"
+    },
+    {
+      "id": "114",
+      "group": "v2-release",
+      "title": "Daynori Ask Nori text-assistant release-gate verification and reviewed organizer creation audit",
+      "dependsOn": [
+        "94",
+        "108",
+        "113"
+      ],
+      "scope": [
+        "packages/domain",
+        "apps/api",
+        "apps/web",
+        "apps/mobile",
+        "docs/engineering",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase114",
+        "tests/integration",
+        "tests/unit",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Author comprehensive commercial provider and operating decisions package in docs/engineering/ai-text-assistant-provider-and-operating-decisions.md covering Google Cloud Vertex AI (Gemini 1.5 Flash recommended primary), OpenAI (GPT-4o-mini wire protocol), zero training terms, DPA/SCC compliance, 30-day transient abuse logging, PII minimization, prompt token limits, unconditional vault exclusion, default-off journal opt-in, ephemeral storage, region pinning (us-central1 / europe-west1), .00/day and .00/month cost ceilings with concurrency-safe budget reservations, 3-tier kill-switch architecture, and strict synthetic-only testing protocol.",
+        "Implement and export isVaultAiTarget in packages/domain/src/aiConsent.ts to unconditionally reject vault entities and proposals attempting to set securityScope=vault with HTTP 403 vault_excluded.",
+        "Record truthful live provider execution status as blocked (DEF-V2-008 fail-closed) in artifacts/phase114/live-blocked.json due to missing live credentials and spending authorization; strictly prevent real user data transmission.",
+        "Author and execute 16 integration tests in tests/integration/phase114-ask-nori-assistant-release-gate.test.ts verifying consent fencing, server kill-switch (DAYNORI_AI_KILL_SWITCH=true returning 503), workspace isolation, default-off journal refusal and opt-in enablement, vault exclusion, grounded citations and abstention, cancellation via AbortController, error mapping (429/503), concurrency-safe budget reservation and 429 exhaustion, Note proposal flow, Journal proposal flow with date clarification, Deadline proposal flow with deadline clarification, idempotent retry, and zero-write cancellation.",
+        "Author and execute UI interface tests in tests/unit/phase114-ask-nori-ui-interface.test.ts verifying web AssistantPanel gating presentation under DEF-V2-008, disabled form inputs, proposal card review lifecycle, editable preview, explicit confirm/cancel actions, desktop sidebar/header navigation buttons, and canonical organizer deep links.",
+        "Author and execute mobile view tests in apps/mobile/src/phase114-assistant-mobile-views.test.ts verifying React Native AssistantSheet renders truthful gating banner under DEF-V2-008, disables ask action, updates input text, and handles close events.",
+        "Update function register docs/roadmap/v2/function-register.json with Phase 114 integration, UI, and mobile test coverage for assistant.consent, assistant.ask-grounded, and assistant.propose-confirm.",
+        "Author ADR 0114, Phase 114 report, evidence-summary.json, ai-capabilities-matrix.json, provider-evidence.json, update progress.json, CHANGELOG.md, and rebuild blueprint."
+      ],
+      "acceptance": [
+        "Comprehensive provider and operating decisions package prepared for owner review in docs/engineering/ai-text-assistant-provider-and-operating-decisions.md with zero model training, DPA/SCC compliance, and 30-day transient cap.",
+        "Zero real user content transmitted to any AI provider; all testing executed strictly using synthetic prompts and fixtures.",
+        "Live commercial AI provider integration recorded truthfully as blocked under DEF-V2-008 in artifacts/phase114/live-blocked.json.",
+        "Vault items and proposals with securityScope=vault fail closed under isVaultAiTarget with HTTP 403 vault_excluded.",
+        "Server kill-switch (DAYNORI_AI_KILL_SWITCH=true) immediately returns HTTP 503 AI_KILL_SWITCH_ACTIVE.",
+        "Reviewed organizer creation lifecycle verified across Note, Journal, and Deadline flows: date ambiguity prompts clarification, editable preview allows modification, explicit confirmation writes durable mutation receipts (AI_DEVICE_ID), canonical deep links open created items, and cancelling produces zero writes.",
+        "All 26 automated tests (16 integration, 8 UI unit, 2 mobile view) pass cleanly.",
+        "Standing release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) remain strictly blocked.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html updated and pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/integration/phase114-ask-nori-assistant-release-gate.test.ts tests/unit/phase114-ask-nori-ui-interface.test.ts apps/mobile/src/phase114-assistant-mobile-views.test.ts",
+        "pnpm --filter @daynori/domain typecheck",
+        "pnpm --filter @daynori/api typecheck",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0090-ai-provider-consent-privacy-and-operating-decisions.md",
+        "docs/decisions/0091-scoped-retrieval-indexing-and-grounding-quality.md",
+        "docs/decisions/0093-reviewed-note-task-and-journal-creation.md",
+        "docs/decisions/0108-ai-text-assistant-release-gate-and-operational-review.md",
+        "docs/decisions/0114-ask-nori-text-assistant-release-gate-and-reviewed-creation-audit.md",
+        "docs/phase-reports/phase-90.md",
+        "docs/phase-reports/phase-94.md",
+        "docs/phase-reports/phase-108.md",
+        "docs/phase-reports/phase-113.md",
+        "docs/phase-reports/phase-114.md",
+        "docs/engineering/ai-text-assistant-provider-and-operating-decisions.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(ai): verify ask nori text assistant release gates and reviewed creation"
+    },
+    {
+      "id": "115",
+      "group": "v2-release",
+      "title": "Daynori voice-assistant audio memory cleanup correction and speech capture verification",
+      "dependsOn": [
+        "95",
+        "109",
+        "114"
+      ],
+      "scope": [
+        "packages/domain",
+        "apps/api",
+        "apps/web",
+        "apps/mobile",
+        "docs/engineering",
+        "docs/policy",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase115",
+        "tests/fixtures/audio",
+        "tests/integration",
+        "tests/unit",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Remediate server audio-memory cleanup vulnerability by implementing and exporting zeroAudioBuffer (buffer.fill(0)) in packages/domain/src/audioTranscription.ts and scrubAudioMemory in apps/api/src/modules/ai/transcriptionService.ts.",
+        "Wrap server audio decoding in a guaranteed try ... finally block ensuring scrubAudioMemory(audioBuffer) executes across all 7 exit paths: validation failure, idempotent replay hit, budget exhaustion, client abort/cancellation, adapter error, normal completion, and runtime exception.",
+        "Author docs/engineering/voice-audio-memory-scrubbing-and-privacy-limits.md establishing the technical reality of V8 and Node.js memory management (mutable binary buffer zeroing vs immutable V8 string primitives and OS socket buffers).",
+        "Update docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md with Section 6 detailing voice capture, local discard semantics, 0-day transient retention (app.ai_transcriptions stores metadata only, zero audio binary columns), buffer zeroing, and release gating.",
+        "Generate 5 valid 16-bit mono 16000Hz PCM WAV audio fixtures in tests/fixtures/audio/ (synthetic-bangla-appointment.wav, synthetic-english-deadline.wav, synthetic-banglish-report.wav, synthetic-silence-5s.wav, synthetic-low-confidence-noise.wav).",
+        "Author and execute 20 integration tests in tests/integration/phase115-voice-assistant-correction.test.ts verifying buffer memory zeroing on all 7 exit paths, Bangla Unicode script preservation ([ঀ-৿]), English recognition, Banglish recognition, silence classification, low-confidence uncertainty, microphone permission denied typing fallback, client cancel discard semantics (zero network/DB rows), stop recording finalization, ambiguous deadline clarification, explicit confirmation with durable receipt (AI_DEVICE_ID), 0-day transient retention, consent requirement, server kill-switch (DAYNORI_AI_KILL_SWITCH='true'), and workspace multi-tenant isolation.",
+        "Author and execute UI interface tests in tests/unit/phase115-voice-assistant-ui.test.ts (6 tests) and mobile view tests in apps/mobile/src/phase115-voice-mobile-views.test.ts (2 tests) verifying Web AssistantPanel gating state, mobile AssistantSheet voice recording chip disabled under isGated=true, DEF-V2-011 fail-closed verification, and accessible text typing fallback.",
+        "Update function register docs/roadmap/v2/function-register.json for assistant.voice-capture, author ADR 0115, Phase 115 report, artifacts/phase115 package, update progress.json, CHANGELOG.md, and rebuild blueprint."
+      ],
+      "acceptance": [
+        "Server audio memory cleanup vulnerability remediated: zeroAudioBuffer proactively zeroes binary buffer memory in place via buffer.fill(0).",
+        "try ... finally block guarantees audio buffer scrubbing across all 7 exit paths (validation failure, replay cache hit, budget exhaustion, abort/cancel, adapter error, normal completion, unhandled exception).",
+        "Practical V8 and Node.js runtime limits documented accurately without false claims in docs/engineering/voice-audio-memory-scrubbing-and-privacy-limits.md.",
+        "Zero raw audio binaries stored in database, logs, or persistent disks (0-day transient retention; app.ai_transcriptions schema stores metadata only).",
+        "Speech recognition accuracy evaluated with 5 real synthetic WAV fixtures; Bengali script ([ঀ-৿]) preserved; silence and low confidence flagged as uncertain; mock adapter evaluations explicitly labeled as adapter: 'mock'.",
+        "Reviewed organizer creation lifecycle verified for voice: editable transcript review, date ambiguity prompts clarification, explicit confirmation writes durable mutation receipt under AI_DEVICE_ID, canonical deep link provided, and cancellation executes zero writes.",
+        "Microphone permission denied preserves 100% accessible text typing fallback.",
+        "All 28 automated tests (20 integration, 6 UI unit, 2 mobile view) pass cleanly.",
+        "Standing release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) remain strictly blocked.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html updated and pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/integration/phase115-voice-assistant-correction.test.ts tests/unit/phase115-voice-assistant-ui.test.ts apps/mobile/src/phase115-voice-mobile-views.test.ts",
+        "pnpm --filter @daynori/domain typecheck",
+        "pnpm --filter @daynori/api typecheck",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0095-voice-capture-transcription-and-reviewed-creation.md",
+        "docs/decisions/0109-voice-assistant-verification-and-operational-review.md",
+        "docs/decisions/0114-ask-nori-text-assistant-release-gate-and-reviewed-creation-audit.md",
+        "docs/decisions/0115-voice-assistant-audio-memory-cleanup-and-speech-capture-correction.md",
+        "docs/phase-reports/phase-95.md",
+        "docs/phase-reports/phase-109.md",
+        "docs/phase-reports/phase-114.md",
+        "docs/phase-reports/phase-115.md",
+        "docs/engineering/voice-audio-memory-scrubbing-and-privacy-limits.md",
+        "docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(voice): verify audio memory cleanup and speech capture release gates"
+    },
+    {
+      "id": "116",
+      "group": "v2-release",
+      "title": "Daynori native Android release-candidate verification and physical hardware audit",
+      "dependsOn": [
+        "71",
+        "106",
+        "115"
+      ],
+      "scope": [
+        "apps/mobile",
+        "packages/ui-mobile",
+        "docs/engineering",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase116",
+        "tests/e2e",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Verify release-candidate artifact identity across apps/mobile/app.json, android/app/build.gradle, and packages/contracts: packageId com.daynori.app, targetSdk 36, compileSdk 36, minSdk 24, versionCode 1, versionName 2.0.0-candidate, Hermes, and React Native New Architecture (newArchEnabled=true).",
+        "Inspect and enforce fail-closed release signing architecture: daynoriReleaseSigningGuard in apps/mobile/android/app/build.gradle halts distributable release tasks when owner release keystore is unconfigured, preventing silent debug.keystore fallback.",
+        "Verify strict separation of debug APKs: app-debug-arm64.apk, app-debug-x86_64.apk, and app-embedded-x86_64.apk are signed with debug keystores and strictly barred from distribution as release builds.",
+        "Audit official Google Play policy compliance: target API 34+ requirement, Play App Signing Android App Bundle (.aab) format requirement, 64-bit architecture requirement (arm64-v8a), sensitive permissions exclusions (USE_EXACT_ALARM, MANAGE_EXTERNAL_STORAGE), and account deletion pathways.",
+        "Author docs/engineering/android-release-candidate-identity-and-signing.md and docs/engineering/android-talkback-verification-protocol.md defining candidate specifications and human TalkBack spoken listen-through protocols.",
+        "Execute and verify 7 e2e tests in tests/e2e/phase116-android-release-verification.test.ts and 9 mobile interaction journey tests in apps/mobile/src/phase116-native-android-journeys.test.ts covering sign-in and account switching isolation, local storage recovery, create/save/reopen lifecycle, offline restart, notifications, microphone behavior, landscape/large-text scaling, hardware Back navigation stack, and TalkBack accessibility contracts.",
+        "Truthfully record physical ARM64 hardware absence (adb devices -l empty) and unconfigured owner production keystore as blocked under DEF-V2-011 and OWNER-SIGNING-KEYS; keep emulator evidence separate.",
+        "Author ADR 0116, Phase 116 report, artifacts/phase116 package, update function register, progress.json, CHANGELOG.md, and rebuild blueprint."
+      ],
+      "acceptance": [
+        "Release-candidate artifact identity verified: packageId com.daynori.app, targetSdk 36, compileSdk 36, minSdk 24, versionCode 1, newArchEnabled true.",
+        "Fail-closed release signing guard (daynoriReleaseSigningGuard) actively halts distributable release tasks when owner production keystore is unconfigured.",
+        "Debug APKs (app-debug-arm64.apk, etc.) are strictly segregated as local test artifacts and never distributed as release builds.",
+        "Current Google Play developer requirements verified against official documentation (Target API 36, App Bundle format, 64-bit, zero restricted exact alarm permissions, in-app/web account deletion).",
+        "Comprehensive human TalkBack spoken verification protocol authored in docs/engineering/android-talkback-verification-protocol.md covering navigation chrome, forms, validation errors (accessibilityRole='alert'), modal containment (accessibilityViewIsModal=true), and focus return.",
+        "Physical ARM64 smartphone absence and unprovisioned release keystore truthfully recorded as blocked under DEF-V2-011 and OWNER-SIGNING-KEYS; emulator evidence strictly separated.",
+        "All 16 automated tests (7 e2e, 9 mobile journeys) pass cleanly.",
+        "Standing release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) remain strictly blocked.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html updated and pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "node scripts/mobile-android-release-path.mjs inspect",
+        "pnpm vitest run tests/e2e/phase116-android-release-verification.test.ts apps/mobile/src/phase116-native-android-journeys.test.ts",
+        "pnpm --filter @daynori/mobile typecheck",
+        "pnpm --filter @daynori/ui-mobile typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0071-native-android-settings-hub-and-insets.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0106-daynori-native-android-interface-refinement-and-component-overhaul.md",
+        "docs/decisions/0115-voice-assistant-audio-memory-cleanup-and-speech-capture-correction.md",
+        "docs/decisions/0116-native-android-release-verification-and-physical-hardware-audit.md",
+        "docs/phase-reports/phase-71.md",
+        "docs/phase-reports/phase-106.md",
+        "docs/phase-reports/phase-115.md",
+        "docs/phase-reports/phase-116.md",
+        "docs/engineering/android-release-candidate-identity-and-signing.md",
+        "docs/engineering/android-talkback-verification-protocol.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "test(android): verify release candidate signing and physical hardware release gates"
+    },
+    {
+      "id": "117",
+      "group": "v2-release",
+      "title": "Daynori web/PWA visual polish and usability refinement",
+      "dependsOn": [
+        "105",
+        "111",
+        "112"
+      ],
+      "scope": [
+        "apps/web",
+        "packages/ui-web",
+        "packages/design-tokens",
+        "scripts",
+        "tests",
+        "docs/decisions",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "artifacts/phase117",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Execute scripts/capture-phase117-visual-evidence.mjs --before to capture 80 baseline screenshots across desktop (1280px) and mobile viewports (412px, 390px, 360px, 320px) in light and dark themes with verified distinct hashes.",
+        "Refine navigation surfaces: polish AppHeader quick actions, Create button elevation, search kbd shortcut badge, theme toggle, and AppSidebar active indicator pill and section headers.",
+        "Simplify Today view: eliminate repetitive nested card borders, streamline routine checklist and task rows, refine gentle progress bar, elevate reflection prompt card, and polish customize controls.",
+        "Refine Library view: streamline search and creation toolbar, polish folder tree rows and note items, and ensure high-contrast type badges and hover states.",
+        "Enhance Journal view: unify view mode segmented tabs (Day View, Timeline, Trash), streamline date stepper controls, and elevate reflection prompts with warm notebook styling.",
+        "Refine UI primitives: modernize EmptyState card styling, Dialog backdrop and header presentation, CreationMenu bottom sheet items, and Form inputs (TextField, TextArea, Checkbox) with verified :focus-visible rings.",
+        "Verify accessibility standards: maintain WCAG 2.2 AA contrast across light (\"Warm Paper\") and dark (\"Deep Ink\") themes, keyboard accessibility, screen reader live regions, and prefers-reduced-motion: reduce.",
+        "Execute scripts/capture-phase117-visual-evidence.mjs --after to capture 80 post-refinement screenshots with verified distinct hashes and zero horizontal overflow.",
+        "Verify main user journeys (Note creation/edit/save/reopen, Task create/toggle, Routine checkoff, Journal reflection, Theme switching, Search modal, and Create menu) with automated unit and e2e test suites.",
+        "Record qualitative human design review in artifacts/phase117/human-design-review.md, author visual verification report in artifacts/phase117/visual-verification-report.md, author ADR 0117, update phase report, progress.json, CHANGELOG.md, and rebuild blueprint."
+      ],
+      "acceptance": [
+        "scripts/capture-phase117-visual-evidence.mjs captures 80 baseline and 80 post-refinement screenshots across 5 viewports and 2 themes with 40/40 distinct light/dark pairs.",
+        "Zero horizontal layout overflow across all viewports down to 320px mobile.",
+        "Reduced boxiness and visual clutter verified across Today, Library, Journal, Settings, Create, Menus, and Empty states.",
+        "WCAG 2.2 AA contrast verified (>= 4.5:1 text, >= 3:1 strong borders) in both light and dark themes.",
+        "Accessible keyboard focus rings (:focus-visible) and touch targets (>= 44px web, >= 48px mobile) verified.",
+        "Human design review recorded separately from automated checks in artifacts/phase117/human-design-review.md.",
+        "Automated unit and integration test suites in tests/unit/phase117-web-pwa-visual-polish.test.ts and tests/e2e/phase117-visual-polish-and-journeys.test.ts pass cleanly.",
+        "Standing release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71) remain strictly blocked.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html updated and pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/unit/phase117-web-pwa-visual-polish.test.ts tests/e2e/phase117-visual-polish-and-journeys.test.ts",
+        "pnpm --filter @daynori/ui-web typecheck",
+        "pnpm --filter @daynori/web typecheck",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/design/design-system.md",
+        "docs/design/accessibility.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0105-daynori-web-pwa-visual-refinement-and-modern-interface-overhaul.md",
+        "docs/decisions/0111-web-pwa-design-verification-and-theme-capture-correction.md",
+        "docs/decisions/0117-daynori-web-pwa-visual-polish-and-usability-refinement.md",
+        "docs/phase-reports/phase-111.md",
+        "docs/phase-reports/phase-112.md",
+        "docs/phase-reports/phase-117.md",
+        "docs/engineering/release-gates.md"
+      ],
+      "commit": "refactor(web): refine web visual polish, calm excessive boxes, and improve usability"
     }
   ],
   "featureCoverage": [
@@ -3992,7 +4846,8 @@
       "phases": [
         "48",
         "49",
-        "50"
+        "50",
+        "107"
       ],
       "requirements": [
         "R-DRIVE"
@@ -4103,7 +4958,9 @@
         "69",
         "70",
         "71",
-        "99"
+        "99",
+        "105",
+        "106"
       ],
       "requirements": [
         "R-QUALITY",
@@ -4205,7 +5062,9 @@
         "93",
         "94",
         "95",
-        "96"
+        "96",
+        "108",
+        "109"
       ],
       "requirements": [
         "R-AI",
@@ -4222,7 +5081,11 @@
         "100",
         "101",
         "102",
-        "103"
+        "103",
+        "104",
+        "105",
+        "106",
+        "110"
       ],
       "requirements": [
         "R-QUALITY",

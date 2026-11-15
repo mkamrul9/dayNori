@@ -7,7 +7,7 @@
     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-bangla: 'Hind Siliguri', 'Kalpurush', system-ui, -apple-system, sans-serif;
   --daynori-header-height: 60px;
-  --daynori-bottom-nav-height: 56px;
+  --daynori-bottom-nav-height: 58px;
   --daynori-keyboard-inset: 0px;
   --daynori-vv-height: 100dvh;
   --daynori-main-bottom-pad: calc(
@@ -20,9 +20,19 @@
   );
 }
 
+::selection {
+  background-color: rgba(20, 107, 99, 0.18);
+  color: inherit;
+}
+
 [data-theme='dark'] {
   --color-focus-ring: #73c2b6;
   --color-focus-offset: #0d1919;
+}
+
+[data-theme='dark'] ::selection {
+  background-color: rgba(115, 194, 182, 0.28);
+  color: inherit;
 }
 
 *,

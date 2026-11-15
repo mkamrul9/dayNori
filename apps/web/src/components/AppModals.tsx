@@ -45,8 +45,15 @@ import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 export const AppModals: React.FC = () => {
   const tour = useTour();
   const router = useRouter();
-  const { themeMode, activeModal, openModal, closeModal, isMobileDrawerOpen, setMobileDrawerOpen } =
-    useShell();
+  const {
+    themeMode,
+    toggleTheme,
+    activeModal,
+    openModal,
+    closeModal,
+    isMobileDrawerOpen,
+    setMobileDrawerOpen,
+  } = useShell();
   const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken, preferences, savePreferences } = useAuth();
   const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
@@ -1053,21 +1060,48 @@ export const AppModals: React.FC = () => {
         description="Add a new task, routine, note, or entry to your workspace."
         themeMode={themeMode}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px` }}>
-          <Feedback
-            severity="info"
-            message="Choose an item below to open its editor. Sign in and open your workspace to save and sync your content."
-            themeMode={themeMode}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '2px' }}>
             <ContextualHelpLink articleId="help.tasks-vs-routines" label="Tasks vs routines Help" />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.xs}px` }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              backgroundColor: palette.surfaceRaised,
+              borderRadius: `${radii.card}px`,
+              padding: `${spacing.xs}px`,
+              border: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+            }}
+          >
             <TourTarget id="create.type.task">
               <ListRow
                 title="New Task"
                 subtitle="Add a one-off task with optional deadline and priority"
+                variant="flat"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: palette.action.subtle,
+                      color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
+                    }}
+                  >
+                    <Icon name="check-square" size={18} />
+                  </span>
+                }
                 onClick={() => navigateTo('/plan?tourCreate=task')}
                 themeMode={themeMode}
               />
@@ -1076,6 +1110,28 @@ export const AppModals: React.FC = () => {
               <ListRow
                 title="New Routine"
                 subtitle="Add a recurring daily or weekday habit with independent completion"
+                variant="flat"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: palette.action.subtle,
+                      color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
+                    }}
+                  >
+                    <Icon name="repeat" size={18} />
+                  </span>
+                }
                 onClick={() => navigateTo('/today')}
                 themeMode={themeMode}
               />
@@ -1084,7 +1140,59 @@ export const AppModals: React.FC = () => {
               <ListRow
                 title="New Note"
                 subtitle="Save reference knowledge, guides, or rich documents"
+                variant="flat"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: palette.action.subtle,
+                      color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
+                    }}
+                  >
+                    <Icon name="note" size={18} />
+                  </span>
+                }
                 onClick={() => navigateTo('/library?create=note')}
+                themeMode={themeMode}
+              />
+            </TourTarget>
+            <TourTarget id="create.type.journal">
+              <ListRow
+                title="New Journal Entry"
+                subtitle="Open a quiet writing surface for reflection"
+                variant="flat"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: palette.action.subtle,
+                      color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
+                    }}
+                  >
+                    <Icon name="journal" size={18} />
+                  </span>
+                }
+                onClick={() => navigateTo('/journal')}
                 themeMode={themeMode}
               />
             </TourTarget>
@@ -1092,6 +1200,28 @@ export const AppModals: React.FC = () => {
               <ListRow
                 title="Upload File"
                 subtitle="Upload PDFs, images, or documents to workspace folders"
+                variant="flat"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: palette.action.subtle,
+                      color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
+                    }}
+                  >
+                    <Icon name="file" size={18} />
+                  </span>
+                }
                 onClick={() => navigateTo('/library?create=file')}
                 themeMode={themeMode}
               />
@@ -1100,15 +1230,29 @@ export const AppModals: React.FC = () => {
               <ListRow
                 title="New Expense"
                 subtitle="Track payments, exact amounts, and receipts"
+                variant="flat"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: palette.action.subtle,
+                      color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
+                    }}
+                  >
+                    <Icon name="wallet" size={18} />
+                  </span>
+                }
                 onClick={() => navigateTo('/expenses?create=1')}
-                themeMode={themeMode}
-              />
-            </TourTarget>
-            <TourTarget id="create.type.journal">
-              <ListRow
-                title="New Journal Entry"
-                subtitle="Open a quiet writing surface for reflection"
-                onClick={() => navigateTo('/journal')}
                 themeMode={themeMode}
               />
             </TourTarget>
@@ -1116,6 +1260,28 @@ export const AppModals: React.FC = () => {
               <ListRow
                 title="New Folder"
                 subtitle="Create a workspace folder to group tasks and documents"
+                variant="flat"
+                leading={
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      backgroundColor: palette.action.subtle,
+                      color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid transparent',
+                    }}
+                  >
+                    <Icon name="folder" size={18} />
+                  </span>
+                }
                 onClick={() => navigateTo('/library')}
                 themeMode={themeMode}
               />
@@ -1338,7 +1504,7 @@ export const AppModals: React.FC = () => {
           ) : null}
           <div
             style={{
-              borderTop: `1px solid ${palette.border.subtle}`,
+              borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
               margin: `${spacing.xs}px 0`,
             }}
           />
@@ -1354,6 +1520,36 @@ export const AppModals: React.FC = () => {
           >
             Utilities
           </p>
+          <ListRow
+            id="mobile-menu-theme-toggle"
+            title={themeMode === 'light' ? 'Switch to Dark Theme' : 'Switch to Light Theme'}
+            subtitle={`Current mode: ${themeMode === 'light' ? 'Warm paper (Light)' : 'Deep ink (Dark)'}`}
+            leading={
+              <span
+                aria-hidden="true"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  backgroundColor: palette.action.subtle,
+                  color: palette.action.primary,
+                  border:
+                    themeMode === 'dark'
+                      ? `1px solid ${palette.border.subtle}`
+                      : '1px solid transparent',
+                }}
+              >
+                <Icon name={themeMode === 'light' ? 'moon' : 'sun'} size={18} />
+              </span>
+            }
+            onClick={() => {
+              toggleTheme();
+            }}
+            themeMode={themeMode}
+          />
           <ListRow
             title="All features"
             subtitle="Find, pin, hide, or restore modules"

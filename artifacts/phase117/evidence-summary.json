@@ -1,0 +1,68 @@
+{
+  "phase": "117",
+  "title": "Daynori Web/PWA Visual Polish and Usability Refinement",
+  "status": "blocked",
+  "completedAt": "2026-11-15T06:40:00Z",
+  "governingAdr": "docs/decisions/0117-daynori-web-pwa-visual-polish-and-usability-refinement.md",
+  "captureScript": "scripts/capture-phase117-visual-evidence.mjs",
+  "manifests": {
+    "before": "artifacts/phase117/capture-manifest-before.json",
+    "after": "artifacts/phase117/capture-manifest-after.json"
+  },
+  "metrics": {
+    "screensCaptured": 8,
+    "viewportsCaptured": 5,
+    "themesCaptured": 2,
+    "totalCapturesBefore": 80,
+    "totalCapturesAfter": 80,
+    "pairsTestedBefore": 40,
+    "pairsDistinctBefore": 40,
+    "pairsIdenticalBefore": 0,
+    "pairsTestedAfter": 40,
+    "pairsDistinctAfter": 40,
+    "pairsIdenticalAfter": 0,
+    "horizontalOverflowCount": 0
+  },
+  "zeroIdenticalLightDarkVerified": true,
+  "humanDesignReview": "artifacts/phase117/human-design-review.md",
+  "visualVerificationReport": "artifacts/phase117/visual-verification-report.md",
+  "targetedAreasRefined": [
+    {
+      "area": "UI Primitives (EmptyState, Card, Dialog, CreationMenu)",
+      "component": "packages/ui-web/src/",
+      "refinement": "Modernized Card with calm variant and softer borders; de-boxified EmptyState with circular action badges and warm notebook cards; refined Dialog backdrop blur and sheet radius; refined CreationMenu with >= 48px touch targets and icon badge borders."
+    },
+    {
+      "area": "Today View",
+      "component": "apps/web/src/components/TodayView.tsx",
+      "refinement": "Applied variant='calm' across all 7 widget cards, eliminating repetitive nested card borders; streamlined routine checklist and gentle progress bar; grouped tasks due today; elevated reflection prompt card with prominent action."
+    },
+    {
+      "area": "Navigation Chrome (Header, Sidebar, BottomNav, Mobile Drawer)",
+      "component": "apps/web/src/components/",
+      "refinement": "Polished AppHeader ghost buttons and primary Create action elevation; streamlined AppSidebar active indicator pill and uppercase letter-spaced section headers; verified AppBottomNav >= 48px touch targets without label clipping; refined mobile drawer dividers."
+    },
+    {
+      "area": "Library View",
+      "component": "apps/web/src/app/library/page.tsx",
+      "refinement": "Unified search and creation toolbar; softened borders on folder cards and item list rows; high-contrast ItemTypeBadge styling in both themes."
+    },
+    {
+      "area": "Journal View",
+      "component": "apps/web/src/app/journal/page.tsx",
+      "refinement": "Unified view mode segmented tabs (Day View, Timeline, Trash); streamlined date navigation stepper; applied calm notebook styling to entry cards."
+    }
+  ],
+  "standingGates": [
+    "DEF-V2-001",
+    "DEF-V2-004",
+    "DEF-V2-005",
+    "DEF-V2-007",
+    "DEF-V2-008",
+    "DEF-V2-011",
+    "DEF-V2-013",
+    "OWNER-SIGNING-KEYS",
+    "OWNER-RELEASE-AUTH",
+    "Phase 71"
+  ]
+}
