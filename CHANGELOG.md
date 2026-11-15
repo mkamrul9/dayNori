@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 126 — Daynori database backup and restore drill, compatible artifact rollback, monitoring alerts verification, and operations staffing audit — 2026-11-15
+
+- ADR 0126: Daynori Staging Database Backup & Restore Drill, Compatible Artifact Rollback, and Operations Staffing Audit, executing live staging disaster recovery, verifying additive artifact rollback, auditing external DNS mailboxes and alerting webhooks, and distinguishing configured mechanisms from proposed runbooks.
+- Live Staging Database Backup & Restore Drill:
+  - Target Cluster: Hosted staging Supabase PostgreSQL cluster (`aws-0-ap-southeast-1.pooler.supabase.com:5432`) under run ID `op126_1794743331558_d0c0b082`.
+  - Disposable Seed Data: Seeded survivor user (profile, personal workspace, note, high-priority task with deadline, daily routine, journal reflection) and deletion candidate user.
+  - Backup at $T_0$: Captured relational snapshot in 719ms (10,555 bytes, SHA-256: `ab527077b16b982aa28b6fecc5ecad279b88bc0637a56213f3ba8a440959e78f`).
+  - Account Deletion at $T_1$: Purged candidate user and registered cryptographic tombstones in `app.deletion_suppression_ledger`.
+  - Independent Suppression Ledger: Exported 2 active suppression tombstones independently outside the backup dump (`artifacts/phase126/independent-suppression-ledger.json`).
+  - Isolated Target Database Provisioning: Provisioned isolated staging database `daynori_restore_drill`, configured extensions, and initialized schema `app`.
+  - Restoration & Pre-Access Suppression Barrier: Restored $T_0$ data in 1,427ms; replayed suppression ledger and executed sanitization queries in 287ms before opening access.
+  - Measured Recovery Time (RTO): **1,714ms (1.71 seconds)** (sub-15 minute target satisfied).
+  - Measured Data Loss (RPO): **0 bytes lost, 0 rows lost, 0 seconds data loss** for transactions committed prior to $T_0$. Survivor data 100% verified with canonical JSON checksum match (`a7c2696f451b16b7615af2995f380a36362410a4f2122075dcc3e93959d6588e`).
+  - Resurrection Prevention: **0 accounts, 0 workspaces, 0 items resurrected (ZERO LEAKS)**.
+  - Teardown: Dropped `daynori_restore_drill` with `DROP DATABASE ... WITH (FORCE)` and cleaned up primary staging seed data.
+- Compatible Artifact Rollback Demonstration:
+  - Validated release candidate `2.0.0-rc5` (`daynori-web-v2.0.0-rc5.tar.gz` SHA-256 `628ce688...`, `daynori-api-v2.0.0-rc5.tar.gz` SHA-256 `6688fdcd...`) and predecessor `2.0.0-rc4` (`daynori-web-v2.0.0-rc4.tar.gz` SHA-256 `9c67b400...`, `daynori-api-v2.0.0-rc4.tar.gz` SHA-256 `42b5f722...`).
+  - Additive Schema Invariant: All migrations `00001` through `00076` are additive; predecessor `2.0.0-rc4` operates cleanly without schema errors against data written by `2.0.0-rc5`, resulting in **0 bytes data loss**.
+  - Emergency Static Cutover: Verified standalone offline shell (`apps/web/public/offline-shell.html`, SHA-256 `1b0bf5f6...`, HTTP 503, `Retry-After: 300`) preserving local IndexedDB offline drafts.
+- Monitoring Alerts, Mailbox & Operational Staffing Audit:
+  - DNS MX Audit: Live query resolved **0 MX records on daynori.com** (`hasActiveMxRouting: false`), proving `support@daynori.com` and `security@daynori.com` are unconfigured and inbound emails will bounce.
+  - Alerting Webhooks: Render/Cloudflare dashboards provide metric graphs, but automated webhook dispatch to on-call pagers (PagerDuty / Opsgenie) remains an unconfigured proposed runbook.
+  - Operational Staffing: Designated roles in `docs/operations/incident-response-and-support-roster.md` (Incident Commander, Tech Ops Lead, Security Officer, Support Lead) are documented specifications, but active human staffing and 24/7 on-call rotations are **unassigned**.
+  - Configured vs. Proposed Matrix: Formally separated configured/tested mechanisms from proposed target runbooks across all release documents.
+- Automated Regression Test Suite (5/5 Passed):
+  - `tests/release/phase126-operations-recovery-and-staffing.test.ts` (5 tests passed).
+- Status: Recorded as honestly blocked on standing release gates (`OWNER-SUPPORT-STAFFING`, `OWNER-MAILBOX-SETUP`, `OWNER-PAGER-ALERTING`, `OWNER-RELEASE-AUTH`, `OWNER-PROD-DNS`, `OWNER-SUPABASE-PRO`, `OWNER-SIGNING-KEYS`, `evidence-backupRecoveryEvidence`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
+
 ## Phase 125 — Daynori multi-user authenticated staging journeys, tenant isolation, and robust CDP verification — 2026-11-15
 
 - ADR 0125: Daynori Multi-User Authenticated Staging Verification, Tenant Isolation, and Robust CDP Execution, verifying the deployed HTTPS staging build with dual authenticated user accounts, establishing empirical tenant isolation proofs, and hardening headless Chrome CDP automation.

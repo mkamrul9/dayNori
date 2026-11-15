@@ -1,0 +1,311 @@
+{
+  "t0": "2026-11-15T11:48:54.260Z",
+  "runId": "op126_1794743331558_d0c0b082",
+  "sourceHost": "aws-0-ap-southeast-1.pooler.supabase.com",
+  "entities": {
+    "profiles": [
+      {
+        "id": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "display_name": "Survivor Staging op126_1794743331558_d0c0b082",
+        "preferred_locale": "en",
+        "time_zone": "UTC",
+        "created_at": "2026-11-15T11:48:52.774Z",
+        "updated_at": "2026-11-15T11:48:52.774Z",
+        "week_start": "monday",
+        "preferences": {
+          "theme": "system",
+          "compactMode": false
+        },
+        "preferences_schema_version": 1,
+        "revision": "1"
+      },
+      {
+        "id": "fb60c745-4f06-432a-8903-3b0793774f83",
+        "display_name": "Delete Candidate op126_1794743331558_d0c0b082",
+        "preferred_locale": "en",
+        "time_zone": "UTC",
+        "created_at": "2026-11-15T11:48:53.790Z",
+        "updated_at": "2026-11-15T11:48:53.790Z",
+        "week_start": "monday",
+        "preferences": {
+          "theme": "system",
+          "compactMode": false
+        },
+        "preferences_schema_version": 1,
+        "revision": "1"
+      }
+    ],
+    "workspaces": [
+      {
+        "id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "name": "Survivor Staging WS op126_1794743331558_d0c0b082",
+        "kind": "personal",
+        "owner_id": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "created_at": "2026-11-15T11:48:52.866Z",
+        "updated_at": "2026-11-15T11:48:52.866Z",
+        "status": "active",
+        "archived_at": null,
+        "membership_revision": "0"
+      },
+      {
+        "id": "3a629e06-690c-4b49-a2be-b8c4f8cb91b4",
+        "name": "Delete Candidate WS op126_1794743331558_d0c0b082",
+        "kind": "personal",
+        "owner_id": "fb60c745-4f06-432a-8903-3b0793774f83",
+        "created_at": "2026-11-15T11:48:53.899Z",
+        "updated_at": "2026-11-15T11:48:53.899Z",
+        "status": "active",
+        "archived_at": null,
+        "membership_revision": "0"
+      }
+    ],
+    "memberships": [
+      {
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "user_id": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "role": "owner",
+        "created_at": "2026-11-15T11:48:52.928Z",
+        "updated_at": "2026-11-15T11:48:52.928Z",
+        "revision": "1"
+      },
+      {
+        "workspace_id": "3a629e06-690c-4b49-a2be-b8c4f8cb91b4",
+        "user_id": "fb60c745-4f06-432a-8903-3b0793774f83",
+        "role": "owner",
+        "created_at": "2026-11-15T11:48:53.992Z",
+        "updated_at": "2026-11-15T11:48:53.992Z",
+        "revision": "1"
+      }
+    ],
+    "items": [
+      {
+        "id": "b153e6f6-e109-43b5-9c0d-649c258e4fed",
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "folder_id": null,
+        "kind": "note",
+        "created_by": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "updated_by": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "created_at": "2026-11-15T11:48:53.086Z",
+        "updated_at": "2026-11-15T11:48:53.086Z",
+        "deleted_at": null,
+        "display_order": 0,
+        "revision": "1",
+        "rank": "0",
+        "is_archived": false,
+        "is_pinned": false,
+        "security_scope": "standard"
+      },
+      {
+        "id": "fa7f9e36-3f21-45df-b970-182ff14ab74c",
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "folder_id": null,
+        "kind": "todo",
+        "created_by": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "updated_by": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "created_at": "2026-11-15T11:48:53.281Z",
+        "updated_at": "2026-11-15T11:48:53.281Z",
+        "deleted_at": null,
+        "display_order": 0,
+        "revision": "1",
+        "rank": "0",
+        "is_archived": false,
+        "is_pinned": false,
+        "security_scope": "standard"
+      },
+      {
+        "id": "eb37ffca-0a88-4380-84af-1002f5a42504",
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "folder_id": null,
+        "kind": "routine",
+        "created_by": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "updated_by": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "created_at": "2026-11-15T11:48:53.487Z",
+        "updated_at": "2026-11-15T11:48:53.487Z",
+        "deleted_at": null,
+        "display_order": 0,
+        "revision": "1",
+        "rank": "0",
+        "is_archived": false,
+        "is_pinned": false,
+        "security_scope": "standard"
+      },
+      {
+        "id": "323edc41-506e-4441-a73d-fb9fa583a346",
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "folder_id": null,
+        "kind": "journal_entry",
+        "created_by": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "updated_by": "55956b2b-6ff8-4f16-9de7-8263f420471b",
+        "created_at": "2026-11-15T11:48:53.617Z",
+        "updated_at": "2026-11-15T11:48:53.617Z",
+        "deleted_at": null,
+        "display_order": 0,
+        "revision": "1",
+        "rank": "0",
+        "is_archived": false,
+        "is_pinned": false,
+        "security_scope": "standard"
+      },
+      {
+        "id": "c759bf59-0872-40fe-82ef-b6f48bac158d",
+        "workspace_id": "3a629e06-690c-4b49-a2be-b8c4f8cb91b4",
+        "folder_id": null,
+        "kind": "note",
+        "created_by": "fb60c745-4f06-432a-8903-3b0793774f83",
+        "updated_by": "fb60c745-4f06-432a-8903-3b0793774f83",
+        "created_at": "2026-11-15T11:48:54.053Z",
+        "updated_at": "2026-11-15T11:48:54.053Z",
+        "deleted_at": null,
+        "display_order": 0,
+        "revision": "1",
+        "rank": "0",
+        "is_archived": false,
+        "is_pinned": false,
+        "security_scope": "standard"
+      },
+      {
+        "id": "330d98e5-193f-4643-84b9-0e3076a4d184",
+        "workspace_id": "3a629e06-690c-4b49-a2be-b8c4f8cb91b4",
+        "folder_id": null,
+        "kind": "todo",
+        "created_by": "fb60c745-4f06-432a-8903-3b0793774f83",
+        "updated_by": "fb60c745-4f06-432a-8903-3b0793774f83",
+        "created_at": "2026-11-15T11:48:54.277Z",
+        "updated_at": "2026-11-15T11:48:54.277Z",
+        "deleted_at": null,
+        "display_order": 0,
+        "revision": "1",
+        "rank": "0",
+        "is_archived": false,
+        "is_pinned": false,
+        "security_scope": "standard"
+      }
+    ],
+    "notes": [
+      {
+        "id": "b153e6f6-e109-43b5-9c0d-649c258e4fed",
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "title": "Survivor Critical Note op126_1794743331558_d0c0b082",
+        "document": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "text": "Survivor note body - persistent across restore op126_1794743331558_d0c0b082",
+                  "type": "text"
+                }
+              ]
+            }
+          ]
+        },
+        "plain_text": "Survivor note body - persistent across restore op126_1794743331558_d0c0b082",
+        "word_count": 8,
+        "char_count": 55,
+        "created_at": "2026-11-15T11:48:53.196Z",
+        "updated_at": "2026-11-15T11:48:53.196Z",
+        "purpose": "standard"
+      },
+      {
+        "id": "c759bf59-0872-40fe-82ef-b6f48bac158d",
+        "workspace_id": "3a629e06-690c-4b49-a2be-b8c4f8cb91b4",
+        "title": "Confidential Delete Note op126_1794743331558_d0c0b082",
+        "document": {
+          "type": "doc"
+        },
+        "plain_text": "Confidential PII delete note",
+        "word_count": 4,
+        "char_count": 30,
+        "created_at": "2026-11-15T11:48:54.215Z",
+        "updated_at": "2026-11-15T11:48:54.215Z",
+        "purpose": "standard"
+      }
+    ],
+    "tasks": [
+      {
+        "id": "fa7f9e36-3f21-45df-b970-182ff14ab74c",
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "title": "Survivor Critical Task op126_1794743331558_d0c0b082",
+        "details": null,
+        "priority": "high",
+        "status": "todo",
+        "deadline_type": "date",
+        "deadline_date": "2026-11-14T18:00:00.000Z",
+        "deadline_time": null,
+        "deadline_zone": null,
+        "completed_at": null,
+        "reopened_at": null,
+        "completion_history": [],
+        "parent_id": null,
+        "subtask_order": 0,
+        "tags": [],
+        "created_at": "2026-11-15T11:48:53.374Z",
+        "updated_at": "2026-11-15T11:48:53.374Z"
+      },
+      {
+        "id": "330d98e5-193f-4643-84b9-0e3076a4d184",
+        "workspace_id": "3a629e06-690c-4b49-a2be-b8c4f8cb91b4",
+        "title": "Confidential Delete Task op126_1794743331558_d0c0b082",
+        "details": null,
+        "priority": "normal",
+        "status": "todo",
+        "deadline_type": "none",
+        "deadline_date": null,
+        "deadline_time": null,
+        "deadline_zone": null,
+        "completed_at": null,
+        "reopened_at": null,
+        "completion_history": [],
+        "parent_id": null,
+        "subtask_order": 0,
+        "tags": [],
+        "created_at": "2026-11-15T11:48:54.412Z",
+        "updated_at": "2026-11-15T11:48:54.412Z"
+      }
+    ],
+    "routines": [
+      {
+        "id": "eb37ffca-0a88-4380-84af-1002f5a42504",
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "folder_id": null,
+        "title": "Survivor Daily Routine op126_1794743331558_d0c0b082",
+        "details": null,
+        "frequency": "daily",
+        "weekdays": [],
+        "timezone": "UTC",
+        "scheduled_time": null,
+        "active_from": "2026-11-14T18:00:00.000Z",
+        "active_to": null,
+        "is_paused": false,
+        "is_archived": false,
+        "is_pinned": false,
+        "schedule_revision": 1,
+        "effective_date": "2026-11-14T18:00:00.000Z",
+        "created_at": "2026-11-15T11:48:53.551Z",
+        "updated_at": "2026-11-15T11:48:53.551Z"
+      }
+    ],
+    "journal_entries": [
+      {
+        "id": "323edc41-506e-4441-a73d-fb9fa583a346",
+        "workspace_id": "0dedf429-56c9-462a-9198-c2a0dbf4ef66",
+        "title": "Survivor Reflection op126_1794743331558_d0c0b082",
+        "entry_date": "2026-11-14T18:00:00.000Z",
+        "timezone": "UTC",
+        "document": {
+          "type": "doc"
+        },
+        "plain_text": "Survivor evening reflection op126_1794743331558_d0c0b082",
+        "word_count": 0,
+        "char_count": 0,
+        "mood": "calm",
+        "prompts": [],
+        "tags": [],
+        "is_draft": false,
+        "created_at": "2026-11-15T11:48:53.688Z",
+        "updated_at": "2026-11-15T11:48:53.688Z"
+      }
+    ]
+  }
+}

@@ -307,6 +307,8 @@
       "backups": "Runbook documentation verification in docs/engineering/backup-and-recovery.md (restore drill unexecuted)",
       "phase121": "Health-endpoint throughput profiling and mathematical capacity modeling (not proof of 10,000-user capacity)"
     },
+    "phase125Verification": "10 multi-user authenticated staging journeys and tenant isolation proven on live staging (artifacts/phase125/staging-verification-results.json)",
+    "phase126Operations": "Live staging database backup and isolated restore drill executed (RTO = 1.71s, RPO = 0s, 0 bytes data loss, zero leaks in artifacts/phase126/operations-drill-results.json); additive artifact rollback verified; DNS audit revealed 0 MX records on daynori.com (support and security mailboxes unconfigured); operational escalation staff unassigned; publication strictly BLOCKED.",
     "preflightInvariants": {
       "tool": "scripts/release-preflight.mjs --allow-partial-local",
       "pass": 20,

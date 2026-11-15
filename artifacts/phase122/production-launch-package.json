@@ -244,11 +244,12 @@
   "backupAndRestoreProof": {
     "specification": "docs/engineering/backup-and-recovery.md",
     "retentionPolicy": "7-day continuous Point-in-Time Recovery (PITR) on Supabase Pro with daily automated pg_dump snapshots retained for 30 days in off-site S3 storage.",
-    "stagingRestoreDrillEvidence": "Reclassified: Runbook documentation verification (docs/engineering/backup-and-recovery.md Section 4.2). Live database restoration drill was NOT executed and remains an unexecuted blocked gate (evidence-backupRecoveryEvidence in release-preflight).",
+    "stagingRestoreDrillEvidence": "Executed in Phase 126 against live staging Supabase cluster into isolated database daynori_restore_drill (measured RTO = 1.71s, measured RPO = 0s, 0 bytes data loss, 0 resurrected records, artifacts/phase126/operations-drill-results.json); continuous cloud WAL streaming/PITR remains a proposed runbook requiring paid Supabase Pro.",
     "deletionSuppressionLedger": "All purged users and workspaces tombstoned in app.deletion_suppression_ledger, preventing accidental resurrection of deleted data from database backups."
   },
   "supportAndOperations": {
     "rosterDoc": "docs/operations/incident-response-and-support-roster.md",
+    "staffingAudit": "Audited in Phase 126: DNS query confirms daynori.com has 0 MX records (support@daynori.com and security@daynori.com are unconfigured); automated pager alerting and real human operational escalation staffing remain unassigned, strictly blocking publication.",
     "designatedOperators": {
       "incidentCommander": "incident-commander@daynori.com",
       "technicalOperationsLead": "ops@daynori.com",

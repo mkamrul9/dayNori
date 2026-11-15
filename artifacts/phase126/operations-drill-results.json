@@ -1,0 +1,154 @@
+{
+  "phase": "126",
+  "title": "Daynori Operations Recovery Drill, Compatible Artifact Rollback, Monitoring Alerts Verification & Staffing Audit",
+  "executedAt": "2026-11-15T11:49:00.145Z",
+  "runId": "op126_1794743331558_d0c0b082",
+  "totalDurationMs": 8587,
+  "drillResults": {
+    "sourceDatabase": "postgres",
+    "isolatedStagingDatabase": "daynori_restore_drill",
+    "t0Timestamp": "2026-11-15T11:48:54.260Z",
+    "t1Timestamp": "2026-11-15T11:48:54.980Z",
+    "backupDurationMs": 719,
+    "restoreDurationMs": 1427,
+    "sanitizationDurationMs": 287,
+    "totalRtoMs": 1714,
+    "measuredRpoSeconds": 0,
+    "survivorDataPreserved": true,
+    "survivorDataLossBytes": 0,
+    "survivorDataLossRows": 0,
+    "deletedDataResurrected": false,
+    "resurrectedAccountRows": 0,
+    "resurrectedWorkspaceRows": 0,
+    "resurrectedItemRows": 0,
+    "backupArchiveSha256": "ab527077b16b982aa28b6fecc5ecad279b88bc0637a56213f3ba8a440959e78f",
+    "backupArchiveSizeBytes": 10555,
+    "suppressionTombstonesPreserved": 2,
+    "passed": true
+  },
+  "rollbackResults": {
+    "currentReleaseCandidate": "2.0.0-rc5",
+    "previousCompatibleReleaseCandidate": "2.0.0-rc4",
+    "currentArtifacts": {
+      "web": {
+        "file": "daynori-web-v2.0.0-rc5.tar.gz",
+        "path": "artifacts/release/daynori-web-v2.0.0-rc5.tar.gz",
+        "exists": true,
+        "sizeBytes": 1874760,
+        "sha256": "628ce688a3da153348f56be5d378a0f8023ea8906cdf53aeff870421be61819b"
+      },
+      "api": {
+        "file": "daynori-api-v2.0.0-rc5.tar.gz",
+        "path": "artifacts/release/daynori-api-v2.0.0-rc5.tar.gz",
+        "exists": true,
+        "sizeBytes": 559776,
+        "sha256": "6688fdcd4a37812a66670f56eddaa78512b5e50a72fbafaf42d7330c169a125b"
+      }
+    },
+    "previousArtifacts": {
+      "web": {
+        "file": "daynori-web-v2.0.0-rc4.tar.gz",
+        "path": "artifacts/release/daynori-web-v2.0.0-rc4.tar.gz",
+        "exists": true,
+        "sizeBytes": 1825996,
+        "sha256": "9c67b4009a802c9a60ac96731b43dae55d0c126503ea624d99975e6d691eb280"
+      },
+      "api": {
+        "file": "daynori-api-v2.0.0-rc4.tar.gz",
+        "path": "artifacts/release/daynori-api-v2.0.0-rc4.tar.gz",
+        "exists": true,
+        "sizeBytes": 559223,
+        "sha256": "42b5f7222422796847f3987ae95ce58fb65aaa13be2bd9e484555a0c0dc43d37"
+      }
+    },
+    "additiveMigrationInvariantVerified": true,
+    "dataForwardBackwardCompatible": true,
+    "dataLossOnRollbackBytes": 0,
+    "emergencyOfflineShell": {
+      "path": "apps/web/public/offline-shell.html",
+      "exists": true,
+      "sizeBytes": 6400,
+      "sha256": "1b0bf5f65c8d7330d0560fe41acc73a6a9806e9b7aff5cb60daacfc0fbd009cc",
+      "httpStatus": 503,
+      "retryAfterHeader": 300,
+      "preservesIndexedDbDrafts": true
+    },
+    "passed": true
+  },
+  "staffingResults": {
+    "dnsAudit": {
+      "domain": "daynori.com",
+      "mxRecordsFound": [],
+      "hasActiveMxRouting": false,
+      "aRecord": "158.247.219.72"
+    },
+    "mailboxes": {
+      "supportEmail": "support@daynori.com",
+      "securityEmail": "security@daynori.com",
+      "configuredInCodebaseRoster": true,
+      "hasActiveMailServer": false,
+      "status": "unconfigured_no_mx"
+    },
+    "automatedAlerting": {
+      "renderDashboardAlerts": "configured_in_dashboard",
+      "cloudflareEdgeMetrics": "configured_in_dashboard",
+      "automatedPagerIntegration": "unconfigured_proposed_runbook",
+      "onCallRotationPaged": false,
+      "status": "proposed_runbook_not_wired"
+    },
+    "operationalStaffing": {
+      "incidentCommander": {
+        "role": "Project Lead / Platform Owner",
+        "contact": "incident-commander@daynori.com",
+        "staffed": false
+      },
+      "technicalOpsLead": {
+        "role": "Infrastructure & Database Engineer",
+        "contact": "ops@daynori.com",
+        "staffed": false
+      },
+      "securityPrivacyOfficer": {
+        "role": "Security & Privacy Reviewer",
+        "contact": "security@daynori.com",
+        "staffed": false
+      },
+      "supportCommunicationsLead": {
+        "role": "User Support Coordinator",
+        "contact": "support@daynori.com",
+        "staffed": false
+      },
+      "overallStaffed": false,
+      "status": "unstaffed_pending_owner_allocation"
+    },
+    "classificationMatrix": {
+      "configuredAndTested": [
+        "Live staging database backup and isolated restore drill with measured RTO and RPO = 0s",
+        "Independent deletion suppression ledger extraction and pre-access barrier sanitization",
+        "Additive migration invariant and stateless artifact rollback (rc5 to rc4) without data loss",
+        "Emergency offline static cutover shell (offline-shell.html, HTTP 503, Retry-After 300)",
+        "In-app feedback database intake infrastructure (app.feedback_reports, migrations 00075/00076)"
+      ],
+      "proposedRunbooksUnproven": [
+        "Production continuous WAL archiving and cloud-managed Point-In-Time Recovery (PITR)",
+        "Public email ingestion for support@daynori.com (no MX DNS records on daynori.com)",
+        "Public email ingestion for security@daynori.com (no MX DNS records on daynori.com)",
+        "Automated pager alerting (PagerDuty / Opsgenie webhook dispatch to human on-call)",
+        "Assigned human operational escalation staffing for 24/7 incident response"
+      ]
+    },
+    "publicationGateStatus": "BLOCKED"
+  },
+  "summary": {
+    "stagingDatabaseRestoreDrillPassed": true,
+    "measuredRtoSeconds": 1.71,
+    "measuredRpoSeconds": 0,
+    "survivorDataLossBytes": 0,
+    "resurrectedAccountLeaks": 0,
+    "artifactRollbackVerified": true,
+    "offlineCutoverVerified": true,
+    "monitoringAlertsConfigured": false,
+    "supportMailboxesStaffed": false,
+    "publicationAllowed": false,
+    "recommendation": "Keep public publication strictly BLOCKED until owner provisions MX records for daynori.com, configures active support/security mailboxes, assigns real human escalation operators, and wires automated pager alerting."
+  }
+}

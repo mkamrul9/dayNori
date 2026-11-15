@@ -1,0 +1,16 @@
+[
+  {
+    "entity_type": "account",
+    "entity_id": "fb60c745-4f06-432a-8903-3b0793774f83",
+    "content_free_hash": "hash_t1_account_fb60c745-4f06-432a-8903-3b0793774f83",
+    "reason": "user_account_deleted",
+    "expires_at": "2027-02-13T11:48:55.399Z"
+  },
+  {
+    "entity_type": "workspace",
+    "entity_id": "3a629e06-690c-4b49-a2be-b8c4f8cb91b4",
+    "content_free_hash": "hash_t1_ws_3a629e06-690c-4b49-a2be-b8c4f8cb91b4",
+    "reason": "account_deletion",
+    "expires_at": "2027-02-13T11:48:55.461Z"
+  }
+]
