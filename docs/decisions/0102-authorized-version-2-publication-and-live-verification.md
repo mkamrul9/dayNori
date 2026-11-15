@@ -1,7 +1,7 @@
 # ADR-0102: Authorized Version 2 Publication and Live Verification
 
-- Status: accepted (local launch preparation, smallest viable release proposal, candidate 2.0.0-rc3 build, live usability evaluation completed, and staging verification rehearsals passed; final publication execution pending explicit owner authorization).
-- Date: 2026-11-10 (reconciled and rebuilt candidate 2.0.0-rc3 on 2026-11-14).
+- Status: accepted (local launch preparation, candidate 2.0.0-rc3 build, live usability evaluation completed, and staging verification rehearsals passed; public publication BLOCKED pending public HTTPS deployment, DNS registration, and production infrastructure provisioning).
+- Date: 2026-11-10 (reconciled and rebuilt candidate 2.0.0-rc3 on 2026-11-14; release status audited on 2026-11-15).
 - Owner/reviewer: Antigravity agent (owner-authorized Phase 102 with explicit scheduling decision).
 - Related: [Phase 102](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md), [Phase 103](../roadmap/phases/103-first-version-2-review-and-bounded-follow-up-plan.md), [Phase 101](../roadmap/phases/101-version-2-release-candidate-and-operational-preparation.md), [Phase 100](../roadmap/phases/100-full-version-2-beta-and-readiness-reconciliation.md), [Phase 60](../roadmap/phases/60-public-android-and-web-release.md), [ADR 0057](0057-public-release-preflight-and-first-publication.md), [ADR 0074](0074-standing-phase71-scheduling-and-push.md), [ADR 0101](0101-version-2-release-candidate-and-operational-preparation.md), [release-gates.md](../engineering/release-gates.md), [v2-authorized-publication-record.md](../release/v2-authorized-publication-record.md), [v2-bounded-beta-manifest.md](../release/v2-bounded-beta-manifest.md).
 - Supersedes/superseded by: none. Preserves all outstanding prerequisite, security, hardware, and release gates.
@@ -67,9 +67,9 @@ Furthermore, in this continuation, the owner requested:
    - Assembled the complete Owner Decision Package in `docs/release/v2-authorized-publication-record.md` and `artifacts/phase102/publication-review-record.json`.
    - Candidate 2.0.0-rc3 built from commit `e71842f` and verified with 10 passing publication rehearsals (`tests/e2e/phase102-v2-publication-rehearsal.test.ts`).
    - Live human usability evaluation completed (5/5 unassisted), satisfying `DEF-V2-013` and remediating UI encoding defects.
-   - Synthetic smoke test runner prepared (`scripts/run-phase102-live-smoke.mjs`) to verify live deployment immediately upon approval.
+   - Synthetic smoke test runner executed on local loopback sockets (5/5 PASS); public HTTPS probe confirms `app.daynori.com` has no DNS mapping (ENOTFOUND).
    - All high-risk modules (Drive, AI, Voice, Vault, Rooms, Billing, Push, Android) remain strictly fail-closed.
-   - Final publication execution requires explicit owner confirmation of the decision package.
+   - Public publication remains BLOCKED pending external infrastructure deployment, DNS setup, and production Supabase credentials.
 
 ---
 

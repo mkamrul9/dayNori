@@ -1,6 +1,9 @@
 {
   "phase": "102",
-  "title": "Live Synthetic Smoke Check Results (Authorized Web/PWA Core Scope)",
+  "title": "Local Synthetic Smoke Rehearsal Results (Authorized Web/PWA Core Scope)",
+  "environment": "local_loopback_rehearsal",
+  "publicHttpsDeployment": "ABSENT (app.daynori.com DNS_ENOTFOUND)",
+  "note": "Rehearsal verification executed on local loopback sockets (127.0.0.1:3060, 127.0.0.1:3114); does not constitute public HTTPS deployment.",
   "startedAt": "2026-11-14T13:37:23.407Z",
   "finishedAt": "2026-11-14T13:37:26.139Z",
   "targetWebUrl": "http://127.0.0.1:3060",

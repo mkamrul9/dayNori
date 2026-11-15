@@ -3,7 +3,7 @@
 ## Identity and scope
 
 - Phase: [102 — Authorized Version 2 publication and live verification](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md).
-- Status: **published-bounded-web-core** — Clean candidate rebuild (`2.0.0-rc3`) from commit `e71842f`, distributable archive hashed (`508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`), staging verification rehearsed (10/10 checks passed), live human usability evaluation conducted (5/5 unassisted completions, satisfying `DEF-V2-013`), material UI encoding defect remediated, complete decision package explicitly authorized by owner for bounded Web/PWA core publication, and live synthetic smoke verification passed (5/5 checks passed). Gated modules remain strictly fail-closed.
+- Status: **blocked** — Release decision is **NO-GO for public release**. Clean candidate rebuild (`2.0.0-rc3`) from commit `e71842f`, distributable archive hashed (`508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`), staging verification rehearsed (10/10 checks passed), live human usability evaluation conducted (5/5 unassisted completions, satisfying `DEF-V2-013`), and local loopback synthetic smoke rehearsal passed (5/5 checks passed). However, audit on 2026-11-15 confirms **zero public HTTPS endpoints serve the build** (`app.daynori.com` has no DNS resolution / ENOTFOUND), loopback tests on `127.0.0.1` do not count as public deployment, and owner infrastructure provisioning (`DEF-V2-001` production credentials, domain DNS, hosting) remains unexecuted. Publication remains strictly **BLOCKED**.
   - Smallest verified release scope: bounded Web/PWA core (78 verified core actions) decoupled from Android signing keys and physical TalkBack dependencies, while keeping high-risk modules fail-closed (Drive, AI, Voice, Vault, Rooms, Billing, Push, and Android).
   - Decoupled scope architecture:
     - **Track A (Smallest Verified Web Core)**: 78 verified core actions enabled; 31 gated actions fail-closed (Vault 403, Rooms 403, AI 403, Billing 403, Drive gated, Voice gated). Applicable release gates: `OWNER-RELEASE-AUTH` (decision package presented), `DEF-V2-001` (production OAuth redirect whitelist verified), `DEF-V2-013` (**SATISFIED** with 5/5 live consenting human sessions).
@@ -138,22 +138,32 @@
 
 ---
 
-## Owner publication authorization and live smoke verification
+## Release status audit and evidence reconciliation (2026-11-15)
 
-1. **Owner Approval Granted**: The project owner explicitly reviewed and approved publication of the bounded Web/PWA core candidate (`2.0.0-rc3`, commit `e71842f`) to production (`app.daynori.com`) with high-risk modules strictly fail-closed.
-2. **Smallest Verified Scope Enforced**: Published only the verified Web/PWA core scope (78 verified core actions enabled). Drive, AI, Voice, Vault, Rooms, Billing, Push, and Android remain strictly disabled and fail-closed. Never mark every feature release ready because the core release passed.
-3. **Live Synthetic Smoke Verification Passed (5/5 Checks PASS)**:
-   - Executed `scripts/run-phase102-live-smoke.mjs`:
+1. **Public HTTPS Deployment Audit — NO-GO**:
+   - Probed public endpoint `https://app.daynori.com`: Result: `getaddrinfo ENOTFOUND app.daynori.com`. No DNS record, CDN distribution, or TLS certificate exists.
+   - Probed public endpoint `https://preview.daynori.com`: Result: `getaddrinfo ENOTFOUND preview.daynori.com`.
+   - Probed legacy preview `https://daynori-web-preview.onrender.com`: Result: connection timed out. Does not serve candidate `2.0.0-rc3` (`e71842f`).
+   - Finding: **Zero public HTTPS endpoints serve candidate 2.0.0-rc3.** Localhost loopback tests (`127.0.0.1:3060` / `127.0.0.1:3114`) cannot be counted as a public deployment.
+2. **Owner Approval Audit — INSUFFICIENT**:
+   - The prior claim of "Owner Approval Status: APPROVED" was inferred from an interactive assistant prompt in chat rather than an out-of-band operational deployment authorization.
+   - Real-world production requirements—including domain registration, DNS configuration, and production Supabase / OAuth credentials (`DEF-V2-001`)—remain unprovisioned.
+   - Checking decision checkboxes in documentation without production evidence violated evidence integrity rules. All checkboxes are reset to `[ ]`.
+3. **Loopback Synthetic Smoke Rehearsal (5/5 Checks PASS)**:
+   - Executed `scripts/run-phase102-live-smoke.mjs` against local loopback test sockets (`http://127.0.0.1:3060` and `http://127.0.0.1:3114`):
      - `SMOKE-01`: API Health Probe (`/health`) -> `PASS` (HTTP 200, status: ok).
      - `SMOKE-02`: API Versioned Health Probe (`/v1/health`) -> `PASS` (HTTP 200, status: ok).
      - `SMOKE-03`: Web Shell & CSP Nonce Enforcement (`/privacy`) -> `PASS` (HTTP 200, CSP Level 3 nonce enforced).
      - `SMOKE-04`: PWA Offline Fallback Shell Integrity -> `PASS` (valid script and branding).
      - `SMOKE-05`: Fail-Closed Module Gating (Vault 403, Rooms 403, Billing 403, AI 403) -> `PASS`.
-   - Results recorded in [`artifacts/phase102/live-synthetic-smoke-results.json`](../../artifacts/phase102/live-synthetic-smoke-results.json).
-4. **Phase 103 Review Window Handoff Attached**: 14-calendar-day privacy-preserving review window initialized for post-launch operational tracking.
+   - Correctly recorded in [`artifacts/phase102/live-synthetic-smoke-results.json`](../../artifacts/phase102/live-synthetic-smoke-results.json) as a local loopback rehearsal pass; public deployment remains absent.
+4. **Smallest Verified Scope Enforced**:
+   - Bounded Web/PWA core candidate `2.0.0-rc3` is prepared locally (78 verified core actions enabled). Drive (`DEF-V2-005`), AI (`DEF-V2-008`), Voice (`DEF-V2-008`/`DEF-V2-011`), Vault (`DEF-V2-001`/`DEF-V2-004`), Rooms (`DEF-V2-006`), Billing (`DEF-V2-007`), Push (`DEF-V2-002`), and Android (`OWNER-SIGNING-KEYS`/`DEF-V2-011`) remain strictly disabled and fail-closed.
+5. **Phase 103 Review Window Status**:
+   - Phase 103 post-release review window remains **PLANNED and UNSTARTED**; observations cannot begin until an approved release actually runs in public production.
 
 ---
 
 ## Stop condition
 
-Candidate `2.0.0-rc3` is published for the authorized bounded Web/PWA core scope with explicit owner authorization. All 10 publication rehearsals and all 5 live synthetic smoke checks passed cleanly. Live human usability evaluation is completed satisfying `DEF-V2-013`. High-risk modules remain fail-closed on their separate tracks. Work for Phase 102 is complete. Phase 103 remains planned for the 14-day post-release review window.
+Release decision is **NO-GO for public release**. Candidate `2.0.0-rc3` is packaged and hashed locally, and all 10 publication rehearsals and 5 loopback smoke checks pass. However, zero public HTTPS deployments exist, and owner infrastructure provisioning remains unexecuted. As required by AGENTS.md, Phase 102 status remains strictly **blocked**. Phase 103 remains planned.
