@@ -1,5 +1,24 @@
 # Changelog
 
+## Phase 123 — Daynori release-evidence audit, claims reclassification, candidate inventory, and preflight reconciliation — 2026-11-15
+
+- ADR 0123: Daynori Release-Evidence Audit, Claims Reclassification, Candidate Inventory, and Preflight Reconciliation, formally reconciling test script assertions against reported claims, reclassifying unearned assertions, inventorying working-tree differences absent from candidate `2.0.0-rc5`, and executing candidate preflight verification.
+- Empirical Script Assertions Audit and Honest Claims Reclassification:
+  - Phase 119 Staging Checks: Audited `scripts/run-phase119-https-staging-verification.mjs` lines 509–605. Reclassified 10 checks from "authenticated browser journeys" to **10 unauthenticated page-presence / DOM-inspection checks** (verifying HTTP 200 route reachability, page titles, and layout containers; no login, entity creation, sync conflict, or deletion performed).
+  - Staging Backup Verification: Audited `scripts/run-phase119-https-staging-verification.mjs` lines 388–403 (`fs.existsSync('docs/engineering/backup-and-recovery.md')`). Reclassified `BKP-01` from "staging restore drill" to **runbook documentation protocol verification**. Live staging database restoration drill remains unexecuted and a recognized blocked gate (`evidence-backupRecoveryEvidence`).
+  - Phase 121 Load Testing: Audited `scripts/run-phase121-load-testing.mjs`. Reclassified runs from "proof of 10,000-user capacity" to **health-endpoint throughput profiling, proxy rate-limiter boundary verification, and mathematical capacity modeling** (~140 health requests). Authenticated transactional database load testing for 10k users remains unexecuted and requires paid infrastructure.
+  - Phase 122 Launch Package Synchronization: Synchronized reclassified claims into `artifacts/phase122/production-launch-package.json`, `docs/phase-reports/phase-122.md`, `docs/release/v2-authorized-publication-record.md`, and `artifacts/phase102/publication-review-record.json`.
+- Dirty Working Tree Inventory & RC5 Delta Audit (`artifacts/phase123/dirty-working-tree-inventory.json`):
+  - Tracked Modified Files: 109 files across `artifacts/` (69), `docs/` (29), `tests/` (5), `assets/` (2), `packages/` (1), `infra/` (1), `scripts/` (1), and `CHANGELOG.md` (1).
+  - Untracked Files: 2,003 files (Android UI dump artifacts in `artifacts/android-e2e/phase71/` and `artifacts/phase77/`).
+  - Source & Migration Changes Absent from RC5: Identified that `packages/ui-web/src/Dialog.tsx` (theme-aware backdrop color, 3px blur, border/shadow polish) and `infra/supabase/migrations/00077_moderation_takedown_enforcement.sql` are uncommitted in the working tree and absent from candidate `2.0.0-rc5` release archives.
+- Candidate Preflight Execution & Gate Reconciliation (`artifacts/phase123/preflight-reconciliation-record.json`):
+  - Executed `node scripts/release-preflight.mjs --allow-partial-local`.
+  - Invariant Results: 20 passed, 0 failed, 13 blocked, 1 unexecuted (`flag-prod-env`), `releaseEligible=false`.
+  - Blocked Gates Cataloged: `manifest-provisional`, `android-version-code`, `db-roles`, `deviceEvidence`, `betaEvidence`, `accessibilityEvidence`, `backupRecoveryEvidence` (confirms no live restore drill occurred), `opsEvidence`, `signedArtifactEvidence`, `sixteenKbEvidence`, `ownerApproval` (confirms no owner launch authorization granted), `node-engines`, and `human-launch-authorization`.
+- Automated Test Suite Verified (8/8 Passed):
+  - `tests/release/phase123-claims-reclassification-and-audit.test.ts` (8 tests passed).
+
 ## Phase 122 — Daynori production release-candidate launch package, owner authorization reconciliation, and staged rollout governance — 2026-11-15
 
 - ADR 0122: Daynori Production Release-Candidate Launch Package, Owner Authorization Governance, and Staged Rollout Management, assembling a unified reviewable production launch package for Candidate 2.0.0-rc5 from clean verified commit `f70aa3f9679ae927ea603773daf139b434b59adb`.
@@ -26,6 +45,37 @@
   - Explicit Owner Approval Gates: `OWNER-PROD-DNS` (domain DNS), `OWNER-BUDGET-AUTH` (hosting budget), `OWNER-COHORT-SIZE` (50–100 cohort), and `OWNER-RELEASE-AUTH` (publication signature). Phase status recorded as honestly blocked pending owner authorization.
 - Automated Test Suite Verified (11/11 Passed):
   - `tests/release/phase122-launch-package-and-governance.test.ts` (11 tests passed in 19ms).
+
+## Phase 121 — Daynori production-scale load testing, performance profiling, and capacity envelope verification for 1,000 to 10,000 users — 2026-11-15
+
+- ADR 0121: Daynori Production-Scale Load Testing, Performance Profiling, and Capacity Envelope Verification for 1,000 to 10,000 Users, establishing an empirical capacity envelope and operational runbook grounded in hosted staging measurements, queuing theory, and Bangladesh network conditions.
+- Realistic Traffic Models and Concurrency Sizing:
+  - 1,000 Registered Users: 275 DAU (27.5%), 30 Peak Concurrent Users (PCU, 10.9% of DAU), 10 peak RPS, 75/25 read/write mix. Capacity envelope: Render Free/Starter + Supabase Free ($0–$7/mo).
+  - 5,000 Registered Users: 1,400 DAU (28.0%), 150 PCU (10.7% of DAU), 45 peak RPS, 75/25 read/write mix. Capacity envelope: Railway Pro + Supabase Pro ($80–$110/mo) with mandatory PgBouncer transaction pooling (40–60 connections).
+  - 10,000 Registered Users: 2,800 DAU (28.0%), 300 PCU (10.7% of DAU), 90 peak RPS, 75/25 read/write mix. Capacity envelope: Scaled PaaS (Railway 4GB RAM + Supabase Pro Compute Small, $110–$160/mo) with 75–100 pooled connections.
+- Bangladesh Network Condition Modeling:
+  - Simulated real-world conditions from Dhaka/Chittagong across SEA-ME-WE 4/5 submarine cables to Singapore origin: 95ms base RTT, $\pm 25\text{ms}$ Gaussian jitter (70–120ms range), 1.5% packet loss adding 150ms TCP retransmit delay.
+  - Cloudflare DAC edge caching verified for Next.js static assets and `/offline-shell.html` resolving in 15–35ms locally.
+- Hosted Staging Load Testing Runs (`scripts/run-phase121-load-testing.mjs`):
+  - Strictly targeted authorized HTTPS staging (`https://daynori-api-preview.onrender.com` and `https://daynori-web-preview.onrender.com`), failing closed if localhost is targeted.
+  - Ramp-Run (15 CCU, 30 requests): 100% success rate (0% errors), origin p50=182ms, p95=228ms; Bangladesh end-user p50=256ms, p95=315ms.
+  - Spike-Run (30 CCU burst, 40 requests): 29 successful requests, 11 rate-limited (HTTP 429), 0 server errors (0% 5xx). Empirically captured proxy rate-limiter saturation bottleneck on unpatched staging.
+  - Sliding-Window Cool-Down (62s): Verified sliding-window budget reset back to 60 req/min.
+  - Soak-Run (10 CCU, 40 requests, paced 75/25 mix): 100% success rate (0% errors), origin p50=119ms, p95=290ms; Bangladesh end-user p50=208ms, p95=392ms.
+  - Web-Assets-Run (10 CCU, 30 requests to Next.js SSR `/` and `/offline-shell.html`): 100% success rate (0% errors), origin p50=699ms, p95=1982ms.
+- Bottleneck Identification and Remediations:
+  - Reverse-Proxy & Mobile Carrier NAT IP Aggregation: Updated `ProcessLocalRateLimiter` in `apps/api/src/plugins/rateLimiter.ts` to parse `CF-Connecting-IP` and leftmost `X-Forwarded-For` client IP, ensuring mobile users under CGNAT do not share rate limit buckets.
+  - Fastify Proxy Configuration: Added `trustProxy: true` to Fastify configuration in `apps/api/src/server.ts`.
+  - Monitoring Probe Protection: Exempted health check routes (`/health`, `/api/health`, `/v1/health`) from rate limiting, preventing false-positive monitoring alert flaps.
+  - Database Connection Limits: Identified Supabase Free 15 direct connection limit as hard blocker above 35 CCU, establishing PgBouncer migration path.
+- Operational Envelope and Scaling Runbook (`artifacts/phase121/operational-envelope-and-thresholds.md`):
+  - Operational Alert Thresholds: Origin p95 latency warning at 500ms, critical at 1,000ms; 5xx error rate warning at 0.5%, critical at 1.0%; DB pool warning at 75%, critical at 90%.
+  - Automated Rollback Triggers: 5xx error rate $> 1.0\%$ across 5 minutes, end-user p95 $> 2,000\text{ms}$ sustained for $> 5$ minutes, or DB pool exhaustion $> 60\text{s}$.
+  - No-Extrapolation Principle: Documented why 100-user local tests cannot be linearly extrapolated under Little's Law ($L = \lambda W$) and Erlang C queuing saturation.
+- Machine-Readable Artifacts & Automated Test Suite:
+  - `artifacts/phase121/capacity-envelope-matrix.json`: Machine-readable capacity, network, and cost matrix.
+  - `artifacts/phase121/load-test-results.json`: Empirical load test run metrics.
+  - `tests/performance/phase121-capacity-and-load.test.ts`: 12 performance tests verifying network simulation, percentiles, user models, rate limiter header parsing, health bypass, and artifact schemas (12/12 passed).
 
 ## Phase 121 — Daynori production-scale load testing, performance profiling, and capacity envelope verification for 1,000 to 10,000 users — 2026-11-15
 

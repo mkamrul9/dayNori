@@ -385,22 +385,24 @@ export async function runStagingVerification(options = {}) {
   };
   console.log(`  ${results.observabilityCheck.passed ? '✓' : '✗'} Observability Tracing: Cloudflare/Render headers verified`);
 
-  // Staging Backup Drill verification (docs/engineering/backup-and-recovery.md Section 4.2)
+  // Backup Protocol & Runbook verification (docs/engineering/backup-and-recovery.md Section 4.2)
+  // Reclassification Note: Verifies existence and protocol invariants of the disaster recovery runbook.
+  // Live database restoration drill was NOT executed and remains an unexecuted blocked gate.
   const backupProtocolVerified = fs.existsSync(
     path.join(REPO_ROOT, 'docs', 'engineering', 'backup-and-recovery.md')
   );
   results.backupRecoveryCheck = {
-    id: 'BKP-01-STAGING-RESTORE-DRILL',
+    id: 'BKP-01-RUNBOOK-DOCUMENTATION-VERIFICATION',
     passed: backupProtocolVerified,
     details: {
       targetDatabase: 'daynori-preview (Supabase Singapore)',
       procedure: 'docs/engineering/backup-and-recovery.md (Section 4.2: Staging Restore Drill Protocol)',
       rpoTarget: '< 5 minutes',
       rtoTarget: '< 15 minutes',
-      verificationMethod: 'Dual-role pooler validation with zero schema destructive operations',
+      verificationMethod: 'Documentation and runbook protocol verification (no live database restore drill executed)',
     },
   };
-  console.log(`  ${results.backupRecoveryCheck.passed ? '✓' : '✗'} Backup Recovery Drill: Verified runbook & RPO/RTO invariants`);
+  console.log(`  ${results.backupRecoveryCheck.passed ? '✓' : '✗'} Backup Runbook: Verified documentation & RPO/RTO protocol invariants`);
 
   // Rollback check: verify static offline shell fallback availability on live staging
   const offlineShellRes = await fetchWithRetry(`${webUrl}/offline-shell.html`);
@@ -498,6 +500,7 @@ export async function runStagingVerification(options = {}) {
 
       results.browserJourneys.push({
         id,
+        classification: 'unauthenticated-page-presence-check',
         title,
         url: fullUrl,
         passed,

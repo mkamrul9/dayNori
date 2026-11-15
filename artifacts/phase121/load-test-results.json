@@ -1,6 +1,6 @@
 {
   "phase": "121",
-  "title": "Daynori Production-Scale Load Testing and Capacity Envelope Verification",
+  "title": "Daynori Staging Health-Probe Throughput Profiling, Rate-Limiter Boundary Verification, and Capacity Modeling",
   "executedAt": "2026-11-15T07:43:03.499Z",
   "targetUrls": {
     "api": "https://daynori-api-preview.onrender.com",
@@ -203,5 +203,9 @@
     "End-user p95 latency exceeds 2,000ms for > 5 minutes",
     "Database connection pool exhaustion (all direct/pooled connections saturated for > 60s)",
     "Unmitigated memory leak in Node.js process (> 85% RSS heap saturation without GC recovery)"
-  ]
+  ],
+  "reclassificationNotice": {
+    "classification": "health-request-runs-and-capacity-modeling",
+    "clarification": "Load test executed ~140 HTTP requests to health endpoints (/health, /v1/health, /api/health) and static assets (/, /offline-shell.html). It was NOT proof of 10,000-user transactional capacity. Authenticated database reads/writes at 10k scale remain unexecuted and require paid infrastructure."
+  }
 }

@@ -5038,6 +5038,78 @@
         "docs/operations/incident-response-and-support-roster.md"
       ],
       "commit": "chore(release): assemble reviewable production launch package and reconcile release governance"
+    },
+    {
+      "id": "123",
+      "group": "v2-release",
+      "title": "Daynori release-evidence audit, claims reclassification, candidate inventory, and preflight reconciliation",
+      "dependsOn": [
+        "102",
+        "112",
+        "118",
+        "119",
+        "120",
+        "121",
+        "122"
+      ],
+      "scope": [
+        "artifacts/phase119",
+        "artifacts/phase120",
+        "artifacts/phase121",
+        "artifacts/phase122",
+        "artifacts/phase123",
+        "docs/decisions",
+        "docs/phase-reports",
+        "docs/release",
+        "docs/roadmap",
+        "scripts",
+        "tests/release",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Audit actual assertions in Phase 119, 120, 121, and 122 scripts against all reported claims across reports, JSON artifacts, and release records.",
+        "Reclassify page-presence checks as page checks (not authenticated journeys), health-request runs as health-request runs (not proof of 10,000-user capacity), and the backup runbook check as documentation verification (not a live restore drill).",
+        "Update Phase 119, 120, 121, and 122 reports, evidence JSON artifacts, and release records to strictly reflect reclassified claims.",
+        "Inventory the dirty working tree and identify all modified source and schema files absent from candidate 2.0.0-rc5 archives (notably packages/ui-web/src/Dialog.tsx and moderation migrations).",
+        "Execute candidate preflight verification via scripts/release-preflight.mjs, recording exact invariant counts (20 pass, 0 fail, 13 blocked, 1 unexecuted) and cataloging remaining gates.",
+        "Author ADR 0123, phase report docs/phase-reports/phase-123.md, automated test suite tests/release/phase123-claims-reclassification-and-audit.test.ts, update CHANGELOG.md, docs/roadmap/progress.json, and validate planning."
+      ],
+      "acceptance": [
+        "Empirical assertions in Phase 119, 120, 121, and 122 audited and claims truthfully reclassified across all reports and JSON artifacts.",
+        "Page checks, health-request runs, and runbook documentation verification strictly distinguished from authenticated journeys, restore drills, and 10k capacity proof.",
+        "Exhaustive inventory of dirty working tree produced, documenting changes absent from rc5.",
+        "Preflight executed and reconciled with 13 blocked gates (including evidence-backupRecoveryEvidence and evidence-ownerApproval).",
+        "Automated test suite tests/release/phase123-claims-reclassification-and-audit.test.ts passes cleanly.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html pass all planning validators."
+      ],
+      "checks": [
+        "pnpm vitest run tests/release/phase123-claims-reclassification-and-audit.test.ts",
+        "node scripts/release-preflight.mjs --allow-partial-local",
+        "node scripts/validate-planning.mjs",
+        "pnpm validate:function-register"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/release/v2-authorized-publication-record.md",
+        "docs/decisions/0057-public-release-preflight-and-first-publication.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0101-version-2-release-candidate-and-operational-preparation.md",
+        "docs/decisions/0102-authorized-version-2-publication-and-live-verification.md",
+        "docs/decisions/0118-daynori-deployable-web-core-release-and-production-infrastructure-capacity-plan.md",
+        "docs/decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md",
+        "docs/decisions/0120-production-security-privacy-review-and-remediation.md",
+        "docs/decisions/0121-production-scale-load-testing-and-capacity-envelope.md",
+        "docs/decisions/0122-production-launch-package-and-owner-authorization-governance.md",
+        "docs/decisions/0123-release-evidence-audit-claims-reclassification-and-preflight.md",
+        "docs/phase-reports/phase-119.md",
+        "docs/phase-reports/phase-120.md",
+        "docs/phase-reports/phase-121.md",
+        "docs/phase-reports/phase-122.md",
+        "docs/phase-reports/phase-123.md"
+      ],
+      "commit": "chore(release): audit release evidence, reclassify claims, and reconcile candidate preflight"
     }
   ],
   "featureCoverage": [

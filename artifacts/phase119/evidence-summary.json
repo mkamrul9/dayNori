@@ -1,6 +1,6 @@
 {
   "phase": "119",
-  "title": "Daynori Authorized HTTPS Staging Deployment Verification and Browser Journey Audit",
+  "title": "Daynori Authorized HTTPS Staging Deployment Verification and Page-Presence Check Audit",
   "generatedAt": "2026-11-15T07:16:30.000Z",
   "environment": {
     "type": "authorized-https-staging",
@@ -14,17 +14,55 @@
   "failClosedGuards": {
     "localhostProhibition": {
       "enforcedBy": "assertHttpsStagingUrl() in scripts/run-phase119-https-staging-verification.mjs",
-      "prohibitedHosts": ["localhost", "127.0.0.1", "0.0.0.0", "::1", "*.local"],
+      "prohibitedHosts": [
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1",
+        "*.local"
+      ],
       "verified": true
     },
     "unreleasedModulesGated": {
-      "vault": { "gate": "DEF-V2-001/DEF-V2-004", "endpoint": "/v1/vault", "status": 403, "gated": true },
-      "aiAssistant": { "gate": "DEF-V2-008", "endpoint": "/v1/ai", "status": 403, "gated": true },
-      "rooms": { "gate": "DEF-V2-006", "endpoint": "/v1/rooms", "status": 403, "gated": true },
-      "billing": { "gate": "DEF-V2-007", "endpoint": "/v1/billing", "status": 403, "gated": true },
-      "voice": { "gate": "DEF-V2-008/DEF-V2-011", "status": "fail-closed", "gated": true },
-      "drive": { "gate": "DEF-V2-005", "status": "fail-closed", "gated": true },
-      "android": { "gate": "OWNER-SIGNING-KEYS/DEF-V2-011", "status": "fail-closed", "gated": true }
+      "vault": {
+        "gate": "DEF-V2-001/DEF-V2-004",
+        "endpoint": "/v1/vault",
+        "status": 403,
+        "gated": true
+      },
+      "aiAssistant": {
+        "gate": "DEF-V2-008",
+        "endpoint": "/v1/ai",
+        "status": 403,
+        "gated": true
+      },
+      "rooms": {
+        "gate": "DEF-V2-006",
+        "endpoint": "/v1/rooms",
+        "status": 403,
+        "gated": true
+      },
+      "billing": {
+        "gate": "DEF-V2-007",
+        "endpoint": "/v1/billing",
+        "status": 403,
+        "gated": true
+      },
+      "voice": {
+        "gate": "DEF-V2-008/DEF-V2-011",
+        "status": "fail-closed",
+        "gated": true
+      },
+      "drive": {
+        "gate": "DEF-V2-005",
+        "status": "fail-closed",
+        "gated": true
+      },
+      "android": {
+        "gate": "OWNER-SIGNING-KEYS/DEF-V2-011",
+        "status": "fail-closed",
+        "gated": true
+      }
     }
   },
   "securityAudits": {
@@ -45,9 +83,21 @@
     }
   },
   "healthProbes": {
-    "webApiHealth": { "url": "https://daynori-web-preview.onrender.com/api/health", "status": 200, "verified": true },
-    "apiRootHealth": { "url": "https://daynori-api-preview.onrender.com/health", "status": 200, "verified": true },
-    "apiV1Health": { "url": "https://daynori-api-preview.onrender.com/v1/health", "status": 200, "verified": true }
+    "webApiHealth": {
+      "url": "https://daynori-web-preview.onrender.com/api/health",
+      "status": 200,
+      "verified": true
+    },
+    "apiRootHealth": {
+      "url": "https://daynori-api-preview.onrender.com/health",
+      "status": 200,
+      "verified": true
+    },
+    "apiV1Health": {
+      "url": "https://daynori-api-preview.onrender.com/v1/health",
+      "status": 200,
+      "verified": true
+    }
   },
   "observabilityAndRollback": {
     "correlationTracing": {
@@ -58,6 +108,8 @@
     "backupRestoreDrill": {
       "runbook": "docs/engineering/backup-and-recovery.md",
       "section": "4.2: Staging Restore Drill Protocol",
+      "verificationType": "runbook-documentation-verification",
+      "liveRestoreDrillExecuted": false,
       "rpoTarget": "< 5 minutes",
       "rtoTarget": "< 15 minutes",
       "verified": true
@@ -74,70 +126,80 @@
       "title": "Sign-Up, Login, and Password Recovery Interface",
       "url": "https://daynori-web-preview.onrender.com/privacy",
       "screenshotSha256": "c0b701e7f64c5cf8a3780a7ec2e03fc6b920b979201e79c3e179af9a1882ea1a",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-02-workspace-isolation",
       "title": "Workspace Scoping & Session Demarcation",
       "url": "https://daynori-web-preview.onrender.com/settings",
       "screenshotSha256": "4d4e640bd3d7dfe55126547083bfbf2aa5ccda64553fee5d60ce0ba8e3c4e773",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-03-notes-lifecycle",
       "title": "Personal Notes Creation, Markdown AST, and Reopen",
       "url": "https://daynori-web-preview.onrender.com/library",
       "screenshotSha256": "875ecf4130ae54fcfdec1ea2d99147ba53f3c3ddeff775c1e949b1d997589ddf",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-04-tasks-prioritization",
       "title": "Everyday Tasks Prioritization, Deadlines, and Checkoff",
       "url": "https://daynori-web-preview.onrender.com/today",
       "screenshotSha256": "435f542b4475380e59404b8ffb8332ef37a86b28f1a151eb004af4d9d761f695",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-05-routines-checklist",
       "title": "Daily Routines Schedule & Gentle Progress",
       "url": "https://daynori-web-preview.onrender.com/plan",
       "screenshotSha256": "150e3d7cf58cdc396adf63e6d0e1e97e8065d180d15fb1581b800a2963f5c07e",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-06-journal-reflection",
       "title": "Reflective Journal Entry & Notebook Cards",
       "url": "https://daynori-web-preview.onrender.com/journal",
       "screenshotSha256": "de8397e733ff635130e9d2072ece1a445179d87f8b2e7e76e3224874e2e82b4a",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-07-offline-sync-conflict",
       "title": "Offline Network Emulation & Outbox Queuing",
       "url": "https://daynori-web-preview.onrender.com/today",
       "screenshotSha256": "435f542b4475380e59404b8ffb8332ef37a86b28f1a151eb004af4d9d761f695",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-08-account-deletion",
       "title": "Account Deletion Lifecycle & Privacy Safeguards",
       "url": "https://daynori-web-preview.onrender.com/account-deletion",
       "screenshotSha256": "5fbb26046674864e8597f293101b6fd5f50f673f7c9077061fa1df98c039d7ef",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-09-library-and-search",
       "title": "Knowledge Organization, Folders, and Search",
       "url": "https://daynori-web-preview.onrender.com/library",
       "screenshotSha256": "875ecf4130ae54fcfdec1ea2d99147ba53f3c3ddeff775c1e949b1d997589ddf",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     },
     {
       "id": "journey-10-help-and-support",
       "title": "Guided Tours Chapters, Help Search, and Support Feedback",
       "url": "https://daynori-web-preview.onrender.com/help",
       "screenshotSha256": "1c8dce84d350b33c40f71c4c2291cd778602a0fa76b6a9acac5a0aa743fc858b",
-      "passed": true
+      "passed": true,
+      "classification": "unauthenticated-page-presence-check"
     }
   ],
   "summary": {

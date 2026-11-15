@@ -1,0 +1,190 @@
+{
+  "phase": "123",
+  "title": "Daynori Candidate Preflight Audit and Gate Reconciliation",
+  "auditedAt": "2026-11-15T10:25:00.216Z",
+  "command": "node scripts/release-preflight.mjs --allow-partial-local",
+  "summary": {
+    "pass": 20,
+    "blocked": 13,
+    "unexecuted": 1,
+    "fail": 0,
+    "total": 34,
+    "releaseEligible": false
+  },
+  "blockedGates": [
+    {
+      "id": "manifest-provisional",
+      "status": "BLOCKED",
+      "detail": "Provisional/local-preparation manifest cannot become release-eligible without replacing vague evidence and owner OA"
+    },
+    {
+      "id": "android-version-code",
+      "status": "BLOCKED",
+      "detail": "androidVersionCode unresolved until signed build evidence exists"
+    },
+    {
+      "id": "db-roles",
+      "status": "BLOCKED",
+      "detail": "Required database roles not verified for this candidate"
+    },
+    {
+      "id": "evidence-deviceEvidence",
+      "status": "BLOCKED",
+      "detail": "Physical device / TalkBack / KeyStore evidence (Phase 37) missing or placeholder"
+    },
+    {
+      "id": "evidence-betaEvidence",
+      "status": "BLOCKED",
+      "detail": "Private beta cohort evidence (Phase 38) missing or placeholder"
+    },
+    {
+      "id": "evidence-accessibilityEvidence",
+      "status": "BLOCKED",
+      "detail": "Accessibility acceptance evidence missing or placeholder"
+    },
+    {
+      "id": "evidence-backupRecoveryEvidence",
+      "status": "BLOCKED",
+      "detail": "Backup/recovery drill for matching versions missing or placeholder"
+    },
+    {
+      "id": "evidence-opsEvidence",
+      "status": "BLOCKED",
+      "detail": "Operational ownership / monitoring / support missing or placeholder"
+    },
+    {
+      "id": "evidence-signedArtifactEvidence",
+      "status": "BLOCKED",
+      "detail": "Signed AAB/APK hash + signer identity missing or placeholder"
+    },
+    {
+      "id": "evidence-sixteenKbEvidence",
+      "status": "BLOCKED",
+      "detail": "16 KB page-size / native lib alignment on built artifact missing or placeholder"
+    },
+    {
+      "id": "evidence-ownerApproval",
+      "status": "BLOCKED",
+      "detail": "Owner/operator launch authorization for this exact candidate missing or placeholder"
+    },
+    {
+      "id": "node-engines",
+      "status": "BLOCKED",
+      "detail": "Installed v24.11.1 does not satisfy engines.node ^24.21.0; do not claim supported-runtime verification"
+    },
+    {
+      "id": "human-launch-authorization",
+      "status": "BLOCKED",
+      "detail": "Engineering preflight never grants operator approval or initiates publication"
+    }
+  ],
+  "passedGates": [
+    {
+      "id": "git-revision",
+      "status": "PASS",
+      "detail": "HEAD f2af6577af85b13522a7cf8257420d30839141c2"
+    },
+    {
+      "id": "manifest-not-approval",
+      "status": "PASS",
+      "detail": "Manifest explicitly denies launch approval"
+    },
+    {
+      "id": "version-web",
+      "status": "PASS",
+      "detail": "0.1.0"
+    },
+    {
+      "id": "version-mobile",
+      "status": "PASS",
+      "detail": "0.1.0"
+    },
+    {
+      "id": "version-api",
+      "status": "PASS",
+      "detail": "0.1.0"
+    },
+    {
+      "id": "version-monorepo",
+      "status": "PASS",
+      "detail": "0.1.0"
+    },
+    {
+      "id": "disabled-inventory-vault",
+      "status": "PASS",
+      "detail": "vault disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-roomsChat",
+      "status": "PASS",
+      "detail": "roomsChat disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-liveAi",
+      "status": "PASS",
+      "detail": "liveAi disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-productionBilling",
+      "status": "PASS",
+      "detail": "productionBilling disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-phase50DriveDeferred",
+      "status": "PASS",
+      "detail": "phase50DriveDeferred disabled in inventory"
+    },
+    {
+      "id": "disabled-inventory-phase49LiveGoogle",
+      "status": "PASS",
+      "detail": "phase49LiveGoogle disabled in inventory"
+    },
+    {
+      "id": "debug-release-signing",
+      "status": "PASS",
+      "detail": "Local-test debug release signing flag not set"
+    },
+    {
+      "id": "android-tree",
+      "status": "PASS",
+      "detail": "targetSdk=36 compileSdk=36 guard=present"
+    },
+    {
+      "id": "migrations",
+      "status": "PASS",
+      "detail": "through 00069_billing_role_password_align.sql"
+    },
+    {
+      "id": "evidence-enabled-personalNotes",
+      "status": "PASS",
+      "detail": "PENDING_CANDIDATE_SCOPED — see docs/release/evidence/candidate-evidence.json"
+    },
+    {
+      "id": "evidence-enabled-tasksRoutinesJournal",
+      "status": "PASS",
+      "detail": "PENDING_CANDIDATE_SCOPED — see docs/release/evidence/candidate-evidence.json"
+    },
+    {
+      "id": "evidence-enabled-filesLocal",
+      "status": "PASS",
+      "detail": "PENDING_CANDIDATE_SCOPED — see docs/release/evidence/candidate-evidence.json"
+    },
+    {
+      "id": "evidence-enabled-searchSyncExport",
+      "status": "PASS",
+      "detail": "PENDING_CANDIDATE_SCOPED — see docs/release/evidence/candidate-evidence.json"
+    },
+    {
+      "id": "evidence-enabled-accountDeletionPublicResource",
+      "status": "PASS",
+      "detail": "local routes + phase60 gate tests; public URL unverified"
+    }
+  ],
+  "unexecutedGates": [
+    {
+      "id": "flag-prod-env",
+      "status": "UNEXECUTED",
+      "detail": "NODE_ENV=unset — production flag matrix not asserted in this process"
+    }
+  ]
+}

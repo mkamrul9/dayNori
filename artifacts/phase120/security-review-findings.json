@@ -42,13 +42,17 @@
       "dimension": "rate-limiting",
       "status": "verified-secure",
       "mechanism": "ProcessLocalRateLimiter sliding window (60 req/min) keyed by verified actor.userId or IP. Returns X-RateLimit-* headers and Retry-After on 429.",
-      "unresolvedRisks": ["In a multi-instance production cluster, process-local rate limiters operate independently per node; centralized Redis rate limiting is recommended for > 1,000 MAU."]
+      "unresolvedRisks": [
+        "In a multi-instance production cluster, process-local rate limiters operate independently per node; centralized Redis rate limiting is recommended for > 1,000 MAU."
+      ]
     },
     {
       "dimension": "dependency-vulnerabilities",
       "status": "remediated-and-triaged",
       "mechanism": "pnpm audit identified GHSA-2464-fhr4-w9xw (critical Next.js SVG Image Optimization RCE). Remediated by configuring images.unoptimized = true in apps/web/next.config.mjs, completely disabling the vulnerable optimization handler. Mobile dev-dependency node-forge vulnerabilities in Expo CLI triaged (mobile app is gated from web core release).",
-      "unresolvedRisks": ["Expo CLI / node-forge transitive vulnerabilities in apps/mobile remain pending Expo SDK 53 upgrade."]
+      "unresolvedRisks": [
+        "Expo CLI / node-forge transitive vulnerabilities in apps/mobile remain pending Expo SDK 53 upgrade."
+      ]
     },
     {
       "dimension": "secrets-isolation-and-log-redaction",
@@ -65,8 +69,10 @@
     {
       "dimension": "backups-and-recovery",
       "status": "verified-secure",
-      "mechanism": "Disaster recovery protocol (docs/engineering/backup-and-recovery.md Section 4.2) verified with dual-role pooler validation and pre-access deletion suppression barrier (restored database cannot revive purged accounts).",
-      "unresolvedRisks": []
+      "mechanism": "Disaster recovery runbook protocol (docs/engineering/backup-and-recovery.md Section 4.2) verified for pre-access deletion suppression barrier (restored database cannot revive purged accounts). Live database restoration drill unexecuted and remaining blocked under evidence-backupRecoveryEvidence.",
+      "unresolvedRisks": [
+        "Live database restoration drill unexecuted; evidence-backupRecoveryEvidence remains blocked in release-preflight."
+      ]
     },
     {
       "dimension": "disabled-modules-fail-closed",

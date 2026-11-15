@@ -3,7 +3,7 @@
 ## Identity and scope
 
 - Phase: [119 — Daynori authorized HTTPS staging deployment verification and browser journey audit](../roadmap/phases/119-daynori-authorized-https-staging-deployment-verification-and-browser-journey-audit.md).
-- Status: **blocked** — Authorized HTTPS staging deployment verification and browser journey audit completed against live cloud staging infrastructure (`https://daynori-web-preview.onrender.com`, `https://daynori-api-preview.onrender.com`, `https://sexxceqqknqzvxuuqnkx.supabase.co`). Fail-closed assertion guard `assertHttpsStagingUrl` enforced zero localhost or loopback fallback. Probed and passed live TLS 1.3 / CSP Level 3 cryptographic nonce security headers, anti-clickjacking guards, live health endpoints (`/api/health`, `/health`, `/v1/health`), and high-risk module fail-closed barriers (Vault HTTP 403, AI HTTP 403, Rooms HTTP 403, Billing HTTP 403). Audited staging backup recovery drill runbook invariants (RPO < 5m, RTO < 15m) and verified live static rollback shell fallback (`/offline-shell.html`, HTTP 200). Executed 10 automated headless Chrome DevTools Protocol (CDP) browser journeys directly against live HTTPS staging URLs, capturing 10 timestamped PNG screenshots with cryptographic SHA-256 hashes. Status remains strictly **BLOCKED** pending standing external release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71).
+- Status: **blocked** — Authorized HTTPS staging deployment verification and page-presence audit completed against live cloud staging infrastructure (`https://daynori-web-preview.onrender.com`, `https://daynori-api-preview.onrender.com`, `https://sexxceqqknqzvxuuqnkx.supabase.co`). Fail-closed assertion guard `assertHttpsStagingUrl` enforced zero localhost or loopback fallback. Probed and passed live TLS 1.3 / CSP Level 3 cryptographic nonce security headers, anti-clickjacking guards, live health endpoints (`/api/health`, `/health`, `/v1/health`), and high-risk module fail-closed barriers (Vault HTTP 403, AI HTTP 403, Rooms HTTP 403, Billing HTTP 403). Audited staging backup runbook documentation invariants (RPO < 5m, RTO < 15m in `docs/engineering/backup-and-recovery.md`; live database restore drill unexecuted). Verified live static rollback shell fallback (`/offline-shell.html`, HTTP 200). Executed 10 automated headless Chrome DevTools Protocol (CDP) unauthenticated page-presence / DOM-inspection checks (reclassified: page checks, NOT authenticated journeys) directly against live HTTPS staging URLs, capturing 10 timestamped PNG screenshots with cryptographic SHA-256 hashes. Status remains strictly **BLOCKED** pending standing external release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71).
   - Smallest verified release scope: bounded Web/PWA core (78 verified core actions enabled). Drive, AI, Voice, Vault, Rooms, Billing, Push, and Android remain fail-closed on their independent tracks.
   - Verification evidence: authored in [`artifacts/phase119/staging-verification-results.json`](../../artifacts/phase119/staging-verification-results.json), [`artifacts/phase119/evidence-summary.json`](../../artifacts/phase119/evidence-summary.json), and 10 screenshots in [`artifacts/phase119/screenshots/`](../../artifacts/phase119/screenshots/).
   - Architecture decision record: authored in [`docs/decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md`](../decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md).
@@ -40,23 +40,24 @@
 
 5. **Observability, Backups & Static Rollback Verification (3/3 Passed)**:
    - Observability: Request correlation tracing headers verified on live responses (`rndr-id: 330c792e-9ba6-4997`, `cf-ray: a5ac77ad9e05af36-DAC`, Fastify `x-request-id`).
-   - Backup Recovery Drill: Verified staging restore drill protocol documented in `docs/engineering/backup-and-recovery.md` Section 4.2 targeting RPO < 5m and RTO < 15m.
+   - Backup Runbook & Protocol Documentation Verification (**Reclassified: Documentation Verification, NOT a Live Restore Drill**): Verified runbook existence and protocol invariants in `docs/engineering/backup-and-recovery.md` Section 4.2 targeting RPO < 5m and RTO < 15m. Live database restore drill was NOT executed on hosted staging and remains an unexecuted blocked gate (`evidence-backupRecoveryEvidence`).
    - Rollback Shell: Probed `https://daynori-web-preview.onrender.com/offline-shell.html`; returned HTTP 200 (6,395 bytes) containing standalone offline reader and outbox viewer.
 
-6. **Chrome CDP Real Browser Journeys against Live Staging (10/10 Passed)**:
+6. **Chrome CDP Page-Presence Checks against Live Staging Routes (10/10 Passed) (**Reclassified: Page Checks, NOT Authenticated Journeys**)**:
    - Automated headless Chrome (`--headless=new`, `--window-size=1280,800`) connecting via Chrome DevTools Protocol to navigate live HTTPS staging routes.
+   - **Important Reclassification**: These 10 checks verified route reachability (HTTP 200), page titles, and container DOM presence on live HTTPS staging. They did NOT perform authenticated user login, note creation, habit completion, or database mutations.
    - Captured 10 full-viewport screenshots with cryptographic SHA-256 hashes saved to `artifacts/phase119/screenshots/`.
-   - All 10 user journeys passed:
-     1. `journey-01-auth-lifecycle`: Sign-Up, Login, and Password Recovery Interface (`/privacy`).
-     2. `journey-02-workspace-isolation`: Workspace Scoping & Session Demarcation (`/settings`).
-     3. `journey-03-notes-lifecycle`: Personal Notes Creation, Markdown AST, and Reopen (`/library`).
-     4. `journey-04-tasks-prioritization`: Everyday Tasks Prioritization, Deadlines, Checkoff (`/today`).
-     5. `journey-05-routines-checklist`: Daily Routines Schedule & Gentle Progress (`/plan`).
-     6. `journey-06-journal-reflection`: Reflective Journal Entry & Notebook Cards (`/journal`).
-     7. `journey-07-offline-sync-conflict`: Offline Network Emulation & Outbox Queuing (`/today`).
-     8. `journey-08-account-deletion`: Account Deletion Lifecycle & Privacy Safeguards (`/account-deletion`).
-     9. `journey-09-library-and-search`: Knowledge Organization, Folders, and Search (`/library`).
-     10. `journey-10-help-and-support`: Guided Tours Chapters, Help Search, and Support Feedback (`/help`).
+   - All 10 page-presence checks passed:
+     1. `journey-01-auth-lifecycle`: Auth Route & Header Inspection (`/privacy`).
+     2. `journey-02-workspace-isolation`: Settings Route & Container Presence (`/settings`).
+     3. `journey-03-notes-lifecycle`: Library Route & Title Presence (`/library`).
+     4. `journey-04-tasks-prioritization`: Today View & Main Element Inspection (`/today`).
+     5. `journey-05-routines-checklist`: Plan Route & Header Inspection (`/plan`).
+     6. `journey-06-journal-reflection`: Journal Route & Container Presence (`/journal`).
+     7. `journey-07-offline-sync-conflict`: Offline Network Emulation & Recovery (`/today`).
+     8. `journey-08-account-deletion`: Account Deletion Disclosure Presence (`/account-deletion`).
+     9. `journey-09-library-and-search`: Library Search Input Inspection (`/library`).
+     10. `journey-10-help-and-support`: Help Hub Route & Article Container Presence (`/help`).
 
 ---
 
@@ -74,18 +75,18 @@
 | `GATE-03-ROOMS` | Gating | `https://daynori-api-preview.onrender.com/v1/rooms` | **Passed (403)** |
 | `GATE-04-BILLING` | Gating | `https://daynori-api-preview.onrender.com/v1/billing` | **Passed (403)** |
 | `OBS-01-TRACING` | Observability | `rndr-id`, `cf-ray`, `x-request-id` | **Passed** |
-| `BKP-01-RESTORE-DRILL` | Backups | `docs/engineering/backup-and-recovery.md` Section 4.2 | **Passed** |
+| `BKP-01-RUNBOOK-DOC-VERIFICATION` | Backups Runbook | `docs/engineering/backup-and-recovery.md` Section 4.2 | **Passed (Runbook doc verification; live restore drill unexecuted)** |
 | `ROL-01-OFFLINE-FALLBACK`| Rollback | `https://daynori-web-preview.onrender.com/offline-shell.html` | **Passed (200)** |
-| `journey-01-auth-lifecycle` | Browser CDP | `/privacy` (SHA: `c0b701e7...`) | **Passed** |
-| `journey-02-workspace-isolation` | Browser CDP | `/settings` (SHA: `4d4e640b...`) | **Passed** |
-| `journey-03-notes-lifecycle` | Browser CDP | `/library` (SHA: `875ecf41...`) | **Passed** |
-| `journey-04-tasks-prioritization` | Browser CDP | `/today` (SHA: `435f542b...`) | **Passed** |
-| `journey-05-routines-checklist` | Browser CDP | `/plan` (SHA: `150e3d7c...`) | **Passed** |
-| `journey-06-journal-reflection` | Browser CDP | `/journal` (SHA: `de8397e7...`) | **Passed** |
-| `journey-07-offline-sync-conflict`| Browser CDP | `/today` (SHA: `435f542b...`) | **Passed** |
-| `journey-08-account-deletion` | Browser CDP | `/account-deletion` (SHA: `5fbb2604...`) | **Passed** |
-| `journey-09-library-and-search` | Browser CDP | `/library` (SHA: `875ecf41...`) | **Passed** |
-| `journey-10-help-and-support` | Browser CDP | `/help` (SHA: `1c8dce84...`) | **Passed** |
+| `journey-01-auth-lifecycle` | Page-Presence | `/privacy` (SHA: `c0b701e7...`) | **Passed (Page check)** |
+| `journey-02-workspace-isolation` | Page-Presence | `/settings` (SHA: `4d4e640b...`) | **Passed (Page check)** |
+| `journey-03-notes-lifecycle` | Page-Presence | `/library` (SHA: `875ecf41...`) | **Passed (Page check)** |
+| `journey-04-tasks-prioritization` | Page-Presence | `/today` (SHA: `435f542b...`) | **Passed (Page check)** |
+| `journey-05-routines-checklist` | Page-Presence | `/plan` (SHA: `150e3d7c...`) | **Passed (Page check)** |
+| `journey-06-journal-reflection` | Page-Presence | `/journal` (SHA: `de8397e7...`) | **Passed (Page check)** |
+| `journey-07-offline-sync-conflict`| Page-Presence | `/today` (SHA: `435f542b...`) | **Passed (Page check)** |
+| `journey-08-account-deletion` | Page-Presence | `/account-deletion` (SHA: `5fbb2604...`) | **Passed (Page check)** |
+| `journey-09-library-and-search` | Page-Presence | `/library` (SHA: `875ecf41...`) | **Passed (Page check)** |
+| `journey-10-help-and-support` | Page-Presence | `/help` (SHA: `1c8dce84...`) | **Passed (Page check)** |
 
 **Summary: 22 / 22 checks passed.**
 

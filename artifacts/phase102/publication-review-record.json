@@ -299,5 +299,44 @@
       }
     ],
     "observationsStatus": "PENDING_APPROVED_RELEASE_EXECUTION"
+  },
+  "evidenceAuditAndPreflight": {
+    "auditedInPhase": "123",
+    "reclassifiedClaims": {
+      "phase119": "Unauthenticated page-presence / DOM-inspection checks (not authenticated journeys)",
+      "backups": "Runbook documentation verification in docs/engineering/backup-and-recovery.md (restore drill unexecuted)",
+      "phase121": "Health-endpoint throughput profiling and mathematical capacity modeling (not proof of 10,000-user capacity)"
+    },
+    "preflightInvariants": {
+      "tool": "scripts/release-preflight.mjs --allow-partial-local",
+      "pass": 20,
+      "blocked": 13,
+      "unexecuted": 1,
+      "fail": 0,
+      "releaseEligible": false,
+      "keyBlockedGates": [
+        "evidence-backupRecoveryEvidence",
+        "evidence-ownerApproval",
+        "manifest-provisional",
+        "android-version-code",
+        "db-roles",
+        "evidence-deviceEvidence",
+        "evidence-betaEvidence",
+        "evidence-accessibilityEvidence",
+        "evidence-opsEvidence",
+        "evidence-signedArtifactEvidence",
+        "evidence-sixteenKbEvidence",
+        "node-engines",
+        "human-launch-authorization"
+      ]
+    },
+    "workingTreeDeltaVsRc5": {
+      "uncommittedModifiedFilesCount": 109,
+      "uncommittedUntrackedFilesCount": 2003,
+      "notableExcludedSourceModifications": [
+        "packages/ui-web/src/Dialog.tsx (theme-aware modal backdrop, border, and shadow adjustments)",
+        "infra/supabase/migrations/00077_moderation_takedown_enforcement.sql (moderation migration)"
+      ]
+    }
   }
 }

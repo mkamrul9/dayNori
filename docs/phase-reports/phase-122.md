@@ -41,9 +41,9 @@
 
 ### 3. Consolidated Staging, Security, and Load Test Evidence
 
-- **Hosted Staging Verification (Phase 119):** Tested against `https://daynori-web-preview.onrender.com` and `https://daynori-api-preview.onrender.com`. Executed 10/10 headless Chrome CDP real browser journeys; verified Content-Security-Policy Level 3 with per-request cryptographic nonces, defense-in-depth security headers, and TLS 1.3.
+- **Hosted Staging Verification (Phase 119):** Tested against `https://daynori-web-preview.onrender.com` and `https://daynori-api-preview.onrender.com`. Executed 10/10 headless Chrome CDP unauthenticated page-presence checks (reclassified: page checks, NOT authenticated user journeys); verified Content-Security-Policy Level 3 with per-request cryptographic nonces, defense-in-depth security headers, and TLS 1.3.
 - **Security & Privacy Audit (Phase 120):** Audited 10 security dimensions (14/14 tests passed). Remediated critical Next.js SVG RCE (`GHSA-2464-fhr4-w9xw`) via `images.unoptimized: true`, hardened PostgreSQL connection URL log redaction regex, and decoupled header sanitization.
-- **Production-Scale Load Testing (Phase 121):** Evaluated 1k, 5k, and 10k user scenarios incorporating simulated Bangladesh network profiles (95ms base RTT, $\pm 25\text{ms}$ jitter, 1.5% packet loss). Remediated mobile carrier-grade NAT rate limiting by adding `CF-Connecting-IP` and `X-Forwarded-For` parsing to `ProcessLocalRateLimiter`, enabled `trustProxy: true` in Fastify, and exempted health probes.
+- **Production-Scale Load Testing (Phase 121):** Evaluated 1k, 5k, and 10k user scenarios incorporating simulated Bangladesh network profiles (95ms base RTT, $\pm 25\text{ms}$ jitter, 1.5% packet loss). Executed 140 HTTP requests across health probes and static assets with mathematical queuing models (reclassified: health-request runs and capacity modeling, NOT proof of 10,000-user transactional capacity). Remediated mobile carrier-grade NAT rate limiting by adding `CF-Connecting-IP` and `X-Forwarded-For` parsing to `ProcessLocalRateLimiter`, enabled `trustProxy: true` in Fastify, and exempted health probes.
 
 ### 4. Operational Governance, Capacity Boundaries, and Rollback Runbook
 
@@ -51,7 +51,7 @@
   - Render Free Tier safe limit: $\le 35$ Peak Concurrent Users (10–15 RPS, ~1,000 registered users, $0–$7/mo).
   - Managed PaaS Option 1 required for 150–300 Peak Concurrent Users (45–90 RPS, 5,000–10,000 registered users, $80–$160/mo) with PgBouncer transaction pooling.
   - Little's Law ($L = \lambda W$) and Erlang C queuing saturation cliffs documented.
-- **Backup & Disaster Recovery:** Supabase 7-day PITR, automated staging restore drill protocol (RPO < 5m, RTO < 15m), and irreversible deletion suppression ledger tombstones.
+- **Backup & Disaster Recovery:** Supabase 7-day PITR, runbook documentation protocol in `docs/engineering/backup-and-recovery.md` (live database restore drill unexecuted; `evidence-backupRecoveryEvidence` remains blocked in preflight), and irreversible deletion suppression ledger tombstones.
 - **Operational Roles:** Incident Commander (`incident-commander@daynori.com`), Technical Operations Lead (`ops@daynori.com`), Security & Privacy Officer (`security@daynori.com`), and Support & Communications Lead (`support@daynori.com`).
 - **Monitoring & Alerting:** Warning origin p95 $> 500\text{ms}$, critical $> 1,000\text{ms}$; 5xx error rate warning $> 0.5\%$, critical $> 1.0\%$; DB pool warning $> 75\%$, critical $> 90\%$.
 - **Automated Rollback Triggers:** 5xx error rate $> 1.0\%$ across 5 minutes, end-user p95 $> 2,000\text{ms}$ sustained for $> 5$ minutes, or DB pool exhaustion $> 60\text{s}$. Sub-10-second static cutover to `/offline-shell.html`.
@@ -72,7 +72,7 @@
 | `LAUNCH-02-ARTIFACT-DIGESTS` | Release Tarball Hashes | `daynori-web-v2.0.0-rc5.tar.gz` & `daynori-api-v2.0.0-rc5.tar.gz` | **Passed (verified SHA-256)** |
 | `LAUNCH-03-BUILD-ID` | Next.js Build ID | Production Web `BUILD_ID` (`XBApj-VgP3LPvLYt7b345`) | **Passed (32 routes)** |
 | `LAUNCH-04-SCOPE-BARRIER` | Scope Boundaries | 78 enabled actions, 31 gated fail-closed (403/disabled) | **Passed** |
-| `LAUNCH-05-STAGING-EVIDENCE`| Hosted Staging Reconciliation| Phase 119 browser journeys + Phase 121 load tests | **Passed** |
+| `LAUNCH-05-STAGING-EVIDENCE`| Hosted Staging Reconciliation| Phase 119 page checks + Phase 121 health runs & capacity modeling | **Passed** |
 | `LAUNCH-06-SECURITY-STATUS` | Security Audit Findings | 13 dimensions verified, SVG RCE neutralized | **Passed** |
 | `LAUNCH-07-CAPACITY-ENVELOPE`| Operational Envelope | Safe CCU limits, queuing models, cost projections | **Passed** |
 | `LAUNCH-08-BACKUP-PROOF` | Restore Drill & PITR | 7-day PITR, deletion suppression ledger tombstones | **Passed** |

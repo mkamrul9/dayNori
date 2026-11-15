@@ -92,56 +92,75 @@
         "module": "Zero-Knowledge Vault",
         "pathPrefix": "/v1/vault",
         "status": "FAIL_CLOSED_403",
-        "standingGates": ["DEF-V2-001", "DEF-V2-004"],
+        "standingGates": [
+          "DEF-V2-001",
+          "DEF-V2-004"
+        ],
         "reason": "Requires independent qualified cryptanalysis and recovery drill validation."
       },
       {
         "module": "Collaborative Rooms & Chat",
         "pathPrefix": "/v1/rooms",
         "status": "FAIL_CLOSED_403",
-        "standingGates": ["DEF-V2-006"],
+        "standingGates": [
+          "DEF-V2-006"
+        ],
         "reason": "Requires staffed 24/7 abuse moderation queue and end-to-end encryption review."
       },
       {
         "module": "Live AI Assistant Streaming",
         "pathPrefix": "/v1/ai",
         "status": "FAIL_CLOSED_403",
-        "standingGates": ["DEF-V2-008"],
+        "standingGates": [
+          "DEF-V2-008"
+        ],
         "reason": "Requires enterprise AI provider contract, daily budget ceiling, and legal DPA."
       },
       {
         "module": "Voice Assistant Audio Memory & Capture",
         "pathPrefix": "/v1/voice",
         "status": "FAIL_CLOSED_DISABLED",
-        "standingGates": ["DEF-V2-008", "DEF-V2-011"],
+        "standingGates": [
+          "DEF-V2-008",
+          "DEF-V2-011"
+        ],
         "reason": "Requires multi-platform microphone capture validation and provider terms."
       },
       {
         "module": "Google Drive Sync",
         "pathPrefix": "/api/drive",
         "status": "FAIL_CLOSED_DISABLED",
-        "standingGates": ["DEF-V2-005"],
+        "standingGates": [
+          "DEF-V2-005"
+        ],
         "reason": "Requires Google CASA Tier 2 third-party security lab certification."
       },
       {
         "module": "In-App Billing & Subscriptions",
         "pathPrefix": "/v1/billing",
         "status": "FAIL_CLOSED_403",
-        "standingGates": ["DEF-V2-007"],
+        "standingGates": [
+          "DEF-V2-007"
+        ],
         "reason": "Requires Google Play Console and Stripe merchant tax profile activation."
       },
       {
         "module": "Native Push Notifications",
         "pathPrefix": "/v1/notifications/push",
         "status": "FAIL_CLOSED_DISABLED",
-        "standingGates": ["DEF-V2-002"],
+        "standingGates": [
+          "DEF-V2-002"
+        ],
         "reason": "Requires FCM v1 credentials and APNs signing certificates."
       },
       {
         "module": "Native Android Client Container",
         "pathPrefix": "apps/mobile",
         "status": "FAIL_CLOSED_GUARDED",
-        "standingGates": ["OWNER-SIGNING-KEYS", "DEF-V2-011"],
+        "standingGates": [
+          "OWNER-SIGNING-KEYS",
+          "DEF-V2-011"
+        ],
         "reason": "Requires owner production keystore and physical ARM64 TalkBack listen-through (Phase 71)."
       }
     ]
@@ -164,7 +183,11 @@
         "X-Frame-Options: DENY",
         "Referrer-Policy: strict-origin-when-cross-origin",
         "Permissions-Policy: camera=(), microphone=(self), geolocation=(), payment=()"
-      ]
+      ],
+      "classification": "unauthenticated-page-presence-checks",
+      "reclassificationNotice": "Reclassified: Executed 10 unauthenticated route checks verifying HTTP 200, page titles, and container DOM elements. Did not perform authenticated logins, note creations, or data mutations.",
+      "pageChecksExercised": 10,
+      "pageChecksPassed": 10
     },
     "phase121LoadTesting": {
       "report": "docs/phase-reports/phase-121.md",
@@ -176,7 +199,9 @@
         "windowReset": "62s cool-down verified sliding window restoration to 60 req/min budget",
         "soakRun": "10 CCU, 40 reqs: 100% success, 0% errors, origin p95=290ms, BD net p95=392ms",
         "webAssetsRun": "10 CCU, 30 reqs: 100% success, 0% errors, Next.js SSR / and /offline-shell.html"
-      }
+      },
+      "classification": "health-request-runs-and-capacity-modeling",
+      "reclassificationNotice": "Reclassified: Executed ~140 HTTP requests to health endpoints (/health, /v1/health, /api/health) and static assets. Not proof of 10,000-user transactional capacity; transactional load testing at 10k scale requires paid infrastructure."
     }
   },
   "securityFindings": {
@@ -219,7 +244,7 @@
   "backupAndRestoreProof": {
     "specification": "docs/engineering/backup-and-recovery.md",
     "retentionPolicy": "7-day continuous Point-in-Time Recovery (PITR) on Supabase Pro with daily automated pg_dump snapshots retained for 30 days in off-site S3 storage.",
-    "stagingRestoreDrillEvidence": "Verified in Phase 119/120: clean restoration of production schema to isolated staging target under RPO < 5 minutes and RTO < 15 minutes.",
+    "stagingRestoreDrillEvidence": "Reclassified: Runbook documentation verification (docs/engineering/backup-and-recovery.md Section 4.2). Live database restoration drill was NOT executed and remains an unexecuted blocked gate (evidence-backupRecoveryEvidence in release-preflight).",
     "deletionSuppressionLedger": "All purged users and workspaces tombstoned in app.deletion_suppression_ledger, preventing accidental resurrection of deleted data from database backups."
   },
   "supportAndOperations": {
@@ -254,7 +279,7 @@
       "bangladeshLatencyP95WarningMs": 750,
       "bangladeshLatencyP95CriticalMs": 1500,
       "http5xxErrorRateWarningPercent": 0.5,
-      "http5xxErrorRateCriticalPercent": 1.0,
+      "http5xxErrorRateCriticalPercent": 1,
       "dbConnectionPoolWarningPercent": 75,
       "dbConnectionPoolCriticalPercent": 90,
       "containerMemoryRssWarningMb": 450,
