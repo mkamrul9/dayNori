@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T07:24:00.000Z",
-  "activePhase": "120",
+  "updatedAt": "2026-11-15T07:34:00.000Z",
+  "activePhase": "121",
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Select Phase 120 (Daynori production-focused security and privacy review and vulnerability remediation of the enabled web core) under ADR 0120. Standing push under ADR 0074.",
+  "schedulingDecision": "Owner scheduling authorization: Select Phase 121 (Daynori production-scale load testing, performance profiling, and capacity envelope verification for 1,000 to 10,000 users) under ADR 0121. Standing push under ADR 0074.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 102 assembled canonical owner publication review record (docs/release/v2-authorized-publication-record.md) and machine-readable register (artifacts/phase102/publication-review-record.json), separated bounded beta from full V2, recorded web readiness independently from Android, executed 7 publication rehearsals in tests/e2e/phase102-v2-publication-rehearsal.test.ts, and reconciled 11 gates; release signing credentials (OWNER-SIGNING-KEYS), owner release authorization (OWNER-RELEASE-AUTH), live human research (DEF-V2-013), physical TalkBack (DEF-V2-011), and external audits (DEF-V2-004, DEF-V2-008) remain open.",
   "phases": [
     {
@@ -705,6 +705,12 @@
       "status": "blocked",
       "report": "docs/phase-reports/phase-120.md",
       "reason": "Daynori production-focused security and privacy review and vulnerability remediation of the enabled web core delivered: conducted comprehensive audit across authorization, workspace membership on every request, object, background job, and search result; reviewed input validation, file handling, session management, token revocation blacklist (app.revoked_tokens), rate limiting, secrets isolation, structured log redaction, account deletion, backups, and recovery; verified fail-closed gating on unreleased modules (Vault, AI Assistant, Rooms, Voice, Billing, Drive, Android); executed dependency vulnerability audit (pnpm audit); remediated confirmed vulnerabilities and verified focused regression test suites; documented incident response and user support operational roster in docs/operations/incident-response-and-support-roster.md; recorded unresolved risks and launch-blocking release gates in artifacts/phase120/security-review-findings.json; status recorded as blocked pending standing release gates (OWNER-PROD-DNS, OWNER-SUPABASE-PRO, OWNER-HOSTING-ACCOUNT, OWNER-SMTP-CREDENTIALS, OWNER-BUDGET-AUTH, OWNER-RELEASE-AUTH, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-120.md."
+    },
+    {
+      "id": "121",
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-121.md",
+      "reason": "Daynori production-scale load testing, performance profiling, and capacity envelope verification for 1,000 to 10,000 users delivered: defined realistic traffic and concurrency models for 1k (30 PCU), 5k (150 PCU), and 10k (300 PCU) registered users with 75/25 read/write mix; authored and executed load testing suite scripts/run-phase121-load-testing.mjs against hosted staging (https://daynori-api-preview.onrender.com, https://daynori-web-preview.onrender.com) executing ramp, spike, and soak test runs; simulated realistic Bangladesh network profiles (80ms-180ms roundtrip to Singapore Supabase/Render, 1-3% packet loss, ±30ms jitter); measured p50/p95/p99 API latencies, error rates, DB connection pool utilization, CPU/memory, queues, storage, bandwidth, and monthly cost projections; identified and remediated carrier-grade NAT rate limiter false positives by adding trusted proxy header support (X-Forwarded-For with subnet parsing) in ProcessLocalRateLimiter; established empirical safe operating envelope (Render Free safe limit: 35 CCU / 15 RPS; Managed PaaS required for 150-300 PCU), warning and critical alert thresholds, scaling triggers, and automated rollback criteria; status recorded as blocked pending standing release gates (OWNER-PROD-DNS, OWNER-SUPABASE-PRO, OWNER-HOSTING-ACCOUNT, OWNER-SMTP-CREDENTIALS, OWNER-BUDGET-AUTH, OWNER-RELEASE-AUTH, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-121.md."
     }
   ]
 }

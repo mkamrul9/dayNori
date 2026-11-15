@@ -45,6 +45,18 @@ export class ProcessLocalRateLimiter {
     if (request.actor?.userId) {
       return `actor:${request.actor.userId}`;
     }
+    // Behind Cloudflare or reverse proxies, extract genuine client IP
+    const cfIp = request.headers['cf-connecting-ip'];
+    if (typeof cfIp === 'string' && cfIp.trim()) {
+      return `ip:${cfIp.trim()}`;
+    }
+    const xff = request.headers['x-forwarded-for'];
+    if (typeof xff === 'string' && xff.trim()) {
+      const clientIp = xff.split(',')[0]?.trim();
+      if (clientIp) {
+        return `ip:${clientIp}`;
+      }
+    }
     return `ip:${request.ip || 'unknown'}`;
   }
 
@@ -62,6 +74,12 @@ export class ProcessLocalRateLimiter {
   }
 
   check(request: FastifyRequest, reply: FastifyReply): void {
+    // Health probes must never be throttled by rate limiting to prevent false-positive alert flaps
+    const url = request.url;
+    if (url === '/health' || url === '/api/health' || url === '/v1/health') {
+      return;
+    }
+
     this.cleanup();
 
     const key = this.getKey(request);

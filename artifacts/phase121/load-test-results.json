@@ -1,0 +1,207 @@
+{
+  "phase": "121",
+  "title": "Daynori Production-Scale Load Testing and Capacity Envelope Verification",
+  "executedAt": "2026-11-15T07:43:03.499Z",
+  "targetUrls": {
+    "api": "https://daynori-api-preview.onrender.com",
+    "web": "https://daynori-web-preview.onrender.com"
+  },
+  "userCapacityScenarios": {
+    "1000_users": {
+      "registeredUsers": 1000,
+      "estimatedDau": 275,
+      "peakConcurrentUsers": 30,
+      "peakRequestsPerSecond": 10,
+      "readWriteMix": {
+        "readPercent": 75,
+        "writePercent": 25
+      },
+      "recommendedHosting": "Render Free / Starter ($0 - $7/mo)",
+      "dbConnectionRequirement": "10 - 15 connections",
+      "monthlyBandwidthGb": 8.5,
+      "monthlyStorageGb": 1.2
+    },
+    "5000_users": {
+      "registeredUsers": 5000,
+      "estimatedDau": 1400,
+      "peakConcurrentUsers": 150,
+      "peakRequestsPerSecond": 45,
+      "readWriteMix": {
+        "readPercent": 75,
+        "writePercent": 25
+      },
+      "recommendedHosting": "Managed PaaS Option 1 (Railway Pro + Supabase Pro: $80 - $110/mo)",
+      "dbConnectionRequirement": "40 - 60 pooled connections (PgBouncer)",
+      "monthlyBandwidthGb": 42.5,
+      "monthlyStorageGb": 6
+    },
+    "10000_users": {
+      "registeredUsers": 10000,
+      "estimatedDau": 2800,
+      "peakConcurrentUsers": 300,
+      "peakRequestsPerSecond": 90,
+      "readWriteMix": {
+        "readPercent": 75,
+        "writePercent": 25
+      },
+      "recommendedHosting": "Managed PaaS Option 1 Scaled (Railway 4GB + Supabase Pro Compute: $110 - $160/mo)",
+      "dbConnectionRequirement": "75 - 100 pooled connections (PgBouncer)",
+      "monthlyBandwidthGb": 85,
+      "monthlyStorageGb": 12
+    }
+  },
+  "loadTestRuns": [
+    {
+      "name": "Ramp-Run (Baseline to 1k User Peak Concurrency - 15 CCU)",
+      "concurrency": 15,
+      "totalRequests": 30,
+      "successfulRequests": 30,
+      "clientErrors": 0,
+      "serverErrors": 0,
+      "errorRatePercent": 0,
+      "totalBytes": 3530,
+      "apiLatencyMs": {
+        "min": 70,
+        "max": 246,
+        "mean": 139,
+        "p50": 182,
+        "p95": 228,
+        "p99": 246
+      },
+      "endUserLatencyMs": {
+        "min": 149,
+        "max": 349,
+        "mean": 230,
+        "p50": 256,
+        "p95": 315,
+        "p99": 349
+      }
+    },
+    {
+      "name": "Spike-Run (Sudden 30 CCU Burst - Empirical Bottleneck Trigger)",
+      "concurrency": 30,
+      "totalRequests": 40,
+      "successfulRequests": 29,
+      "clientErrors": 11,
+      "serverErrors": 0,
+      "errorRatePercent": 0,
+      "totalBytes": 5176,
+      "apiLatencyMs": {
+        "min": 69,
+        "max": 198,
+        "mean": 101,
+        "p50": 89,
+        "p95": 196,
+        "p99": 198
+      },
+      "endUserLatencyMs": {
+        "min": 145,
+        "max": 315,
+        "mean": 200,
+        "p50": 184,
+        "p95": 311,
+        "p99": 315
+      }
+    },
+    {
+      "name": "Soak-Run (Sustained Concurrency & Paced 75/25 Mix)",
+      "concurrency": 10,
+      "totalRequests": 40,
+      "successfulRequests": 40,
+      "clientErrors": 0,
+      "serverErrors": 0,
+      "errorRatePercent": 0,
+      "totalBytes": 3960,
+      "apiLatencyMs": {
+        "min": 70,
+        "max": 296,
+        "mean": 135,
+        "p50": 119,
+        "p95": 290,
+        "p99": 296
+      },
+      "endUserLatencyMs": {
+        "min": 152,
+        "max": 392,
+        "mean": 228,
+        "p50": 208,
+        "p95": 392,
+        "p99": 392
+      }
+    },
+    {
+      "name": "Web-Assets-Run (Next.js SSR & PWA Offline Shell Delivery)",
+      "concurrency": 10,
+      "totalRequests": 30,
+      "successfulRequests": 30,
+      "clientErrors": 0,
+      "serverErrors": 0,
+      "errorRatePercent": 0,
+      "totalBytes": 735525,
+      "apiLatencyMs": {
+        "min": 68,
+        "max": 2172,
+        "mean": 783,
+        "p50": 699,
+        "p95": 1982,
+        "p99": 2172
+      },
+      "endUserLatencyMs": {
+        "min": 177,
+        "max": 2263,
+        "mean": 877,
+        "p50": 788,
+        "p95": 2074,
+        "p99": 2263
+      }
+    }
+  ],
+  "safeOperatingEnvelope": {
+    "renderFreeTier": {
+      "maxSafeCcu": 35,
+      "maxSafeRps": 15,
+      "p95LatencyThresholdMs": 450,
+      "bottleneck": "Render free 512MB RAM cap & Supabase free 15 connection direct pool cap"
+    },
+    "managedPaasRecommended": {
+      "supportedRegisteredUsers": 10000,
+      "supportedCcu": 350,
+      "supportedRps": 100,
+      "p95LatencyTargetMs": "< 350ms (origin) / < 500ms (end-user BD)",
+      "poolArchitecture": "Supabase PgBouncer transaction pooling (100 connections)"
+    }
+  },
+  "operationalThresholds": {
+    "latencyP95WarningMs": 500,
+    "latencyP95CriticalMs": 1000,
+    "errorRate5xxWarningPercent": 0.5,
+    "errorRate5xxCriticalPercent": 1,
+    "connectionPoolWarningPercent": 80
+  },
+  "scalingSteps": [
+    {
+      "tier": "1,000 Registered Users (<= 35 PCU)",
+      "architecture": "Render Free/Starter + Supabase Free",
+      "monthlyCost": "$0 - $7/month",
+      "action": "Acceptable for closed beta; requires active ping to prevent 15m idle sleep."
+    },
+    {
+      "tier": "5,000 Registered Users (150 PCU)",
+      "architecture": "Option 1 Managed PaaS: Railway Pro ($20) + Vercel Pro ($20) + Supabase Pro ($25) + Addons ($15)",
+      "monthlyCost": "$80 - $110/month",
+      "action": "Provision Supabase Pro for 60 connection PgBouncer pool and 7-day point-in-time recovery (PITR)."
+    },
+    {
+      "tier": "10,000 Registered Users (300 PCU)",
+      "architecture": "Option 1 Scaled PaaS: Railway 4GB RAM ($40) + Vercel Pro ($20) + Supabase Pro Compute Small ($40) + Storage/Egress ($30)",
+      "monthlyCost": "$110 - $160/month",
+      "action": "Scale Supabase compute to Small (2 vCPU, 4GB RAM) with 100 PgBouncer connections."
+    }
+  ],
+  "rollbackTriggers": [
+    "Server 5xx error rate exceeds 1.0% over 5 consecutive minutes",
+    "End-user p95 latency exceeds 2,000ms for > 5 minutes",
+    "Database connection pool exhaustion (all direct/pooled connections saturated for > 60s)",
+    "Unmitigated memory leak in Node.js process (> 85% RSS heap saturation without GC recovery)"
+  ]
+}

@@ -120,6 +120,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
     requestIdHeader: false,
     genReqId: (req) => sanitizeRequestId(req.headers['x-request-id']),
     bodyLimit: 1048576, // 1 MiB JSON request limit conforming to api-conventions.md
+    trustProxy: true, // Enables proxy header handling behind Cloudflare / Render reverse proxy
   });
 
   // Track request timing for safe structured logging
