@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 120 — Daynori production-focused security and privacy review and vulnerability remediation of the enabled web core — 2026-11-15
+
+- ADR 0120: Daynori Production-Focused Security and Privacy Review and Vulnerability Remediation of the Enabled Web Core, conducting an exhaustive audit across authorization, workspace membership on every request, entity object, background job, and search result; input validation, file handling, session management, token revocation blacklist (`app.revoked_tokens`), rate limiting, dependency vulnerabilities (`pnpm audit`), secrets isolation, structured log redaction, account deletion, backups, and disaster recovery.
+- Confirmed Vulnerability Remediations:
+  - Remediated critical Next.js SVG Image Optimization API remote code execution vulnerability (GHSA-2464-fhr4-w9xw) by configuring `images: { unoptimized: true }` in `apps/web/next.config.mjs`, completely disabling the unauthenticated optimization endpoint.
+  - Hardened PostgreSQL database connection URL redaction regex in `apps/api/src/plugins/logger.ts` to `/(postgres(?:ql)?:\/\/[^:]+:)(.*)(@[^/@:]+(?::\d+)?(?:\/|\?|$))/g`, ensuring database passwords containing `@` symbols are fully redacted rather than partially leaked.
+  - Decoupled HTTP header sanitization in `sanitizeHeaders` from `SENSITIVE_KEY_PATTERN` into a dedicated `SENSITIVE_HEADER_PATTERN`, ensuring standard metadata headers like `content-type: application/json` are preserved while authorization headers, cookies, and tokens are redacted.
+- Comprehensive Security & Privacy Invariants Verified:
+  - Authorization & Workspace Scoping: Every route, object, job, and search query strictly asserts membership via `app.user_has_workspace_role()` and `withTenantContext()`; cross-workspace access fails with 404/403.
+  - Input Validation: Strict Zod schemas across all parameters, queries, and bodies; parameterized SQL queries ($1, $2) throughout; 1 MiB bodyLimit; `sanitizeRequestId()` regex validation.
+  - File Handling: Quarantine status enforced (`quarantineStatus === 'verified'` required for download capability generation; pending/quarantined files throw 409); short-lived signed download tokens (300s).
+  - Session Management: `JwtVerifier` checks `app.revoked_tokens` blacklist; terminated sessions immediately fail with HTTP 401 (`TOKEN_REVOKED`).
+  - Rate Limiting: `ProcessLocalRateLimiter` sliding window (60 req/min) returning standard `X-RateLimit-*` and `Retry-After` headers on HTTP 429.
+  - Account Deletion & Suppression Ledger: Permanent relational purge cascading through owned workspaces, memberships, devices, push subscriptions, and AI index chunks; immutable tombstones recorded in `app.deletion_suppression_ledger`.
+  - Disabled Modules Fail-Closed: Global server `onRequest` hook immediately returns HTTP 403 Forbidden for unreleased routes (`/v1/vault`, `/v1/ai`, `/v1/rooms`, `/v1/billing`).
+- Operational Incident Response & User Support Roster (`docs/operations/incident-response-and-support-roster.md`):
+  - Documented designated operations team: Incident Commander (IC), Technical Operations Lead, Security & Privacy Officer, and Support & Communications Lead.
+  - Contact channels established: `security@daynori.com`, `support@daynori.com`, and in-app feedback (`POST /v1/feedback`).
+  - Severity SLOs and emergency escalation playbooks defined (rapid rollback runbook, sub-10-second static offline cutover, credential revocation).
+- Public Launch Blockers Register (`artifacts/phase120/security-review-findings.json`):
+  - Recorded open external release gates honestly: `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-006`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, and `OWNER-RELEASE-AUTH`.
+  - Enforced standing invariant: **Security is NOT marked complete based solely on local automated unit tests.**
+- Automated Security Test Suite Verified (14/14 Passed):
+  - `tests/security/phase120-production-security-review.test.ts` (14 tests passed).
+
 ## Phase 119 — Daynori authorized HTTPS staging deployment verification and browser journey audit — 2026-11-15
 
 - ADR 0119: Daynori Authorized HTTPS Staging Deployment Verification and Browser Journey Audit, executing full production-grade audits and headless Chrome DevTools Protocol browser journeys against live authorized HTTPS staging infrastructure (`https://daynori-web-preview.onrender.com`, `https://daynori-api-preview.onrender.com`, `https://sexxceqqknqzvxuuqnkx.supabase.co`).

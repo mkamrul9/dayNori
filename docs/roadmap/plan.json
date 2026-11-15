@@ -4826,6 +4826,79 @@
         "docs/engineering/backup-and-recovery.md"
       ],
       "commit": "test(staging): verify authorized HTTPS staging deployment and browser journeys"
+    },
+    {
+      "id": "120",
+      "group": "v2-release",
+      "title": "Daynori production-focused security and privacy review and vulnerability remediation of the enabled web core",
+      "dependsOn": [
+        "102",
+        "112",
+        "118",
+        "119"
+      ],
+      "scope": [
+        "apps/api",
+        "apps/web",
+        "apps/worker",
+        "packages/contracts",
+        "packages/domain",
+        "packages/db",
+        "tests",
+        "artifacts/phase120",
+        "docs/decisions",
+        "docs/engineering",
+        "docs/operations",
+        "docs/phase-reports",
+        "docs/roadmap",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Perform an exhaustive production-focused security and privacy audit of the enabled web core covering authorization, workspace membership, input validation, file handling, sessions, rate limits, dependency vulnerabilities, secrets, log redaction, account deletion, backups, and disaster recovery.",
+        "Test authorization and workspace membership across every API request, entity object, background worker job, and search result, verifying strict tenant isolation and cross-workspace IDOR fencing.",
+        "Review and audit input validation across all routes, Zod schemas, SQL parameters, and rich markdown/HTML rendering against injection and privilege escalation.",
+        "Audit file handling: MIME validation, file size limits, quarantine status verification, signed download capability tokens, and path traversal defenses.",
+        "Audit session management, token revocation blacklist (app.revoked_tokens), rate limiting, secrets isolation (zero secrets in Git/logs), and structured log redaction (authorization, cookie, token, password, personal body data).",
+        "Execute automated dependency vulnerability scanning (pnpm audit) and triage external package risks.",
+        "Verify that all disabled modules (Vault, AI Assistant, Rooms Collaboration, Voice Transcription, In-App Billing, Google Drive, Native Android) fail closed at route, contract, and UI layers.",
+        "Remediate confirmed security and privacy vulnerabilities with production-grade fixes and execute focused regression test suites.",
+        "Document the operational incident response and user support roster (designated operator roles, contact channels, SLA, escalation pathways) in docs/operations/incident-response-and-support-roster.md.",
+        "Document unresolved security risks and launch-blocking release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH) in artifacts/phase120/security-review-findings.json.",
+        "Author ADR 0120, phase report docs/phase-reports/phase-120.md, update CHANGELOG.md, update docs/roadmap/progress.json, and validate planning."
+      ],
+      "acceptance": [
+        "Every enabled web core request, object, job, and search result enforces strict tenant authorization and workspace membership.",
+        "Input validation, file quarantine status, signed download tokens, and path traversal defenses verified.",
+        "Session revocation blacklist, rate limits, secrets isolation, and log redaction verified.",
+        "Dependency vulnerability audit executed with zero critical/high unmitigated production risks.",
+        "Disabled modules fail-closed with HTTP 403 Forbidden or disabled status.",
+        "Confirmed security and privacy vulnerabilities patched with focused regression test suites passing.",
+        "Operational incident response and user support roster documented with designated roles and escalation channels.",
+        "Unresolved risks and launch blockers recorded honestly without marking security complete based solely on local unit tests.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/security/phase120-production-security-review.test.ts",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0097-version-2-security-privacy-and-recovery-audit.md",
+        "docs/decisions/0112-core-web-pwa-browser-release-verification-and-staging-isolation.md",
+        "docs/decisions/0118-daynori-deployable-web-core-release-and-production-infrastructure-capacity-plan.md",
+        "docs/decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md",
+        "docs/decisions/0120-production-security-privacy-review-and-remediation.md",
+        "docs/phase-reports/phase-97.md",
+        "docs/phase-reports/phase-119.md",
+        "docs/phase-reports/phase-120.md",
+        "docs/engineering/release-gates.md",
+        "docs/engineering/backup-and-recovery.md"
+      ],
+      "commit": "test(security): perform production security and privacy review of enabled web core"
     }
   ],
   "featureCoverage": [

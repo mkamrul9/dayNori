@@ -6,6 +6,10 @@
  */
 const nextConfig = {
   reactStrictMode: true,
+  images: {
+    // Defense-in-depth: disable remote image optimization API (mitigates GHSA-2464-fhr4-w9xw)
+    unoptimized: true,
+  },
   transpilePackages: [
     '@daynori/design-tokens',
     '@daynori/ui-web',

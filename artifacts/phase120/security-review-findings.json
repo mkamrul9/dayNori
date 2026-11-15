@@ -1,0 +1,149 @@
+{
+  "phase": "120",
+  "title": "Daynori Production-Focused Security and Privacy Review and Vulnerability Remediation of the Enabled Web Core",
+  "auditedAt": "2026-11-15T07:27:00.000Z",
+  "auditScope": {
+    "tier": "enabled-web-core",
+    "components": [
+      "apps/web (Next.js 15 App Router)",
+      "apps/api (Fastify + pg + Zod)",
+      "apps/worker (Node background jobs + WebPush)",
+      "packages/contracts (Zod schemas)",
+      "packages/domain (Pure business logic + sanitizers)",
+      "packages/db (PostgreSQL 15 RLS schema)"
+    ]
+  },
+  "auditedDimensions": [
+    {
+      "dimension": "authorization-and-workspace-membership",
+      "status": "verified-secure",
+      "mechanism": "Every API route, object, job, and search result validates membership via app.user_has_workspace_role() and withTenantContext(). Cross-tenant access fails with 404/403.",
+      "unresolvedRisks": []
+    },
+    {
+      "dimension": "input-validation-and-injection-defenses",
+      "status": "verified-secure",
+      "mechanism": "Strict Zod schemas on all params, queries, and bodies. Parameterized SQL queries ($1, $2) throughout. 1 MiB bodyLimit in Fastify. sanitizeRequestId() enforces /^[a-zA-Z0-9_-]{1,64}$/.",
+      "unresolvedRisks": []
+    },
+    {
+      "dimension": "file-handling-and-quarantine",
+      "status": "verified-secure",
+      "mechanism": "Two-phase upload reservation and finalization. Quarantine status enforced: getFileDownloadCapability strictly requires quarantineStatus === 'verified' (pending/quarantined files throw 409). Signed download capabilities expire in 300s.",
+      "unresolvedRisks": []
+    },
+    {
+      "dimension": "sessions-and-token-revocation",
+      "status": "verified-secure",
+      "mechanism": "JwtVerifier validates RS256/ES256 signatures, issuer, audience, and exp. Revoked tokens recorded in app.revoked_tokens via SHA-256 hash are immediately rejected with HTTP 401 TOKEN_REVOKED.",
+      "unresolvedRisks": []
+    },
+    {
+      "dimension": "rate-limiting",
+      "status": "verified-secure",
+      "mechanism": "ProcessLocalRateLimiter sliding window (60 req/min) keyed by verified actor.userId or IP. Returns X-RateLimit-* headers and Retry-After on 429.",
+      "unresolvedRisks": ["In a multi-instance production cluster, process-local rate limiters operate independently per node; centralized Redis rate limiting is recommended for > 1,000 MAU."]
+    },
+    {
+      "dimension": "dependency-vulnerabilities",
+      "status": "remediated-and-triaged",
+      "mechanism": "pnpm audit identified GHSA-2464-fhr4-w9xw (critical Next.js SVG Image Optimization RCE). Remediated by configuring images.unoptimized = true in apps/web/next.config.mjs, completely disabling the vulnerable optimization handler. Mobile dev-dependency node-forge vulnerabilities in Expo CLI triaged (mobile app is gated from web core release).",
+      "unresolvedRisks": ["Expo CLI / node-forge transitive vulnerabilities in apps/mobile remain pending Expo SDK 53 upgrade."]
+    },
+    {
+      "dimension": "secrets-isolation-and-log-redaction",
+      "status": "verified-secure",
+      "mechanism": "Zero secrets in Git or logs. Fastify raw logger disabled. SafeLogger recursively redacts sensitive keys (password, token, secret, journal, body, prompt) and headers (authorization, cookie, x-api-key). sanitizeLogString redacts JWTs and postgres connection URLs with passwords.",
+      "unresolvedRisks": []
+    },
+    {
+      "dimension": "account-deletion-and-data-erasure",
+      "status": "verified-secure",
+      "mechanism": "Full lifecycle: request, confirmation token check, initiating session hash check, cancellation deadline. Relational purge deletes workspaces, memberships, devices, push subscriptions, AI index chunks, and records account and workspace tombstones in app.deletion_suppression_ledger.",
+      "unresolvedRisks": []
+    },
+    {
+      "dimension": "backups-and-recovery",
+      "status": "verified-secure",
+      "mechanism": "Disaster recovery protocol (docs/engineering/backup-and-recovery.md Section 4.2) verified with dual-role pooler validation and pre-access deletion suppression barrier (restored database cannot revive purged accounts).",
+      "unresolvedRisks": []
+    },
+    {
+      "dimension": "disabled-modules-fail-closed",
+      "status": "verified-secure",
+      "mechanism": "Global Fastify onRequest hook immediately rejects /v1/vault, /v1/ai, /v1/rooms, and /v1/billing with HTTP 403 Forbidden before router matching. Voice and Drive fail safe with missing credential/permission errors.",
+      "unresolvedRisks": []
+    }
+  ],
+  "operationsAndIncidentResponse": {
+    "rosterDocument": "docs/operations/incident-response-and-support-roster.md",
+    "incidentCommander": "Project Lead / Platform Owner",
+    "technicalOpsLead": "Infrastructure & Database Engineer",
+    "securityPrivacyOfficer": "Security & Privacy Reviewer",
+    "supportLead": "User Support Coordinator",
+    "contactChannels": {
+      "security": "security@daynori.com",
+      "support": "support@daynori.com",
+      "inApp": "POST /v1/feedback"
+    },
+    "severitySLOs": {
+      "sev1": "Acknowledgment < 15m, mitigation < 1h",
+      "sev2": "Acknowledgment < 1h, mitigation < 4h",
+      "sev3": "Acknowledgment < 24h, resolution < 3 business days",
+      "sev4": "Response < 3 business days"
+    }
+  },
+  "publicLaunchBlockers": [
+    {
+      "gate": "DEF-V2-001",
+      "description": "Zero-knowledge vault client-side encryption independent cryptanalysis",
+      "status": "open-blocks-vault-launch"
+    },
+    {
+      "gate": "DEF-V2-004",
+      "description": "Third-party security audit of zero-knowledge vault primitives",
+      "status": "open-blocks-vault-launch"
+    },
+    {
+      "gate": "DEF-V2-005",
+      "description": "Google Drive Cloud Application Security Assessment (CASA) Tier 2 lab verification",
+      "status": "open-blocks-drive-mirroring-launch"
+    },
+    {
+      "gate": "DEF-V2-006",
+      "description": "End-to-end encrypted collaborative rooms multi-device security audit",
+      "status": "open-blocks-rooms-launch"
+    },
+    {
+      "gate": "DEF-V2-007",
+      "description": "In-app billing and merchant verification",
+      "status": "open-blocks-billing-launch"
+    },
+    {
+      "gate": "DEF-V2-008",
+      "description": "Commercial AI provider terms, legal enterprise DPA with SCCs, and hard spending ceiling",
+      "status": "open-blocks-ai-assistant-launch"
+    },
+    {
+      "gate": "DEF-V2-011",
+      "description": "Physical ARM64 Android hardware and spoken TalkBack accessibility audit (Phase 71)",
+      "status": "open-blocks-android-distribution"
+    },
+    {
+      "gate": "DEF-V2-013",
+      "description": "Live human usability sessions with diverse participants",
+      "status": "open-blocks-broad-launch"
+    },
+    {
+      "gate": "OWNER-SIGNING-KEYS",
+      "description": "Owner production keystores and app signing credentials for Google Play",
+      "status": "open-blocks-android-release"
+    },
+    {
+      "gate": "OWNER-RELEASE-AUTH",
+      "description": "Explicit project owner publication and production launch authorization",
+      "status": "open-blocks-public-production-launch"
+    }
+  ],
+  "standingNote": "In strict accordance with AGENTS.md, security is NOT marked complete based solely on local automated unit tests. While all enabled web core security invariants pass automated verification, external independent reviews and physical device gates remain open and block broad public release."
+}

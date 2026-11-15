@@ -9,6 +9,9 @@ const SENSITIVE_HEADERS = new Set([
   'x-access-token',
 ]);
 
+const SENSITIVE_HEADER_PATTERN =
+  /(?:token|secret|password|bearer|auth|jwt|credential|key|refresh|hash)/i;
+
 const SENSITIVE_KEY_PATTERN =
   /(?:token|secret|password|bearer|auth|jwt|credential|key|refresh|hash|journal|document|plaintext|plain_text|body|prompt|mood|title|entry_date|entrydate|reflection|content|tags|response|localpayload)/i;
 
@@ -24,8 +27,11 @@ export function sanitizeLogString(str: string): string {
     str
       // Redact full or partial JWTs
       .replace(/ey[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '[REDACTED_JWT]')
-      // Redact postgres URLs containing passwords
-      .replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)/g, '$1[REDACTED_PASSWORD]$3')
+      // Redact postgres URLs containing passwords (handles passwords containing @ characters)
+      .replace(
+        /(postgres(?:ql)?:\/\/[^:]+:)(.*)(@[^/@:]+(?::\d+)?(?:\/|\?|$))/g,
+        '$1[REDACTED_PASSWORD]$3'
+      )
       // Redact key-value secrets in messages or query params (e.g. password=xyz, secret: "xyz")
       .replace(
         /(?:password|secret|bearer|token|key|credential|authorization)\s*[:=]\s*["']?([^"'\s,;&]+)["']?/gi,
@@ -76,7 +82,7 @@ export function sanitizeLogValue(val: unknown, depth = 0): unknown {
 export function sanitizeHeaders(headers: Record<string, unknown>): Record<string, unknown> {
   const sanitized: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(headers)) {
-    if (SENSITIVE_HEADERS.has(k.toLowerCase()) || SENSITIVE_KEY_PATTERN.test(k)) {
+    if (SENSITIVE_HEADERS.has(k.toLowerCase()) || SENSITIVE_HEADER_PATTERN.test(k)) {
       sanitized[k] = '[REDACTED]';
     } else {
       sanitized[k] = v;
