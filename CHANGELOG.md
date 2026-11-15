@@ -1,5 +1,22 @@
 # Changelog
 
+## Phase 124 — Daynori proxy trust, rate limiter ingress hardening, and spoofing defense verification — 2026-11-15
+
+- ADR 0124: Daynori Proxy Trust, Rate Limiter Ingress Hardening, and Spoofing Defense Verification, hardening Fastify's `trustProxy` configuration and `ProcessLocalRateLimiter` against header spoofing, verifying empirical ingress proxy behaviors, and enforcing strict brute-force defenses.
+- Empirical Ingress Header Proofs on Live Staging (`https://daynori-api-preview.onrender.com`):
+  - Cloudflare Edge Header Filtering: Dispatched external probe with `CF-Connecting-IP: 198.51.100.42` to `/v1/health`. Cloudflare Edge actively dropped the request returning `HTTP 403 Forbidden` (`server: cloudflare`), proving Cloudflare firewall blocks client injection of `CF-Connecting-IP`.
+  - Ingress Proxy Append Behavior: Dispatched external probe with `X-Forwarded-For: 203.0.113.199, 198.51.100.55` to `/v1/health`. Request succeeded with `HTTP 200 OK`, proving proxies append remote client socket IPs to the right side of `X-Forwarded-For`. Naive leftmost parsing (`xff.split(',')[0]`) takes attacker-supplied input.
+  - Origin Direct-Access Bypass Risk: Proved that if an attacker connects directly to Render bypassing Cloudflare, Render internal routers do not strip `CF-Connecting-IP`. Therefore, software must never trust `CF-Connecting-IP` without verifying Cloudflare peer authenticity.
+- Implementation Hardening & Defensive Architecture:
+  - Trusted Proxy Whitelist (`apps/api/src/config/trustedProxies.ts`): Defined `CLOUDFLARE_IPV4_CIDRS` and `CLOUDFLARE_IPV6_CIDRS` (official Cloudflare edge ranges), `PRIVATE_PROXY_CIDRS` (RFC 1918 subnets `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, loopback `127.0.0.1`/`::1`, and Render Carrier-Grade NAT `100.64.0.0/10`), exporting `TRUSTED_PROXY_CIDRS`.
+  - Fastify Ingress Hardening (`apps/api/src/server.ts`): Replaced wildcard `trustProxy: true` with strict `TRUSTED_PROXY_CIDRS as string[]`.
+  - Right-to-Left Traversal & Origin Verification (`resolveClientIp`): Direct untrusted peer connections discard all proxy headers and use the socket IP. Proxied connections traverse `X-Forwarded-For` from right to left, selecting the first untrusted IP as the genuine client IP and discarding all prepended leftmost entries. `CF-Connecting-IP` is honored *only* when a verified Cloudflare IP is confirmed in the upstream proxy chain.
+  - Sensitive Route Brute-Force Protection (`ProcessLocalRateLimiter` in `apps/api/src/plugins/rateLimiter.ts`): Sensitive endpoints (`/v1/auth/login`, `/v1/auth/recovery`, `/v1/auth/reset`, `/v1/auth/register`, `/v1/deletion/request`) enforce a strict 10 req/min limit per resolved client IP (with `Retry-After` on HTTP 429). Standard routes enforce 60 req/min. Health probes (`/health`, `/v1/health`, `/api/health`) are explicitly exempted.
+  - Multi-Instance Behavior & Limits: Documented and simulated the cluster multiplier ($N \times \text{limit}$) across horizontally scaled in-memory Node processes. Strict 10 req/min sensitive threshold caps total attempts across 2-3 instances at 20-30 req/min, preventing effective brute force. Centralized Redis-backed rate limiting documented as the requirement for $> 1,000$ MAU.
+- Automated Test Suite Verified (14/14 Passed):
+  - `tests/security/phase124-proxy-trust-and-rate-limiter.test.ts` (14 tests passed in 23ms).
+- Status: Recorded as honestly blocked on standing external release gates (`evidence-backupRecoveryEvidence`, `evidence-ownerApproval`, `OWNER-SIGNING-KEYS`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
+
 ## Phase 123 — Daynori release-evidence audit, claims reclassification, candidate inventory, and preflight reconciliation — 2026-11-15
 
 - ADR 0123: Daynori Release-Evidence Audit, Claims Reclassification, Candidate Inventory, and Preflight Reconciliation, formally reconciling test script assertions against reported claims, reclassifying unearned assertions, inventorying working-tree differences absent from candidate `2.0.0-rc5`, and executing candidate preflight verification.

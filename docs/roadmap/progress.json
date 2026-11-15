@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T10:30:00.000Z",
-  "activePhase": "123",
+  "updatedAt": "2026-11-15T11:00:00.000Z",
+  "activePhase": "124",
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Select Phase 123 (Daynori release-evidence audit, claims reclassification, candidate inventory, and preflight reconciliation) under ADR 0123. Standing push under ADR 0074.",
+  "schedulingDecision": "Owner scheduling authorization: Select Phase 124 (Daynori proxy trust, rate limiter ingress hardening, and spoofing defense verification) under ADR 0124. Standing push under ADR 0074.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 102 assembled canonical owner publication review record (docs/release/v2-authorized-publication-record.md) and machine-readable register (artifacts/phase102/publication-review-record.json), separated bounded beta from full V2, recorded web readiness independently from Android, executed 7 publication rehearsals in tests/e2e/phase102-v2-publication-rehearsal.test.ts, and reconciled 11 gates; release signing credentials (OWNER-SIGNING-KEYS), owner release authorization (OWNER-RELEASE-AUTH), live human research (DEF-V2-013), physical TalkBack (DEF-V2-011), and external audits (DEF-V2-004, DEF-V2-008) remain open.",
   "phases": [
     {
@@ -723,6 +723,12 @@
       "status": "blocked",
       "report": "docs/phase-reports/phase-123.md",
       "reason": "Daynori release-evidence audit, claims reclassification, candidate inventory, and preflight reconciliation delivered: audited actual script assertions in Phase 119, 120, 121, and 122 against reported claims; reclassified Phase 119 staging checks as 10 unauthenticated page-presence / DOM-inspection checks (not authenticated journeys); reclassified backup check as runbook documentation verification in docs/engineering/backup-and-recovery.md Section 4.2 (live database restore drill unexecuted); reclassified Phase 121 load testing as health-probe throughput profiling, proxy rate-limiter boundary verification, and mathematical capacity modeling (~140 health requests, not proof of 10,000-user transactional capacity); inventoried the dirty working tree (109 tracked modified, 2,003 untracked files) and identified uncommitted source/migration modifications (packages/ui-web/src/Dialog.tsx, 00077 moderation migration) absent from candidate 2.0.0-rc5 archives; executed candidate preflight via scripts/release-preflight.mjs, confirming 20 passed, 0 failed, 13 blocked (including evidence-backupRecoveryEvidence, evidence-ownerApproval, db-roles, android-version-code), and 1 unexecuted invariant (releaseEligible=false); status recorded as honestly blocked pending standing release gates (evidence-backupRecoveryEvidence, evidence-ownerApproval, OWNER-SIGNING-KEYS, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-123.md."
+    },
+    {
+      "id": "124",
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-124.md",
+      "reason": "Daynori proxy trust, rate limiter ingress hardening, and spoofing defense verification delivered: audited Fastify trustProxy and ProcessLocalRateLimiter against Render/Cloudflare ingress; empirical staging probes proved Cloudflare edge drops client-injected CF-Connecting-IP with HTTP 403 Forbidden while proxies append connecting IP to X-Forwarded-For; proved direct-to-Render origin bypass requires verifying Cloudflare peer authenticity before trusting CF-Connecting-IP; implemented strict trusted proxy CIDR whitelist in apps/api/src/config/trustedProxies.ts (Cloudflare IPv4/IPv6, RFC 1918, Render CGNAT 100.64.0.0/10); hardened resolveClientIp using right-to-left traversal of X-Forwarded-For; added strict brute-force rate limiting (10 req/min) on sensitive auth and account deletion endpoints while exempting health probes; authored and verified comprehensive test suite in tests/security/phase124-proxy-trust-and-rate-limiter.test.ts (14 passed); documented multi-instance cluster multiplier behavior and Redis scale roadmap; status recorded as honestly blocked pending standing release gates (evidence-backupRecoveryEvidence, evidence-ownerApproval, OWNER-SIGNING-KEYS, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-124.md."
     }
   ]
 }

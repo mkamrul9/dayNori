@@ -147,14 +147,20 @@ describe('Phase 121: Production-Scale Capacity and Load Verification Suite', () 
 
       const reqClientA = {
         url: '/v1/notes',
-        headers: { 'cf-connecting-ip': '103.205.132.1' },
-        ip: '10.0.0.1', // Internal proxy socket IP
+        headers: {
+          'cf-connecting-ip': '103.205.132.1',
+          'x-forwarded-for': '103.205.132.1, 172.64.10.1',
+        },
+        ip: '10.0.0.1', // Internal proxy socket IP with Cloudflare in chain
       } as unknown as FastifyRequest;
 
       const reqClientB = {
         url: '/v1/notes',
-        headers: { 'cf-connecting-ip': '103.205.132.2' },
-        ip: '10.0.0.1', // Same proxy socket IP
+        headers: {
+          'cf-connecting-ip': '103.205.132.2',
+          'x-forwarded-for': '103.205.132.2, 172.64.10.1',
+        },
+        ip: '10.0.0.1', // Same proxy socket IP with Cloudflare in chain
       } as unknown as FastifyRequest;
 
       // Client A exhausts their 2 requests

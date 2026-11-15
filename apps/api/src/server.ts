@@ -61,6 +61,7 @@ import {
 import { BetaAccessService } from './modules/beta/betaAccessService.js';
 import { ExplicitForbiddenError } from './plugins/errorHandler.js';
 import { isUnavailableInCorePreview } from './config/corePreview.js';
+import { TRUSTED_PROXY_CIDRS } from './config/trustedProxies.js';
 
 export interface ServerOptions {
   runtimePool?: Pool;
@@ -120,7 +121,7 @@ export function buildServer(options?: ServerOptions): FastifyInstance {
     requestIdHeader: false,
     genReqId: (req) => sanitizeRequestId(req.headers['x-request-id']),
     bodyLimit: 1048576, // 1 MiB JSON request limit conforming to api-conventions.md
-    trustProxy: true, // Enables proxy header handling behind Cloudflare / Render reverse proxy
+    trustProxy: TRUSTED_PROXY_CIDRS as string[], // Strict right-to-left resolution against trusted RFC 1918, CGNAT, and Cloudflare CIDRs
   });
 
   // Track request timing for safe structured logging

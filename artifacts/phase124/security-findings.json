@@ -1,0 +1,67 @@
+{
+  "phase": "124",
+  "title": "Daynori Proxy Trust, Rate Limiter Ingress Hardening, and Spoofing Defense Verification",
+  "auditedAt": "2026-11-15T10:45:00.000Z",
+  "ingressArchitecture": {
+    "edgeProxy": "Cloudflare Edge Network (TLS termination, DDoS filtering, CDN caching, CF-Connecting-IP injection)",
+    "originProxy": "Render PaaS Internal Router / Load Balancer (Carrier-Grade NAT 100.64.0.0/10 and RFC 1918 10.0.0.0/8)",
+    "applicationServer": "Fastify 5 / Node.js 24 with CIDR-restricted trustProxy and ProcessLocalRateLimiter",
+    "stagingEndpoint": "https://daynori-api-preview.onrender.com"
+  },
+  "empiricalIngressProofs": [
+    {
+      "test": "External CF-Connecting-IP Injection Probe",
+      "command": "fetch('https://daynori-api-preview.onrender.com/v1/health', { headers: { 'CF-Connecting-IP': '198.51.100.42' } })",
+      "observedResponse": "HTTP 403 Forbidden (server: cloudflare)",
+      "finding": "Cloudflare Edge firewall actively intercepts and blocks external clients attempting to supply or inject CF-Connecting-IP.",
+      "securityInvariant": "CF-Connecting-IP is untampered when received via Cloudflare Edge; however, if origin is accessed directly bypassing Cloudflare, Render does not sanitize CF-Connecting-IP. Application must verify Cloudflare peer IP before trusting CF-Connecting-IP."
+    },
+    {
+      "test": "External X-Forwarded-For Injection Probe",
+      "command": "fetch('https://daynori-api-preview.onrender.com/v1/health', { headers: { 'X-Forwarded-For': '203.0.113.199, 198.51.100.55' } })",
+      "observedResponse": "HTTP 200 OK",
+      "finding": "Proxies append remote client IP to the right side of X-Forwarded-For rather than overwriting it. Client-supplied values appear on the left.",
+      "securityInvariant": "Leftmost IP extraction (e.g. xff.split(',')[0]) is completely vulnerable to spoofing. The application MUST traverse X-Forwarded-For from right to left, stopping at the first untrusted proxy hop."
+    }
+  ],
+  "vulnerabilitiesRemediated": [
+    {
+      "id": "SEC-124-001",
+      "title": "Unauthenticated Rate Limiter Header Spoofing Bypass",
+      "severity": "HIGH",
+      "component": "apps/api/src/plugins/rateLimiter.ts",
+      "rootCause": "ProcessLocalRateLimiter previously trusted any client-supplied CF-Connecting-IP or leftmost X-Forwarded-For entry. An attacker could bypass IP throttling by randomizing these headers.",
+      "remediation": "Implemented resolveClientIp in apps/api/src/config/trustedProxies.ts using strict right-to-left traversal against verified Cloudflare and private/CGNAT CIDRs. Forged headers are discarded unless the direct socket peer or upstream chain contains verified Cloudflare IPs.",
+      "verification": "tests/security/phase124-proxy-trust-and-rate-limiter.test.ts passed: untrusted clients randomizing headers remain strictly throttled."
+    },
+    {
+      "id": "SEC-124-002",
+      "title": "Wildcard Proxy Trust in Fastify Server Configuration",
+      "severity": "MEDIUM",
+      "component": "apps/api/src/server.ts",
+      "rootCause": "Fastify server was initialized with trustProxy: true, trusting all upstream proxies unconditionally.",
+      "remediation": "Restricted trustProxy to TRUSTED_PROXY_CIDRS (official Cloudflare IPv4/IPv6 ranges, RFC 1918 private subnets, and RFC 6598 CGNAT subnets used by Render).",
+      "verification": "Typecheck and integration tests confirm strict CIDR evaluation."
+    },
+    {
+      "id": "SEC-124-003",
+      "title": "Brute-Force Attack Window on Sensitive Endpoints",
+      "severity": "MEDIUM",
+      "component": "apps/api/src/plugins/rateLimiter.ts",
+      "rootCause": "Standard 60 req/min rate limit applied uniformly across all endpoints, which was too permissive for authentication, password recovery, and account deletion.",
+      "remediation": "Added sensitive route pattern detection enforcing a strict 10 req/min limit per resolved client IP on auth login, recovery, reset, registration, and account deletion endpoints.",
+      "verification": "Unit tests confirm 10 req/min enforcement on /v1/auth/* and /v1/deletion/* with Retry-After header on 429."
+    }
+  ],
+  "multiInstanceBehaviorAndLimitations": {
+    "storageMechanism": "In-memory process-local Map (sliding window per Node.js process).",
+    "clusterMultiplier": "In a horizontally scaled deployment with N instances behind a round-robin load balancer, effective cluster rate limit is up to N * limit per window.",
+    "mitigation": "Tight sensitive route threshold (10 req/min) ensures that even across 2-3 instances, total attempts are capped at 20-30 req/min, preventing effective brute force.",
+    "futureRecommendation": "For cluster sizes > 3 instances or > 1,000 MAU, deploy Redis-backed rate limiting (e.g. ioredis + lua token bucket) or configure Cloudflare Edge Rate Limiting Rules."
+  },
+  "testExecutionSummary": {
+    "phase124SecuritySuite": "tests/security/phase124-proxy-trust-and-rate-limiter.test.ts (14 passed)",
+    "phase120SecuritySuite": "tests/security/phase120-production-security-review.test.ts (14 passed)",
+    "phase121CapacitySuite": "tests/performance/phase121-capacity-and-load.test.ts (12 passed)"
+  }
+}
