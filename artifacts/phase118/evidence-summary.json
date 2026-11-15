@@ -1,0 +1,54 @@
+{
+  "phase": "118",
+  "title": "Daynori deployable web-core release preparation and production infrastructure capacity plan",
+  "evaluatedAt": "2026-11-15T12:00:00.000Z",
+  "gitRevision": "3aebd74ac55b53d57ce7ab1274a0c9022c07422c",
+  "candidateVersion": "2.0.0-rc4",
+  "buildId": "6BXhesAWPN88FbHwp-Q4g",
+  "toolchain": {
+    "node": "v24.21.0",
+    "pnpm": "9.15.5",
+    "next": "15.5.27",
+    "fastify": "5.2.1"
+  },
+  "artifacts": {
+    "webTarball": {
+      "path": "artifacts/release/daynori-web-v2.0.0-rc4.tar.gz",
+      "sha256": "9c67b4009a802c9a60ac96731b43dae55d0c126503ea624d99975e6d691eb280",
+      "sizeBytes": 1825996
+    },
+    "apiTarball": {
+      "path": "artifacts/release/daynori-api-v2.0.0-rc4.tar.gz",
+      "sha256": "42b5f7222422796847f3987ae95ce58fb65aaa13be2bd9e484555a0c0dc43d37",
+      "sizeBytes": 559223
+    }
+  },
+  "verificationResults": {
+    "webBuild": "PASS (32 routes compiled with Next.js 15.5.27)",
+    "apiBuild": "PASS (Fastify server compiled with tsc -b)",
+    "webStartup": "PASS (Next.js server started and served /api/health with HTTP 200)",
+    "apiStartup": "PASS (Fastify server syntax and startup verified)",
+    "planningValidation": "PASS (119 phases, 22 requirements validated)",
+    "functionRegister": "PASS (109 actions, 13 defects, 22 families covered)",
+    "freeTierAudit": "COMPLETED (ADR 0063 audited; unviability for thousands proven)",
+    "capacityPlan": "COMPLETED (Managed PaaS Option 1 recommended at $80-$110/mo)"
+  },
+  "standingGates": {
+    "OWNER-RELEASE-AUTH": "BLOCKED",
+    "OWNER-PROD-DNS": "BLOCKED",
+    "OWNER-SUPABASE-PRO": "BLOCKED",
+    "OWNER-HOSTING-ACCOUNT": "BLOCKED",
+    "OWNER-SMTP-CREDENTIALS": "BLOCKED",
+    "OWNER-BUDGET-AUTH": "BLOCKED",
+    "OWNER-SIGNING-KEYS": "BLOCKED",
+    "DEF-V2-001": "BLOCKED",
+    "DEF-V2-004": "BLOCKED",
+    "DEF-V2-005": "BLOCKED",
+    "DEF-V2-006": "BLOCKED",
+    "DEF-V2-007": "BLOCKED",
+    "DEF-V2-008": "BLOCKED",
+    "DEF-V2-011": "BLOCKED",
+    "DEF-V2-013": "SATISFIED"
+  },
+  "operationalStatus": "BLOCKED_ON_OWNER_PROVISIONING"
+}

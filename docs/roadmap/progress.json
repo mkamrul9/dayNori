@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-11-15T06:44:28.105Z",
-  "activePhase": "117",
+  "activePhase": "118",
   "nextPhase": null,
   "schedulingDecision": "Owner scheduling authorization: Select Phase 117 (Daynori web/PWA visual polish and usability refinement) under ADR 0117. Standing push under ADR 0074.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 102 assembled canonical owner publication review record (docs/release/v2-authorized-publication-record.md) and machine-readable register (artifacts/phase102/publication-review-record.json), separated bounded beta from full V2, recorded web readiness independently from Android, executed 7 publication rehearsals in tests/e2e/phase102-v2-publication-rehearsal.test.ts, and reconciled 11 gates; release signing credentials (OWNER-SIGNING-KEYS), owner release authorization (OWNER-RELEASE-AUTH), live human research (DEF-V2-013), physical TalkBack (DEF-V2-011), and external audits (DEF-V2-004, DEF-V2-008) remain open.",
@@ -687,6 +687,12 @@
       "status": "blocked",
       "report": "docs/phase-reports/phase-117.md",
       "reason": "Daynori web/PWA visual polish and usability refinement delivered: eliminated repetitive card borders and visual clutter across navigation, Today, Library, Journal, forms, dialogs, and empty states; established a calmer typography, spacing, and surface hierarchy while keeping a coherent design system; verified WCAG 2.2 AA contrast (>= 4.5:1 text, >= 3:1 strong borders), universal :focus-visible rings, screen reader live regions, and prefers-reduced-motion: reduce; captured 80 baseline (before) and 80 post-refinement (after) genuine screenshots with 40/40 distinct light/dark pairs (0 identical) and zero horizontal layout overflow down to 320px mobile; verified core user journeys (notes, tasks, routines, journals, search, create menu, theme switching); status recorded as blocked pending standing release gates (DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, OWNER-SIGNING-KEYS, OWNER-RELEASE-AUTH, Phase 71). See docs/phase-reports/phase-117.md."
+    },
+    {
+      "id": "118",
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-118.md",
+      "reason": "Daynori deployable web-core release preparation and production infrastructure capacity plan delivered: packaged and verified deployable Web (1,825,996 bytes, SHA-256: 9c67b4009a802c9a60ac96731b43dae55d0c126503ea624d99975e6d691eb280, BUILD_ID: 6BXhesAWPN88FbHwp-Q4g) and API (559,223 bytes, SHA-256: 42b5f7222422796847f3987ae95ce58fb65aaa13be2bd9e484555a0c0dc43d37) release candidate 2.0.0-rc4 artifacts compiled from latest source (commit 3aebd74) using repository-required Node v24.21.0; documented exact production startup commands and health probe endpoints; authored configuration inventory in artifacts/phase118/configuration-inventory.json excluding secrets from Git and logs; established comprehensive rollback package and runbook in artifacts/phase118/rollback-package-runbook.md; designed complete 10-dimension public service architecture (Web, API, Database, Auth, Storage, Background Jobs, DNS/TLS, Backups, Monitoring, Support); critically audited and documented unviability of  free tier (ADR 0063) for thousands of active users; modeled capacity and authored costed hosting options matrix for 1,000-10,000 MAU recommending Managed PaaS (-/mo); recorded missing owner accounts and authorizations precisely; status recorded as blocked pending standing release gates (OWNER-PROD-DNS, OWNER-SUPABASE-PRO, OWNER-HOSTING-ACCOUNT, OWNER-SMTP-CREDENTIALS, OWNER-BUDGET-AUTH, OWNER-RELEASE-AUTH, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, Phase 71). See docs/phase-reports/phase-118.md."
     }
   ]
 }

@@ -1,0 +1,249 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Daynori Web-Core Production Configuration Inventory",
+  "releaseCandidate": "2.0.0-rc4",
+  "lastUpdated": "2026-11-15T12:00:00.000Z",
+  "securityPolicy": {
+    "credentialsInGit": "STRICTLY_PROHIBITED",
+    "credentialsInLogs": "STRICTLY_PROHIBITED",
+    "unreleasedModules": "FAIL_CLOSED_GATED",
+    "transportSecurity": "TLS_1_3_STRICT_HSTS"
+  },
+  "environments": {
+    "web": {
+      "service": "@daynori/web",
+      "runtime": "Node.js v24.21.0 / Next.js 15.5.27",
+      "variables": [
+        {
+          "name": "NODE_ENV",
+          "required": true,
+          "default": "production",
+          "description": "Node runtime environment. Activates optimized React runtime, production caching, and disabled devtools."
+        },
+        {
+          "name": "PORT",
+          "required": false,
+          "default": "3000",
+          "description": "HTTP port for incoming Next.js reverse-proxy traffic."
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_URL",
+          "required": true,
+          "example": "https://app.daynori.com",
+          "description": "Canonical public HTTPS origin used for PWA manifest, canonical links, and OAuth redirect callbacks."
+        },
+        {
+          "name": "NEXT_PUBLIC_API_ORIGIN",
+          "required": true,
+          "example": "https://api.daynori.com",
+          "description": "Origin of the backend API service queried by browser client and SSR fetch calls."
+        },
+        {
+          "name": "NEXT_PUBLIC_SUPABASE_URL",
+          "required": true,
+          "example": "https://<project-ref>.supabase.co",
+          "description": "Public URL of the Supabase project."
+        },
+        {
+          "name": "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+          "required": true,
+          "isSecret": false,
+          "storageLocation": "Managed hosting environment variables (public client key protected by database RLS)",
+          "description": "Supabase anonymous publishable key for client-side Auth session management."
+        },
+        {
+          "name": "NEXT_PUBLIC_FEATURE_VAULT",
+          "required": true,
+          "default": "false",
+          "description": "Feature flag barrier: fail-closed (403) pending independent cryptographic audit under DEF-V2-004."
+        },
+        {
+          "name": "NEXT_PUBLIC_FEATURE_ROOMS",
+          "required": true,
+          "default": "false",
+          "description": "Feature flag barrier: fail-closed (403) pending moderation operational assignment under DEF-V2-006."
+        },
+        {
+          "name": "NEXT_PUBLIC_FEATURE_AI",
+          "required": true,
+          "default": "false",
+          "description": "Feature flag barrier: fail-closed (403) pending live LLM provider budget and consent under DEF-V2-008."
+        },
+        {
+          "name": "NEXT_PUBLIC_FEATURE_VOICE",
+          "required": true,
+          "default": "false",
+          "description": "Feature flag barrier: fail-closed (403) pending speech provider and physical hardware verification under DEF-V2-008/011."
+        },
+        {
+          "name": "NEXT_PUBLIC_FEATURE_BILLING",
+          "required": true,
+          "default": "false",
+          "description": "Feature flag barrier: fail-closed (403) pending merchant registration under DEF-V2-007."
+        },
+        {
+          "name": "NEXT_PUBLIC_FEATURE_DRIVE",
+          "required": true,
+          "default": "false",
+          "description": "Feature flag barrier: fail-closed pending Google Cloud OAuth verification under DEF-V2-005."
+        }
+      ]
+    },
+    "api": {
+      "service": "@daynori/api",
+      "runtime": "Node.js v24.21.0 / Fastify 5.2.1",
+      "variables": [
+        {
+          "name": "NODE_ENV",
+          "required": true,
+          "default": "production",
+          "description": "Node runtime environment."
+        },
+        {
+          "name": "PORT",
+          "required": false,
+          "default": "3001",
+          "description": "Internal HTTP port for Fastify daemon."
+        },
+        {
+          "name": "HOST",
+          "required": false,
+          "default": "0.0.0.0",
+          "description": "Network interface binding for container/host listener."
+        },
+        {
+          "name": "DATABASE_URL",
+          "required": true,
+          "isSecret": true,
+          "storageLocation": "Owner-managed KMS / Hosting Secret Vault (never committed to Git or logged)",
+          "exampleFormat": "postgresql://postgres.[ref]:[PASSWORD]@aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require",
+          "description": "PostgreSQL connection string with Supavisor transaction pooler on port 6543 and strict SSL mode."
+        },
+        {
+          "name": "DATABASE_POOL_MIN",
+          "required": false,
+          "default": "2",
+          "description": "Minimum idle connection pool size per container instance."
+        },
+        {
+          "name": "DATABASE_POOL_MAX",
+          "required": false,
+          "default": "15",
+          "description": "Maximum connection pool size per container instance."
+        },
+        {
+          "name": "DATABASE_STATEMENT_TIMEOUT_MS",
+          "required": false,
+          "default": "10000",
+          "description": "PostgreSQL statement timeout preventing rogue query starvation (10 seconds)."
+        },
+        {
+          "name": "SUPABASE_URL",
+          "required": true,
+          "example": "https://<project-ref>.supabase.co",
+          "description": "Supabase API origin."
+        },
+        {
+          "name": "SUPABASE_SERVICE_ROLE_KEY",
+          "required": true,
+          "isSecret": true,
+          "storageLocation": "Owner-managed KMS / Hosting Secret Vault (never committed to Git or logged)",
+          "description": "Privileged Supabase service-role token for account provisioning, RLS bypass on system maintenance, and auth webhooks."
+        },
+        {
+          "name": "SUPABASE_JWT_SECRET",
+          "required": false,
+          "isSecret": true,
+          "storageLocation": "Owner-managed KMS / Hosting Secret Vault",
+          "description": "HMAC secret or private key corresponding to auth tokens issued by Supabase GoTrue."
+        },
+        {
+          "name": "SUPABASE_JWKS_URL",
+          "required": true,
+          "default": "https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json",
+          "description": "JWKS endpoint for asymmetric RS256/ES256 public key verification of user JWT bearer tokens."
+        },
+        {
+          "name": "DAYNORI_REAUTHENTICATION_SECRET",
+          "required": true,
+          "isSecret": true,
+          "storageLocation": "Owner-managed KMS / Hosting Secret Vault",
+          "description": "High-entropy 256-bit secret used by the API to sign short-lived (15-minute) reauthentication and confirmation tokens."
+        },
+        {
+          "name": "DAYNORI_API_ORIGIN",
+          "required": true,
+          "example": "https://api.daynori.com",
+          "description": "Canonical origin of the API service for building canonical callback and attachment links."
+        },
+        {
+          "name": "CORS_ORIGIN",
+          "required": true,
+          "example": "https://app.daynori.com",
+          "description": "Allowed Access-Control-Allow-Origin header for browser cross-origin requests."
+        },
+        {
+          "name": "ALLOWED_ORIGINS",
+          "required": true,
+          "default": "https://app.daynori.com,https://preview.daynori.com",
+          "description": "Comma-separated list of whitelisted web origins authorized to exchange cookies and credentials."
+        },
+        {
+          "name": "DAYNORI_CORE_PREVIEW",
+          "required": false,
+          "default": "false",
+          "description": "Set to false for public production core web release to enforce standard 15-second request timeouts and standard storage adapters."
+        },
+        {
+          "name": "RATE_LIMIT_MAX_PER_MINUTE",
+          "required": false,
+          "default": "120",
+          "description": "Fastify rate limit per client IP for general API endpoints."
+        },
+        {
+          "name": "RATE_LIMIT_AUTH_MAX_PER_MINUTE",
+          "required": false,
+          "default": "15",
+          "description": "Fastify rate limit per client IP for authentication and recovery endpoints."
+        }
+      ]
+    },
+    "worker": {
+      "service": "@daynori/worker",
+      "runtime": "Node.js v24.21.0",
+      "variables": [
+        {
+          "name": "NODE_ENV",
+          "required": true,
+          "default": "production",
+          "description": "Node runtime environment."
+        },
+        {
+          "name": "DATABASE_URL",
+          "required": true,
+          "isSecret": true,
+          "storageLocation": "Owner-managed KMS / Hosting Secret Vault",
+          "description": "PostgreSQL connection string for queue polling and background batch operations."
+        },
+        {
+          "name": "WORKER_CONCURRENCY",
+          "required": false,
+          "default": "5",
+          "description": "Max concurrent job executions per worker instance."
+        },
+        {
+          "name": "DELETION_SWEEP_CRON",
+          "required": false,
+          "default": "0 3 * * *",
+          "description": "Cron expression for executing physical data purge sweeps on accounts marked for deletion."
+        },
+        {
+          "name": "PURGE_GRACE_PERIOD_DAYS",
+          "required": false,
+          "default": "30",
+          "description": "Grace period before permanently destroying user workspaces marked for deletion."
+        }
+      ]
+    }
+  }
+}

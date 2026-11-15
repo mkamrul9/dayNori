@@ -1,0 +1,207 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Daynori Production Hosting Options & Capacity Modeling",
+  "evaluatedAt": "2026-11-15T12:00:00.000Z",
+  "targetAudience": "1,000 to 10,000 Monthly Active Users (MAU)",
+  "peakConcurrentUsers": "100 to 500 concurrent connections",
+  "currentFreeTierAudit": {
+    "tierName": "$0 Free Preview Baseline (ADR 0063)",
+    "monthlyCost": "$0.00/month",
+    "webHost": "Render Free Web Service",
+    "apiHost": "Render Free Web Service",
+    "databaseHost": "Supabase Free (Singapore)",
+    "limitations": [
+      {
+        "component": "Render Web/API Compute",
+        "limit": "750 free instance hours shared across ALL services per month",
+        "failureMode": "Two active services (Web + API) consume 1,488 hours/month. Free quota expires in ~15.6 days, causing guaranteed complete service blackout for the rest of each month."
+      },
+      {
+        "component": "Render Inactivity Sleep",
+        "limit": "Spins down after 15 minutes of inactivity",
+        "failureMode": "Takes 50 to 75 seconds to wake up. First request times out; intolerable for real active users."
+      },
+      {
+        "component": "Render Memory Cap",
+        "limit": "512MB RAM per instance",
+        "failureMode": "Next.js SSR and V8 memory heap easily spike past 512MB under concurrent load, triggering unhandled OS OOM kills."
+      },
+      {
+        "component": "Supabase Database Storage",
+        "limit": "500MB database ceiling",
+        "failureMode": "1,000 active users producing daily notes, tasks, journals, and sync receipts consume ~5-10MB/day; 500MB cap exhausted in 50-100 days."
+      },
+      {
+        "component": "Supabase Connection Pool",
+        "limit": "15 pooler connections, 60 direct connections",
+        "failureMode": "Connection exhaustion ('53300: too many connections') under 50+ concurrent sync requests."
+      },
+      {
+        "component": "Supabase Inactivity Pausing",
+        "limit": "Projects paused after 7 days of inactivity",
+        "failureMode": "Manual operator intervention required to unpause; zero SLA."
+      },
+      {
+        "component": "Backup & Disaster Recovery",
+        "limit": "Zero automated Point-in-Time Recovery (PITR)",
+        "failureMode": "RPO > 24 hours; data loss risk in event of schema corruption or hardware failure."
+      }
+    ],
+    "verdict": "COMPLETELY UNVIABLE FOR PUBLIC PRODUCTION SERVICE. Suitable strictly for zero-cost developer rehearsal and isolated previews."
+  },
+  "options": [
+    {
+      "id": "option-1-managed-paas",
+      "name": "Option 1: Modern Managed PaaS (Recommended)",
+      "targetScale": "1,000 to 25,000 MAU",
+      "monthlyCostRange": "$80 - $125 / month",
+      "components": {
+        "web": {
+          "provider": "Vercel Pro",
+          "cost": "$20.00 / month",
+          "specs": "Global Edge CDN, serverless SSR, automatic image optimization, 1TB bandwidth, instant atomic git deployments, edge middleware."
+        },
+        "apiAndWorker": {
+          "provider": "Railway Pro or Fly.io",
+          "cost": "$25.00 - $45.00 / month",
+          "specs": "2 dedicated container services (API: 2 vCPU, 2GB RAM; Worker: 1 vCPU, 1GB RAM), zero cold starts, health checks, automatic horizontal scaling."
+        },
+        "databaseAndAuth": {
+          "provider": "Supabase Pro",
+          "cost": "$25.00 / month base + $10.00 compute add-on = $35.00 / month",
+          "specs": "Dedicated micro/small compute, 8GB high-speed NVMe storage (auto-expanding), 100,000 MAU Auth, Supavisor connection pooler (200 pooled connections), 7-day Point-in-Time Recovery (PITR), daily automated offsite backups."
+        },
+        "storage": {
+          "provider": "Cloudflare R2",
+          "cost": "$0.00 - $5.00 / month",
+          "specs": "$0 egress fees, $0.015/GB storage, S3 API compatibility, globally distributed object caching."
+        },
+        "dnsAndSecurity": {
+          "provider": "Cloudflare Free Tier",
+          "cost": "$0.00 / month",
+          "specs": "DDoS protection, TLS 1.3, HTTP/3, Web Application Firewall (WAF), rate limiting, DNSSEC."
+        },
+        "monitoring": {
+          "provider": "Sentry Developer + Better Stack / Axiom",
+          "cost": "$0.00 - $20.00 / month",
+          "specs": "Crash reporting, performance tracing, uptime monitoring, synthetic health checks with alerting."
+        }
+      },
+      "capacityMetrics": {
+        "maxConcurrentUsers": "500 - 1,000 concurrent",
+        "apiP95Latency": "< 45ms",
+        "rpo": "< 5 minutes (via WAL PITR)",
+        "rto": "< 15 minutes",
+        "devopsEffort": "Low (fully managed infrastructure)"
+      },
+      "strengths": [
+        "Zero cold starts, instant interactive responsiveness",
+        "Automatic edge distribution for global static and PWA assets",
+        "Robust enterprise-grade database backups with 7-day continuous PITR",
+        "Minimal DevOps overhead allowing focus on application features",
+        "Clear, linear scaling economics as user base grows"
+      ],
+      "tradeoffs": [
+        "Requires owner-approved monthly budget of ~$80-$120/mo",
+        "Slight vendor coupling to Vercel/Railway platforms"
+      ]
+    },
+    {
+      "id": "option-2-unified-cloud",
+      "name": "Option 2: Unified Container Cloud (DigitalOcean / AWS Light)",
+      "targetScale": "1,000 to 20,000 MAU",
+      "monthlyCostRange": "$95 - $155 / month",
+      "components": {
+        "webApiWorker": {
+          "provider": "DigitalOcean App Platform (or AWS App Runner)",
+          "cost": "$40.00 - $65.00 / month",
+          "specs": "3 containerized components (Web: Basic 1GB RAM @ $12; API: Professional 2GB RAM @ $25; Worker: Basic 512MB RAM @ $5)."
+        },
+        "database": {
+          "provider": "DigitalOcean Managed PostgreSQL",
+          "cost": "$30.00 / month",
+          "specs": "1 vCPU, 2GB RAM, 25GB storage, built-in connection pooling, automated daily backups."
+        },
+        "auth": {
+          "provider": "Supabase Auth / GoTrue self-hosted or Supabase Pro",
+          "cost": "$25.00 / month",
+          "specs": "Managed GoTrue auth server."
+        },
+        "storage": {
+          "provider": "DigitalOcean Spaces (S3-compatible)",
+          "cost": "$5.00 / month",
+          "specs": "250GB storage, 1TB outbound transfer."
+        },
+        "dnsAndSecurity": {
+          "provider": "Cloudflare Free Tier",
+          "cost": "$0.00 / month",
+          "specs": "Global CDN and DDoS protection."
+        }
+      },
+      "capacityMetrics": {
+        "maxConcurrentUsers": "300 - 600 concurrent",
+        "apiP95Latency": "< 65ms",
+        "rpo": "< 24 hours (daily snapshot) or 5m with WAL",
+        "rto": "< 30 minutes",
+        "devopsEffort": "Medium"
+      },
+      "strengths": [
+        "Single administrative dashboard and consolidated invoicing",
+        "Predictable flat-rate pricing models",
+        "Private internal VPC networking between API and database"
+      ],
+      "tradeoffs": [
+        "Slower global frontend distribution than Vercel edge",
+        "Requires manual container tuning and Dockerfile maintenance"
+      ]
+    },
+    {
+      "id": "option-3-lean-vps",
+      "name": "Option 3: Lean Bare-Metal / Dedicated VPS (Hetzner + Coolify)",
+      "targetScale": "1,000 to 50,000 MAU",
+      "monthlyCostRange": "$35 - $60 / month",
+      "components": {
+        "computeServers": {
+          "provider": "Hetzner Cloud (2× CPX31 instances in Falkenstein/Nuremberg)",
+          "cost": "~$30.00 / month (€27.50)",
+          "specs": "Server 1: 4 vCPU, 8GB RAM, 160GB NVMe (Web, API, Worker, Reverse Proxy); Server 2: 4 vCPU, 8GB RAM, 160GB NVMe (PostgreSQL 16, PgBouncer, Redis)."
+        },
+        "orchestration": {
+          "provider": "Coolify or Docker Compose",
+          "cost": "$0.00 (Open Source)",
+          "specs": "Self-hosted PaaS with automated SSL, webhook deployments, and container monitoring."
+        },
+        "storageAndOffsiteBackups": {
+          "provider": "Backblaze B2 / Wasabi S3",
+          "cost": "$5.00 / month",
+          "specs": "Encrypted offsite WAL archiving and logical dumps via pgBackRest/Restic."
+        },
+        "dnsAndSecurity": {
+          "provider": "Cloudflare Free Tier",
+          "cost": "$0.00 / month",
+          "specs": "Edge proxy and WAF."
+        }
+      },
+      "capacityMetrics": {
+        "maxConcurrentUsers": "1,000 - 2,500 concurrent",
+        "apiP95Latency": "< 25ms (high compute per dollar)",
+        "rpo": "< 15 minutes",
+        "rto": "< 45 minutes",
+        "devopsEffort": "High (Requires Linux sysadmin, OS security patching, manual firewall rules)"
+      },
+      "strengths": [
+        "Maximum compute and RAM per dollar (16GB RAM, 8 vCPU total for ~$35/mo)",
+        "Zero vendor lock-in; 100% portable Docker containers"
+      ],
+      "tradeoffs": [
+        "Significant operational maintenance burden",
+        "No managed SLA for database failover; manual disaster recovery responsibility"
+      ]
+    }
+  ],
+  "recommendation": {
+    "selectedOption": "option-1-managed-paas",
+    "budgetEnvelope": "$80.00 - $120.00 / month",
+    "rationale": "Option 1 provides the ideal balance for Daynori's initial public release: it completely eliminates cold starts and memory crashes, provides enterprise-grade 7-day continuous PITR database backups, offloads global asset caching to Vercel's edge network, and requires virtually zero ongoing sysadmin maintenance. It allows the core team to focus on application reliability, user support, and feature validation rather than server patch management."
+  }
+}

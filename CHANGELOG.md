@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 118 — Daynori deployable web-core release preparation and production infrastructure capacity plan — 2026-11-15
+
+- ADR 0118: Daynori Deployable Web-Core Release Preparation and Production Infrastructure Capacity Plan, packaging deployable candidate 2.0.0-rc4 from latest verified source (commit `3aebd74`) using repository-required Node v24.21.0, establishing exact startup commands, configuration inventory, and rollback package, designing the 10-dimension public service architecture, critically auditing the $0 free-tier decision (ADR 0063) against serving thousands, modeling capacity for 1,000–10,000 MAU, and recommending Option 1 Managed PaaS ($80–$110/mo) before provisioning paid resources.
+- Immutable Candidate 2.0.0-rc4 Release Packaging (`artifacts/release/`):
+  - Packaged complete Web bundle (`artifacts/release/daynori-web-v2.0.0-rc4.tar.gz`, 1,825,996 bytes, SHA-256: `9c67b4009a802c9a60ac96731b43dae55d0c126503ea624d99975e6d691eb280`) and API bundle (`artifacts/release/daynori-api-v2.0.0-rc4.tar.gz`, 559,223 bytes, SHA-256: `42b5f7222422796847f3987ae95ce58fb65aaa13be2bd9e484555a0c0dc43d37`) compiled with repository-required Node v24.21.0 from clean commit `3aebd74`.
+  - Web Build ID: `6BXhesAWPN88FbHwp-Q4g` across 32 compiled routes.
+  - Reconciled individual client asset hashes: `manifest.json`, `sw.js`, `offline-shell.html`, `offline-shell.js`, brand icons.
+- Exact Startup Commands & Health Probes Verified:
+  - Web: `NODE_ENV=production PORT=3000 node_modules/.bin/next start` (tested locally on port 3120; ready in 669ms; `GET /api/health` returned HTTP 200).
+  - API: `NODE_ENV=production PORT=3001 HOST=0.0.0.0 node dist/start.js` (Fastify root `/health` and `/v1/health` verified operational).
+- Configuration Inventory & Secrets Separation (`artifacts/phase118/configuration-inventory.json`):
+  - Documented complete environment variable specifications across Web, API, and Worker.
+  - Enforced strict security policy: zero secrets in Git or logs; secrets injected exclusively at runtime via secure KMS or platform secret managers.
+  - High-risk modules fail-closed by default (`NEXT_PUBLIC_FEATURE_VAULT=false`, `NEXT_PUBLIC_FEATURE_ROOMS=false`, `NEXT_PUBLIC_FEATURE_AI=false`, etc.).
+- Rollback Package & Additive Schema Guarantees (`artifacts/phase118/rollback-package-runbook.md`):
+  - Documented deterministic rollback runbook with automated triggers (latency > 500ms, 5xx > 1%, isolation breach).
+  - Verified that all 80 database migrations are additive SQL, enabling instant stateless rollbacks to predecessor candidate `2.0.0-rc3` or `2.0.0-rc2` without destructive down-migrations or user data loss.
+  - Standalone offline shell (`offline-shell.html`) configured for sub-10-second edge cutover during critical outages.
+- Public Service Architecture & Capacity Plan (`artifacts/phase118/`):
+  - Designed complete 10-dimension public architecture: Web, API, Database, Auth, Storage, Background Jobs, DNS/TLS, Backups, Monitoring, and Support.
+  - Audited existing $0 free tier (ADR 0063) and demonstrated why Render Free (750h limit, 15m sleep, 512MB RAM cap) and Supabase Free (500MB DB cap, 15 connections, 7-day inactivity pause) cannot support thousands of users.
+  - Modeled capacity for 1,000–10,000 MAU across 3 costed options in `artifacts/phase118/costed-hosting-matrix.json`, recommending Option 1 Managed PaaS (Vercel + Railway + Supabase Pro at $80–$110/mo) for zero cold starts, 7-day continuous PITR, and minimal maintenance.
+- Automated Test Suites Verified (13/13 Passed):
+  - `tests/unit/phase118-release-package-and-capacity.test.ts` (7 tests passed).
+  - `tests/e2e/phase118-web-core-startup-and-health.test.ts` (6 tests passed).
+- Standing Release Gates Maintained:
+  - Recorded as blocked pending owner-controlled accounts and authorizations: `OWNER-PROD-DNS`, `OWNER-SUPABASE-PRO`, `OWNER-HOSTING-ACCOUNT`, `OWNER-SMTP-CREDENTIALS`, `OWNER-BUDGET-AUTH`, `OWNER-RELEASE-AUTH`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-006`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, and Phase 71.
+
 ## Phase 117 — Daynori web/PWA visual polish and usability refinement — 2026-11-15
 
 - ADR 0117: Daynori Web/PWA Visual Polish and Usability Refinement, eliminating repetitive card borders and visual clutter across navigation, Today, Library, Journal, forms, dialogs, and empty states; establishing a calmer typography, spacing, and surface hierarchy while keeping a coherent design system; verifying WCAG 2.2 AA contrast, keyboard accessibility, screen reader live regions, and reduced motion; and capturing 80 baseline and 80 post-refinement genuine screenshots across 5 viewports and 2 themes.

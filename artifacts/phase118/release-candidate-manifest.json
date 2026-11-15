@@ -1,0 +1,173 @@
+{
+  "manifestVersion": "2.0.0-rc4",
+  "label": "daynori-deployable-web-core-release-candidate",
+  "createdAt": "2026-11-15T12:00:00.000Z",
+  "gitRevision": "3aebd74ac55b53d57ce7ab1274a0c9022c07422c",
+  "baseBranch": "codex/free-core-preview",
+  "latestCorrectedCommitMessage": "refactor(web): refine web visual polish, calm excessive boxes, and improve usability",
+  "toolchain": {
+    "node": "v24.21.0",
+    "pnpm": "9.15.5",
+    "next": "15.5.27",
+    "fastify": "5.2.1",
+    "react": "18.3.1"
+  },
+  "build": {
+    "webBuildId": "6BXhesAWPN88FbHwp-Q4g",
+    "compiledRoutesCount": 32,
+    "buildTimestamp": "2026-11-15T06:52:22Z"
+  },
+  "artifacts": {
+    "web": {
+      "path": "artifacts/release/daynori-web-v2.0.0-rc4.tar.gz",
+      "sha256": "9c67b4009a802c9a60ac96731b43dae55d0c126503ea624d99975e6d691eb280",
+      "sizeBytes": 1825996,
+      "format": "tar.gz",
+      "description": "Deployable production Next.js 15 PWA web bundle (.next, public, package.json, next.config.mjs) built with Node v24.21.0 from commit 3aebd74"
+    },
+    "api": {
+      "path": "artifacts/release/daynori-api-v2.0.0-rc4.tar.gz",
+      "sha256": "42b5f7222422796847f3987ae95ce58fb65aaa13be2bd9e484555a0c0dc43d37",
+      "sizeBytes": 559223,
+      "format": "tar.gz",
+      "description": "Deployable production Fastify API server bundle (dist, package.json) built with Node v24.21.0 from commit 3aebd74"
+    }
+  },
+  "historicalBaselines": {
+    "rc3": {
+      "path": "artifacts/release/daynori-web-v2.0.0-rc3.tar.gz",
+      "sha256": "508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830",
+      "sizeBytes": 1825054,
+      "gitRevision": "e71842f",
+      "toolchainNode": "v24.11.1",
+      "supersededReason": "Source predated Phases 104-117 fixes and was built with host Node v24.11.1 instead of repository-required v24.21.0"
+    },
+    "rc2": {
+      "path": "artifacts/release/daynori-web-v2.0.0-rc2.tar.gz",
+      "sha256": "6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f",
+      "sizeBytes": 1824687,
+      "gitRevision": "5073928eb65e33ebccb92e9d0b168f6b030b191c",
+      "toolchainNode": "v24.11.1"
+    }
+  },
+  "individualClientAssetHashes": {
+    "manifestJson": "417faac1bd5c0d083657a7a69c645a2387c797e1ac60500f462d9db3d280cf40",
+    "serviceWorkerJs": "6e243130bed7d29e51c330a378380805f87539798692abe5c4f8127bb1f70cb3",
+    "offlineShellHtml": "1b0bf5f65c8d7330d0560fe41acc73a6a9806e9b7aff5cb60daacfc0fbd009cc",
+    "offlineShellJs": "69649cdab12d593dc7a9fed5607aba0a22b9e5336e855d6117a9fd0ce0462e4f",
+    "icon192": "eab6433abbca70b7392ead34a499c1d901bc48fe4e849bfff9ee43b66d6eee64",
+    "icon512": "dc0ebf905510c9cae68046262c198a76d11fa010bcab53e3c1745bb8467b377e",
+    "iconMaskable512": "69d0b2d8a9438f3262692ba76aa64a9e547d5d4aab718d6450b6395f5f868835"
+  },
+  "exactStartupCommands": {
+    "web": {
+      "unpackCommand": "tar -xzf daynori-web-v2.0.0-rc4.tar.gz",
+      "installCommand": "pnpm install --prod",
+      "runCommand": "NODE_ENV=production PORT=3000 node_modules/.bin/next start",
+      "healthProbe": "GET http://localhost:3000/api/health",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "status": "ok",
+        "version": "0.1.0",
+        "environment": "production"
+      }
+    },
+    "api": {
+      "unpackCommand": "tar -xzf daynori-api-v2.0.0-rc4.tar.gz",
+      "installCommand": "pnpm install --prod",
+      "runCommand": "NODE_ENV=production PORT=3001 HOST=0.0.0.0 node dist/start.js",
+      "healthProbe": "GET http://localhost:3001/health",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "status": "ok"
+      }
+    }
+  },
+  "featureScope": {
+    "totalFunctionRegisterActions": 109,
+    "verifiedWebCoreActionsCount": 78,
+    "gatedActionsCount": 31,
+    "enabledFamilies": [
+      "account",
+      "nav",
+      "tasks",
+      "routines",
+      "calendar",
+      "notes",
+      "journal",
+      "library",
+      "search",
+      "files",
+      "audio",
+      "expenses",
+      "sections",
+      "sync",
+      "portability",
+      "offline",
+      "feedback",
+      "help",
+      "tours"
+    ],
+    "gatedModules": [
+      {
+        "module": "vault",
+        "gate": "DEF-V2-004",
+        "reason": "Independent cryptographic security audit pending"
+      },
+      {
+        "module": "rooms",
+        "gate": "DEF-V2-006",
+        "reason": "Staffed moderation operational ownership pending"
+      },
+      {
+        "module": "ai_assistant_live",
+        "gate": "DEF-V2-008",
+        "reason": "Live LLM provider authorization and spending ceiling pending"
+      },
+      {
+        "module": "voice_assistant_live",
+        "gate": "DEF-V2-008 / DEF-V2-011",
+        "reason": "Live speech recognition provider and physical device microphone evaluation pending"
+      },
+      {
+        "module": "in_app_billing",
+        "gate": "DEF-V2-007",
+        "reason": "Google Play merchant registration and paid plan infrastructure pending"
+      },
+      {
+        "module": "google_drive",
+        "gate": "DEF-V2-005",
+        "reason": "Google Cloud OAuth consent verification and live folder picker audit pending"
+      },
+      {
+        "module": "native_push",
+        "gate": "DEF-V2-002",
+        "reason": "FCM/APNs provider credentials unconfigured"
+      },
+      {
+        "module": "android_native",
+        "gate": "DEF-V2-011 / OWNER-SIGNING-KEYS",
+        "reason": "Physical ARM64 hardware TalkBack verification and owner release keystores pending"
+      }
+    ]
+  },
+  "standingReleaseGates": {
+    "OWNER-RELEASE-AUTH": "BLOCKED (Decision package presented; awaiting explicit owner launch approval)",
+    "OWNER-PROD-DNS": "BLOCKED (app.daynori.com DNS record unconfigured)",
+    "OWNER-SUPABASE-PRO": "BLOCKED (Production database tier and Singapore connection pooling pending owner upgrade)",
+    "OWNER-HOSTING-ACCOUNT": "BLOCKED (Production PaaS/container compute account pending owner provisioning)",
+    "OWNER-SMTP-CREDENTIALS": "BLOCKED (Production transactional email provider unconfigured)",
+    "OWNER-BUDGET-AUTH": "BLOCKED (Monthly operating budget envelope of $80-$120/mo pending owner approval)",
+    "OWNER-SIGNING-KEYS": "BLOCKED (Release keystore unconfigured for native Android)",
+    "DEF-V2-001": "BLOCKED (Production Supabase IdP configuration and OAuth redirect whitelist)",
+    "DEF-V2-004": "BLOCKED (Vault independent cryptographic audit)",
+    "DEF-V2-005": "BLOCKED (Google Drive restricted scope verification)",
+    "DEF-V2-006": "BLOCKED (Rooms moderation team assignment)",
+    "DEF-V2-007": "BLOCKED (Play Billing merchant account)",
+    "DEF-V2-008": "BLOCKED (Ask Nori live API provider terms and budget ceiling)",
+    "DEF-V2-011": "BLOCKED (Native Android physical device verification)",
+    "DEF-V2-013": "SATISFIED (5/5 live consenting human usability sessions verified in Phase 102)"
+  },
+  "releaseEligibility": "ENGINEERING_PREPARED_AWAITING_OWNER_PROVISIONING_AND_AUTH",
+  "operationalStatus": "BLOCKED"
+}
