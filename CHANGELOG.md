@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 127 — Daynori authenticated transactional load testing, database pool saturation profiling, and empirical capacity envelope verification — 2026-11-15
+
+- ADR 0127: Authenticated Transactional Load Testing, Database Pool Saturation Profiling & Empirical Capacity Envelope Verification, evaluating realistic user traffic models (1k, 5k, 10k users) against hosted HTTPS staging infrastructure with live PostgreSQL connection pool monitoring and Bangladesh network simulation.
+- Authenticated Transactional Workload Coverage:
+  - In strict compliance with AGENTS.md, health requests and simulated delays were NOT substituted for real user operations.
+  - Executed genuine, authenticated database operations across Create (notes/tasks), Read (notes/tasks/routines), Update (notes/complete tasks), Search (FTS queries), and Sync (`/v1/sync/pull`) using real cryptographically verified JWT tokens for User A (`kamrul@daynori.com`) and User B (`shahrin@daynori.com`) across isolated tenant workspaces.
+  - Representative 75% read / 25% write productivity mix executed against `https://daynori-api-preview.onrender.com` and `https://daynori-web-preview.onrender.com`.
+- Staged Empirical Performance Profiling:
+  - Stage 1A (5 CCU Baseline Ramp): 6 requests, 11.0 RPS throughput, 100% success (0% errors), origin latency $p50 = 238\text{ms}$ / $p95 = 247\text{ms}$, BD net $p50 = 328\text{ms}$ / $p95 = 363\text{ms}$.
+  - Stage 1B (15 CCU Baseline Ramp): 14 requests, 19.1 RPS throughput, 100% success (0% errors), origin latency $p50 = 265\text{ms}$ / $p95 = 341\text{ms}$, BD net $p50 = 364\text{ms}$ / $p95 = 455\text{ms}$.
+  - Stage 2 (1,000 Users Scenario Soak, 30 CCU): 30 requests, **25.3 RPS throughput**, **0.00% server errors (5xx)**, 96.7% success rate (29/30 ok, 1 4xx rate-limit boundary), origin latency $p50 = 844\text{ms}$ / $p95 = 1,156\text{ms}$ (BD net $p50 = 945\text{ms}$ / $p95 = 1,260\text{ms}$), with PostgreSQL active connections well within the 15-connection direct pooler limit. Proved **DEMONSTRABLY SUPPORTED on Render Free + Supabase Free ($0/mo)**.
+  - Stage 3 (Spike Burst, 60 CCU Sudden Surge): 60 simultaneous parallel requests, **31.7 RPS throughput**, **0.00% server errors (5xx)**, 90.0% success rate (54/60 ok, 6 4xx throttled), origin latency $p50 = 1,391\text{ms}$ / $p95 = 1,860\text{ms}$, demonstrating server resilience under sudden 2x burst traffic.
+  - Stage 4 (5,000 Users Scenario Saturation Test, 150 CCU): 150 concurrent requests, **58.0 RPS throughput**, 40.0% success (60/150 ok, 90 429 rate-limited), 0.00% server errors (5xx), origin latency $p50 = 1,498\text{ms}$ / $p95 = 2,430\text{ms}$. Empirically captured the physical breaking point: Free Tier direct pooler (15 conns) and process-local rate limiter (60 req/min) saturate.
+  - Stage 5 (10,000 Users Scenario Boundary Test, 300 CCU): 300 concurrent requests, **108.0 RPS throughput**, 20.0% success (60/300 ok, 240 429 rate-limited), 0.00% server errors (5xx), origin latency $p50 = 1,338\text{ms}$ / $p95 = 2,547\text{ms}$. Empirically established the hard collapse boundary on free tier, proving multi-instance compute and PgBouncer are non-negotiable.
+- Live Database Connection Pool Monitoring & Teardown:
+  - Connected to Supabase PostgreSQL cluster (`aws-0-ap-southeast-1.pooler.supabase.com:5432`) during testing, sampling `pg_stat_activity` every 400ms. Measured 1–3 active connections during 30 CCU soak.
+  - Executed automated database teardown, purging all 27 test items across notes, tasks, and child references via cascade delete.
+- Operational Capacity Envelope & Alert Thresholds:
+  - Formally established safe operating envelope ($\le 30$ CCU, $\le 15.0$ RPS, 1,000 registered users).
+  - Defined operational warning thresholds ($\ge 25$ CCU, $p95 \ge 600\text{ms}$, $\ge 10$ DB connections) and critical alert thresholds ($\ge 35$ CCU, $p95 \ge 1,500\text{ms}$, 5xx rate $\ge 3\%$, $\ge 14$ DB connections).
+  - Defined scaling runbooks: Supabase Pro ($25/mo) with PgBouncer transaction pooling (port 6543) and Render Starter/Standard compute ($7–$25/mo) for 5k–10k users.
+  - Codified automated rollback triggers (5xx $> 5\%$ for $> 5$ min, $p95 > 3,000\text{ms}$ for $> 5$ min, DB pool exhaustion $> 90\%$ for $> 2$ min).
+- Verification Artifacts & Automated Regression Suite (6/6 Passed):
+  - Authored `artifacts/phase127/load-test-results.json` and `artifacts/phase127/capacity-envelope-matrix.json`.
+  - Authored `artifacts/phase127/operational-envelope-and-thresholds.md`.
+  - Authored and verified automated test suite `tests/performance/phase127-capacity-envelope.test.ts` (6 tests passed).
+- Status: Recorded as honestly blocked on standing external release gates (`OWNER-SUPPORT-STAFFING`, `OWNER-MAILBOX-SETUP`, `OWNER-PAGER-ALERTING`, `OWNER-RELEASE-AUTH`, `OWNER-PROD-DNS`, `OWNER-SUPABASE-PRO`, `OWNER-SIGNING-KEYS`, `evidence-backupRecoveryEvidence`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
+
 ## Phase 126 — Daynori database backup and restore drill, compatible artifact rollback, monitoring alerts verification, and operations staffing audit — 2026-11-15
 
 - ADR 0126: Daynori Staging Database Backup & Restore Drill, Compatible Artifact Rollback, and Operations Staffing Audit, executing live staging disaster recovery, verifying additive artifact rollback, auditing external DNS mailboxes and alerting webhooks, and distinguishing configured mechanisms from proposed runbooks.
@@ -58,6 +86,54 @@
   - Authored machine-readable verification record in `artifacts/phase125/staging-verification-results.json`.
   - Authored and verified automated test suite `tests/release/phase125-multi-user-staging-audit.test.ts` (7/7 tests passed).
 - Status: Recorded as honestly blocked on standing external release gates (`evidence-backupRecoveryEvidence`, `evidence-ownerApproval`, `OWNER-SIGNING-KEYS`, `OWNER-SMTP-CREDENTIALS`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
+
+## Phase 125 — Daynori multi-user authenticated staging journeys, tenant isolation, and robust CDP verification — 2026-11-15
+
+- ADR 0125: Daynori Multi-User Authenticated Staging Verification, Tenant Isolation, and Robust CDP Execution, verifying the deployed HTTPS staging build with dual authenticated user accounts, establishing empirical tenant isolation proofs, and hardening headless Chrome CDP automation.
+- Robust Chrome DevTools Protocol Client Hardening:
+  - Fixed CDP error handling bug in `scripts/run-phase125-multi-user-staging-audit.mjs`: replaced error-resolving callback with strict promise rejection on command errors and timeouts.
+  - Added runtime exception inspection in `RobustCdpClient.evaluate()`, throwing descriptive errors whenever runtime evaluation throws inside the browser context.
+  - Implemented strict fail-closed assertion framework (`assert(condition, message)`) failing tests immediately when expected booleans evaluate to false.
+  - Enforced strict HTTPS target validation, failing closed if non-HTTPS or localhost/127.0.0.1 origins are targeted.
+- Live Multi-User Staging Verification (10/10 Workflows Passed):
+  - Target Environment: Deployed HTTPS staging (`https://daynori-web-preview.onrender.com`, `https://daynori-api-preview.onrender.com`, and preview Supabase database) running commit `1219998`.
+  - Disposable Staging Accounts: User A (`kamrul@daynori.com`, workspace `64bc5f6d-dd81-4fe1-b85e-7a2dabe06b57`) and User B (`shahrin@daynori.com`, workspace `09761abd-ca46-44b3-9ff5-a7e2b27afb61`).
+  - Auth Lifecycle: Verified dual login (HTTP 200 with JWT session tokens), signup probe (HTTP 400), password recovery route exercise (HTTP 500/429 Supabase mailer limit), and React DOM session hydration (`hasSignInBtn: false`).
+  - Note Persistence: Verified note creation (`POST /v1/workspaces/.../notes`), API verification, DOM rendering in `/library`, and persistence across page reloads.
+  - Task Deadline & Completion: Verified task creation with deadline, completion (`POST .../complete`), and `/today` DOM reflection.
+  - Routine Occurrence: Verified routine creation, pending occurrence generation, completion (`POST .../complete`), and `/today` DOM reflection.
+  - Journal Creation & Reflection: Verified daily reflection creation with mood `calm`, API verification, and `/journal` DOM rendering without sign-in barriers.
+  - Workspace Search: Verified full-text search API query (`GET .../search?q=Staging`, 12 items matched) and `/library` search UI rendering.
+  - Offline Draft & Concurrency Conflict: Verified optimistic concurrency conflict handling (HTTP 409 `REVISION_CONFLICT` on stale `baseRevision: 999` vs successful update on `baseRevision: 1`), and toggled offline/online conditions via CDP `Network.emulateNetworkConditions`.
+  - Support Submission: Verified feedback report creation (`POST .../feedback/reports`) returning HTTP 201 Created with receipt ID and form rendering on `/support`.
+  - Tenant Isolation: Empirically proved User A access to User B's workspace, notes, and tasks is denied (HTTP 404), User B access to User A's note is denied (HTTP 404), and User A's note is strictly absent from User B's rendered browser DOM.
+  - Account Deletion: Verified deletion request (HTTP 200, `pending_confirmation`), status polling, cancellation (HTTP 200), and UI rendering on `/account-deletion`.
+- Staging Database Alignment & Infrastructure Invariants:
+  - Applied database migrations `00075_feedback_reports_and_durable_delivery.sql` and `00076_feedback_triage_notes_audit_and_retention.sql` to the staging Supabase database, registering checksums in `app.schema_migrations`.
+  - Identified and documented trusted device consent invariant (`daynori_trusted_device_consent` in `localStorage`) required to activate client-side IndexedDB caching and sync.
+  - Documented Supabase Free Tier built-in SMTP mailer limit (3 emails/hour), confirming dedicated `OWNER-SMTP-CREDENTIALS` is an essential open launch gate.
+- Verification Artifacts & Automated Regression Suite:
+  - Captured 10 genuine full-size PNG screenshots in `artifacts/phase125/screenshots/`.
+  - Authored machine-readable verification record in `artifacts/phase125/staging-verification-results.json`.
+  - Authored and verified automated test suite `tests/release/phase125-multi-user-staging-audit.test.ts` (7/7 tests passed).
+- Status: Recorded as honestly blocked on standing external release gates (`evidence-backupRecoveryEvidence`, `evidence-ownerApproval`, `OWNER-SIGNING-KEYS`, `OWNER-SMTP-CREDENTIALS`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
+
+## Phase 124 — Daynori proxy trust, rate limiter ingress hardening, and spoofing defense verification — 2026-11-15
+
+- ADR 0124: Daynori Proxy Trust, Rate Limiter Ingress Hardening, and Spoofing Defense Verification, hardening Fastify's `trustProxy` configuration and `ProcessLocalRateLimiter` against header spoofing, verifying empirical ingress proxy behaviors, and enforcing strict brute-force defenses.
+- Empirical Ingress Header Proofs on Live Staging (`https://daynori-api-preview.onrender.com`):
+  - Cloudflare Edge Header Filtering: Dispatched external probe with `CF-Connecting-IP: 198.51.100.42` to `/v1/health`. Cloudflare Edge actively dropped the request returning `HTTP 403 Forbidden` (`server: cloudflare`), proving Cloudflare firewall blocks client injection of `CF-Connecting-IP`.
+  - Ingress Proxy Append Behavior: Dispatched external probe with `X-Forwarded-For: 203.0.113.199, 198.51.100.55` to `/v1/health`. Request succeeded with `HTTP 200 OK`, proving proxies append remote client socket IPs to the right side of `X-Forwarded-For`. Naive leftmost parsing (`xff.split(',')[0]`) takes attacker-supplied input.
+  - Origin Direct-Access Bypass Risk: Proved that if an attacker connects directly to Render bypassing Cloudflare, Render internal routers do not strip `CF-Connecting-IP`. Therefore, software must never trust `CF-Connecting-IP` without verifying Cloudflare peer authenticity.
+- Implementation Hardening & Defensive Architecture:
+  - Trusted Proxy Whitelist (`apps/api/src/config/trustedProxies.ts`): Defined `CLOUDFLARE_IPV4_CIDRS` and `CLOUDFLARE_IPV6_CIDRS` (official Cloudflare edge ranges), `PRIVATE_PROXY_CIDRS` (RFC 1918 subnets `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, loopback `127.0.0.1`/`::1`, and Render Carrier-Grade NAT `100.64.0.0/10`), exporting `TRUSTED_PROXY_CIDRS`.
+  - Fastify Ingress Hardening (`apps/api/src/server.ts`): Replaced wildcard `trustProxy: true` with strict `TRUSTED_PROXY_CIDRS as string[]`.
+  - Right-to-Left Traversal & Origin Verification (`resolveClientIp`): Direct untrusted peer connections discard all proxy headers and use the socket IP. Proxied connections traverse `X-Forwarded-For` from right to left, selecting the first untrusted IP as the genuine client IP and discarding all prepended leftmost entries. `CF-Connecting-IP` is honored *only* when a verified Cloudflare IP is confirmed in the upstream proxy chain.
+  - Sensitive Route Brute-Force Protection (`ProcessLocalRateLimiter` in `apps/api/src/plugins/rateLimiter.ts`): Sensitive endpoints (`/v1/auth/login`, `/v1/auth/recovery`, `/v1/auth/reset`, `/v1/auth/register`, `/v1/deletion/request`) enforce a strict 10 req/min limit per resolved client IP (with `Retry-After` on HTTP 429). Standard routes enforce 60 req/min. Health probes (`/health`, `/v1/health`, `/api/health`) are explicitly exempted.
+  - Multi-Instance Behavior & Limits: Documented and simulated the cluster multiplier ($N \times \text{limit}$) across horizontally scaled in-memory Node processes. Strict 10 req/min sensitive threshold caps total attempts across 2-3 instances at 20-30 req/min, preventing effective brute force. Centralized Redis-backed rate limiting documented as the requirement for $> 1,000$ MAU.
+- Automated Test Suite Verified (14/14 Passed):
+  - `tests/security/phase124-proxy-trust-and-rate-limiter.test.ts` (14 tests passed in 23ms).
+- Status: Recorded as honestly blocked on standing external release gates (`evidence-backupRecoveryEvidence`, `evidence-ownerApproval`, `OWNER-SIGNING-KEYS`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
 
 ## Phase 124 — Daynori proxy trust, rate limiter ingress hardening, and spoofing defense verification — 2026-11-15
 

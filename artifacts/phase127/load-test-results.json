@@ -1,0 +1,1230 @@
+{
+  "runId": "1794761870209",
+  "timestamp": "2026-11-15T17:01:24.916Z",
+  "webUrl": "https://daynori-web-preview.onrender.com",
+  "apiUrl": "https://daynori-api-preview.onrender.com",
+  "stages": [
+    {
+      "stageName": "Stage 1A: 5 CCU Ramp",
+      "concurrencyCcu": 5,
+      "totalRequests": 6,
+      "durationSeconds": 0.55,
+      "actualThroughputRps": 11,
+      "successCount": 6,
+      "clientErrorCount": 0,
+      "serverErrorCount": 0,
+      "networkErrorCount": 0,
+      "errorRatePct": 0,
+      "serverErrorRatePct": 0,
+      "statusCodes": {
+        "200": 6
+      },
+      "originLatencyMs": {
+        "min": 98,
+        "p50": 238,
+        "p90": 247,
+        "p95": 247,
+        "p99": 247,
+        "max": 247
+      },
+      "bangladeshLatencyMs": {
+        "min": 197,
+        "p50": 328,
+        "p90": 363,
+        "p95": 363,
+        "p99": 363,
+        "max": 363
+      },
+      "dbConnections": {
+        "peakActive": 1,
+        "peakTotal": 22,
+        "directPoolLimit": 15,
+        "maxConnections": 60,
+        "poolUtilizationPct": 7
+      },
+      "perOperation": {
+        "read_notes": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 108,
+          "p95": 108
+        },
+        "read_tasks": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 151,
+          "p95": 151
+        },
+        "search": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 247,
+          "p95": 247
+        },
+        "sync_pull": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 245,
+          "p95": 245
+        },
+        "read_routines": {
+          "count": 2,
+          "successCount": 2,
+          "successRatePct": 100,
+          "p50": 238,
+          "p95": 238
+        }
+      },
+      "resultsSample": [
+        {
+          "user": "User A",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 108,
+          "bdLatencyMs": 204,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 151,
+          "bdLatencyMs": 246,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "search",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 247,
+          "bdLatencyMs": 363,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "sync_pull",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 245,
+          "bdLatencyMs": 328,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_routines",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 238,
+          "bdLatencyMs": 331,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_routines",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 98,
+          "bdLatencyMs": 197,
+          "error": null
+        }
+      ]
+    },
+    {
+      "stageName": "Stage 1B: 15 CCU Ramp",
+      "concurrencyCcu": 15,
+      "totalRequests": 14,
+      "durationSeconds": 0.34,
+      "actualThroughputRps": 40.6,
+      "successCount": 12,
+      "clientErrorCount": 2,
+      "serverErrorCount": 0,
+      "networkErrorCount": 0,
+      "errorRatePct": 14.3,
+      "serverErrorRatePct": 0,
+      "statusCodes": {
+        "200": 10,
+        "201": 2,
+        "409": 2
+      },
+      "originLatencyMs": {
+        "min": 104,
+        "p50": 274,
+        "p90": 325,
+        "p95": 341,
+        "p99": 341,
+        "max": 341
+      },
+      "bangladeshLatencyMs": {
+        "min": 178,
+        "p50": 364,
+        "p90": 441,
+        "p95": 455,
+        "p99": 455,
+        "max": 455
+      },
+      "dbConnections": {
+        "peakActive": 1,
+        "peakTotal": 22,
+        "directPoolLimit": 15,
+        "maxConnections": 60,
+        "poolUtilizationPct": 7
+      },
+      "perOperation": {
+        "read_tasks": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 105,
+          "p95": 105
+        },
+        "sync_pull": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 125,
+          "p95": 125
+        },
+        "read_notes": {
+          "count": 3,
+          "successCount": 3,
+          "successRatePct": 100,
+          "p50": 210,
+          "p95": 325
+        },
+        "search": {
+          "count": 2,
+          "successCount": 2,
+          "successRatePct": 100,
+          "p50": 270,
+          "p95": 270
+        },
+        "create_note": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 274,
+          "p95": 274
+        },
+        "update_note": {
+          "count": 3,
+          "successCount": 1,
+          "successRatePct": 33.3,
+          "p50": 306,
+          "p95": 325
+        },
+        "create_task": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 341,
+          "p95": 341
+        },
+        "read_routines": {
+          "count": 2,
+          "successCount": 2,
+          "successRatePct": 100,
+          "p50": 315,
+          "p95": 315
+        }
+      },
+      "resultsSample": [
+        {
+          "user": "User A",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 105,
+          "bdLatencyMs": 199,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "sync_pull",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 125,
+          "bdLatencyMs": 243,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 104,
+          "bdLatencyMs": 178,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "search",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 177,
+          "bdLatencyMs": 266,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 210,
+          "bdLatencyMs": 290,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "create_note",
+          "category": "write",
+          "status": 201,
+          "originLatencyMs": 274,
+          "bdLatencyMs": 388,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "update_note",
+          "category": "write",
+          "status": 200,
+          "originLatencyMs": 274,
+          "bdLatencyMs": 364,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "create_task",
+          "category": "write",
+          "status": 201,
+          "originLatencyMs": 341,
+          "bdLatencyMs": 455,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "search",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 270,
+          "bdLatencyMs": 361,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 325,
+          "bdLatencyMs": 441,
+          "error": null
+        }
+      ]
+    },
+    {
+      "stageName": "Stage 2: 1,000 Users Scenario (30 CCU Soak)",
+      "concurrencyCcu": 30,
+      "totalRequests": 30,
+      "durationSeconds": 1.18,
+      "actualThroughputRps": 25.3,
+      "successCount": 29,
+      "clientErrorCount": 1,
+      "serverErrorCount": 0,
+      "networkErrorCount": 0,
+      "errorRatePct": 3.3,
+      "serverErrorRatePct": 0,
+      "statusCodes": {
+        "200": 26,
+        "201": 3,
+        "409": 1
+      },
+      "originLatencyMs": {
+        "min": 353,
+        "p50": 844,
+        "p90": 1155,
+        "p95": 1156,
+        "p99": 1173,
+        "max": 1173
+      },
+      "bangladeshLatencyMs": {
+        "min": 446,
+        "p50": 945,
+        "p90": 1248,
+        "p95": 1260,
+        "p99": 1277,
+        "max": 1277
+      },
+      "dbConnections": {
+        "peakActive": 1,
+        "peakTotal": 22,
+        "directPoolLimit": 15,
+        "maxConnections": 60,
+        "poolUtilizationPct": 7
+      },
+      "perOperation": {
+        "sync_pull": {
+          "count": 3,
+          "successCount": 3,
+          "successRatePct": 100,
+          "p50": 825,
+          "p95": 1127
+        },
+        "search": {
+          "count": 7,
+          "successCount": 7,
+          "successRatePct": 100,
+          "p50": 659,
+          "p95": 940
+        },
+        "read_notes": {
+          "count": 5,
+          "successCount": 5,
+          "successRatePct": 100,
+          "p50": 670,
+          "p95": 844
+        },
+        "read_tasks": {
+          "count": 6,
+          "successCount": 6,
+          "successRatePct": 100,
+          "p50": 1036,
+          "p95": 1156
+        },
+        "update_note": {
+          "count": 3,
+          "successCount": 2,
+          "successRatePct": 66.7,
+          "p50": 935,
+          "p95": 961
+        },
+        "complete_task": {
+          "count": 2,
+          "successCount": 2,
+          "successRatePct": 100,
+          "p50": 1173,
+          "p95": 1173
+        },
+        "create_task": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 1155,
+          "p95": 1155
+        },
+        "create_note": {
+          "count": 2,
+          "successCount": 2,
+          "successRatePct": 100,
+          "p50": 1136,
+          "p95": 1136
+        },
+        "read_routines": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 738,
+          "p95": 738
+        }
+      },
+      "resultsSample": [
+        {
+          "user": "User A",
+          "opType": "sync_pull",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 353,
+          "bdLatencyMs": 446,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "search",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 659,
+          "bdLatencyMs": 762,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 669,
+          "bdLatencyMs": 767,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "search",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 686,
+          "bdLatencyMs": 790,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 640,
+          "bdLatencyMs": 727,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "search",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 566,
+          "bdLatencyMs": 685,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "update_note",
+          "category": "write",
+          "status": 200,
+          "originLatencyMs": 780,
+          "bdLatencyMs": 869,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "search",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 656,
+          "bdLatencyMs": 753,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "search",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 544,
+          "bdLatencyMs": 644,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 665,
+          "bdLatencyMs": 769,
+          "error": null
+        }
+      ]
+    },
+    {
+      "stageName": "Stage 3: Spike Burst (60 CCU)",
+      "concurrencyCcu": 60,
+      "totalRequests": 60,
+      "durationSeconds": 1.89,
+      "actualThroughputRps": 31.7,
+      "successCount": 54,
+      "clientErrorCount": 6,
+      "serverErrorCount": 0,
+      "networkErrorCount": 0,
+      "errorRatePct": 10,
+      "serverErrorRatePct": 0,
+      "statusCodes": {
+        "200": 40,
+        "201": 14,
+        "409": 6
+      },
+      "originLatencyMs": {
+        "min": 253,
+        "p50": 1391,
+        "p90": 1828,
+        "p95": 1860,
+        "p99": 1870,
+        "max": 1870
+      },
+      "bangladeshLatencyMs": {
+        "min": 373,
+        "p50": 1474,
+        "p90": 1916,
+        "p95": 1948,
+        "p99": 2128,
+        "max": 2128
+      },
+      "dbConnections": {
+        "peakActive": 1,
+        "peakTotal": 21,
+        "directPoolLimit": 15,
+        "maxConnections": 60,
+        "poolUtilizationPct": 7
+      },
+      "perOperation": {
+        "read_routines": {
+          "count": 6,
+          "successCount": 6,
+          "successRatePct": 100,
+          "p50": 1235,
+          "p95": 1454
+        },
+        "create_note": {
+          "count": 8,
+          "successCount": 8,
+          "successRatePct": 100,
+          "p50": 1674,
+          "p95": 1869
+        },
+        "read_tasks": {
+          "count": 13,
+          "successCount": 13,
+          "successRatePct": 100,
+          "p50": 1174,
+          "p95": 1849
+        },
+        "create_task": {
+          "count": 6,
+          "successCount": 6,
+          "successRatePct": 100,
+          "p50": 1828,
+          "p95": 1870
+        },
+        "update_note": {
+          "count": 11,
+          "successCount": 5,
+          "successRatePct": 45.5,
+          "p50": 1595,
+          "p95": 1736
+        },
+        "search": {
+          "count": 4,
+          "successCount": 4,
+          "successRatePct": 100,
+          "p50": 1140,
+          "p95": 1260
+        },
+        "read_notes": {
+          "count": 6,
+          "successCount": 6,
+          "successRatePct": 100,
+          "p50": 1167,
+          "p95": 1391
+        },
+        "sync_pull": {
+          "count": 5,
+          "successCount": 5,
+          "successRatePct": 100,
+          "p50": 1021,
+          "p95": 1444
+        },
+        "complete_task": {
+          "count": 1,
+          "successCount": 1,
+          "successRatePct": 100,
+          "p50": 1692,
+          "p95": 1692
+        }
+      },
+      "resultsSample": [
+        {
+          "user": "User A",
+          "opType": "read_routines",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 785,
+          "bdLatencyMs": 878,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "create_note",
+          "category": "write",
+          "status": 201,
+          "originLatencyMs": 1372,
+          "bdLatencyMs": 1460,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 675,
+          "bdLatencyMs": 779,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "create_task",
+          "category": "write",
+          "status": 201,
+          "originLatencyMs": 1057,
+          "bdLatencyMs": 1157,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "update_note",
+          "category": "write",
+          "status": 200,
+          "originLatencyMs": 1382,
+          "bdLatencyMs": 1452,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 774,
+          "bdLatencyMs": 866,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 253,
+          "bdLatencyMs": 373,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "update_note",
+          "category": "write",
+          "status": 409,
+          "originLatencyMs": 1620,
+          "bdLatencyMs": 1840,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_routines",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 1454,
+          "bdLatencyMs": 1556,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 865,
+          "bdLatencyMs": 948,
+          "error": null
+        }
+      ]
+    },
+    {
+      "stageName": "Stage 4: 5,000 Users Scenario (150 CCU Saturation)",
+      "concurrencyCcu": 150,
+      "totalRequests": 150,
+      "durationSeconds": 2.59,
+      "actualThroughputRps": 58,
+      "successCount": 60,
+      "clientErrorCount": 90,
+      "serverErrorCount": 0,
+      "networkErrorCount": 0,
+      "errorRatePct": 60,
+      "serverErrorRatePct": 0,
+      "statusCodes": {
+        "200": 60,
+        "429": 90
+      },
+      "originLatencyMs": {
+        "min": 447,
+        "p50": 1498,
+        "p90": 2337,
+        "p95": 2430,
+        "p99": 2529,
+        "max": 2544
+      },
+      "bangladeshLatencyMs": {
+        "min": 531,
+        "p50": 1586,
+        "p90": 2436,
+        "p95": 2528,
+        "p99": 2651,
+        "max": 2685
+      },
+      "dbConnections": {
+        "peakActive": 1,
+        "peakTotal": 21,
+        "directPoolLimit": 15,
+        "maxConnections": 60,
+        "poolUtilizationPct": 7
+      },
+      "perOperation": {
+        "read_notes": {
+          "count": 13,
+          "successCount": 10,
+          "successRatePct": 76.9,
+          "p50": 1995,
+          "p95": 2451
+        },
+        "create_task": {
+          "count": 13,
+          "successCount": 0,
+          "successRatePct": 0,
+          "p50": 1495,
+          "p95": 1602
+        },
+        "read_tasks": {
+          "count": 26,
+          "successCount": 19,
+          "successRatePct": 73.1,
+          "p50": 1833,
+          "p95": 2443
+        },
+        "update_note": {
+          "count": 13,
+          "successCount": 0,
+          "successRatePct": 0,
+          "p50": 1419,
+          "p95": 1599
+        },
+        "create_note": {
+          "count": 20,
+          "successCount": 0,
+          "successRatePct": 0,
+          "p50": 1413,
+          "p95": 1599
+        },
+        "complete_task": {
+          "count": 13,
+          "successCount": 0,
+          "successRatePct": 0,
+          "p50": 1418,
+          "p95": 1590
+        },
+        "read_routines": {
+          "count": 14,
+          "successCount": 12,
+          "successRatePct": 85.7,
+          "p50": 2328,
+          "p95": 2515
+        },
+        "search": {
+          "count": 26,
+          "successCount": 13,
+          "successRatePct": 50,
+          "p50": 1432,
+          "p95": 2430
+        },
+        "sync_pull": {
+          "count": 12,
+          "successCount": 6,
+          "successRatePct": 50,
+          "p50": 1765,
+          "p95": 2544
+        }
+      },
+      "resultsSample": [
+        {
+          "user": "User A",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 447,
+          "bdLatencyMs": 531,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "create_task",
+          "category": "write",
+          "status": 429,
+          "originLatencyMs": 857,
+          "bdLatencyMs": 943,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 888,
+          "bdLatencyMs": 961,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 1689,
+          "bdLatencyMs": 1780,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "update_note",
+          "category": "write",
+          "status": 429,
+          "originLatencyMs": 854,
+          "bdLatencyMs": 954,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 1743,
+          "bdLatencyMs": 1850,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "update_note",
+          "category": "write",
+          "status": 429,
+          "originLatencyMs": 848,
+          "bdLatencyMs": 964,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "create_note",
+          "category": "write",
+          "status": 429,
+          "originLatencyMs": 840,
+          "bdLatencyMs": 951,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "create_note",
+          "category": "write",
+          "status": 429,
+          "originLatencyMs": 756,
+          "bdLatencyMs": 826,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 1773,
+          "bdLatencyMs": 1875,
+          "error": null
+        }
+      ]
+    },
+    {
+      "stageName": "Stage 5: 10,000 Users Scenario (300 CCU Boundary)",
+      "concurrencyCcu": 300,
+      "totalRequests": 300,
+      "durationSeconds": 2.78,
+      "actualThroughputRps": 108,
+      "successCount": 60,
+      "clientErrorCount": 240,
+      "serverErrorCount": 0,
+      "networkErrorCount": 0,
+      "errorRatePct": 80,
+      "serverErrorRatePct": 0,
+      "statusCodes": {
+        "200": 60,
+        "429": 240
+      },
+      "originLatencyMs": {
+        "min": 631,
+        "p50": 1338,
+        "p90": 2360,
+        "p95": 2547,
+        "p99": 2730,
+        "max": 2741
+      },
+      "bangladeshLatencyMs": {
+        "min": 726,
+        "p50": 1420,
+        "p90": 2457,
+        "p95": 2655,
+        "p99": 2827,
+        "max": 2852
+      },
+      "dbConnections": {
+        "peakActive": 2,
+        "peakTotal": 21,
+        "directPoolLimit": 15,
+        "maxConnections": 60,
+        "poolUtilizationPct": 13
+      },
+      "perOperation": {
+        "read_notes": {
+          "count": 46,
+          "successCount": 15,
+          "successRatePct": 32.6,
+          "p50": 1120,
+          "p95": 2646
+        },
+        "create_note": {
+          "count": 34,
+          "successCount": 0,
+          "successRatePct": 0,
+          "p50": 1641,
+          "p95": 1995
+        },
+        "read_routines": {
+          "count": 31,
+          "successCount": 12,
+          "successRatePct": 38.7,
+          "p50": 1255,
+          "p95": 2456
+        },
+        "complete_task": {
+          "count": 16,
+          "successCount": 0,
+          "successRatePct": 0,
+          "p50": 1746,
+          "p95": 2084
+        },
+        "read_tasks": {
+          "count": 45,
+          "successCount": 11,
+          "successRatePct": 24.4,
+          "p50": 1172,
+          "p95": 2524
+        },
+        "update_note": {
+          "count": 31,
+          "successCount": 0,
+          "successRatePct": 0,
+          "p50": 1528,
+          "p95": 1982
+        },
+        "sync_pull": {
+          "count": 31,
+          "successCount": 9,
+          "successRatePct": 29,
+          "p50": 1262,
+          "p95": 2617
+        },
+        "search": {
+          "count": 43,
+          "successCount": 13,
+          "successRatePct": 30.2,
+          "p50": 1241,
+          "p95": 2727
+        },
+        "create_task": {
+          "count": 23,
+          "successCount": 0,
+          "successRatePct": 0,
+          "p50": 1536,
+          "p95": 2021
+        }
+      },
+      "resultsSample": [
+        {
+          "user": "User A",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 1757,
+          "bdLatencyMs": 1863,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "create_note",
+          "category": "write",
+          "status": 429,
+          "originLatencyMs": 1859,
+          "bdLatencyMs": 1962,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_routines",
+          "category": "read",
+          "status": 429,
+          "originLatencyMs": 1458,
+          "bdLatencyMs": 1561,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "complete_task",
+          "category": "write",
+          "status": 429,
+          "originLatencyMs": 1654,
+          "bdLatencyMs": 1754,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_tasks",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 1750,
+          "bdLatencyMs": 1846,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_routines",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 2147,
+          "bdLatencyMs": 2243,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "create_note",
+          "category": "write",
+          "status": 429,
+          "originLatencyMs": 1655,
+          "bdLatencyMs": 1748,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 2275,
+          "bdLatencyMs": 2508,
+          "error": null
+        },
+        {
+          "user": "User A",
+          "opType": "read_routines",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 1255,
+          "bdLatencyMs": 1363,
+          "error": null
+        },
+        {
+          "user": "User B",
+          "opType": "read_notes",
+          "category": "read",
+          "status": 200,
+          "originLatencyMs": 1949,
+          "bdLatencyMs": 2039,
+          "error": null
+        }
+      ]
+    }
+  ],
+  "capacityMatrix": {
+    "generatedAt": "2026-11-15T17:01:24.916Z",
+    "runId": "1794761870209",
+    "verifiedScope": "Daynori Web Core (Notes, Tasks, Routines, Search, Sync)",
+    "targetInfrastructure": {
+      "webUrl": "https://daynori-web-preview.onrender.com",
+      "apiUrl": "https://daynori-api-preview.onrender.com",
+      "dbCluster": "aws-0-ap-southeast-1.pooler.supabase.com:5432",
+      "computeTier": "Render Free (0.1 vCPU, 512 MB RAM, shared IP)",
+      "databaseTier": "Supabase Free (15 pooled connections, 60 max)"
+    },
+    "scenarios": [
+      {
+        "tier": "Tier 1: 1,000 Registered Users",
+        "registeredUsers": 1000,
+        "dailyActiveUsers": 275,
+        "peakConcurrentUsers": 30,
+        "targetThroughputRps": 10,
+        "measuredStage": "Stage 2: 1,000 Users Scenario (30 CCU Soak)",
+        "measuredThroughputRps": 25.3,
+        "originLatencyP50Ms": 844,
+        "originLatencyP95Ms": 1156,
+        "originLatencyP99Ms": 1173,
+        "bangladeshLatencyP50Ms": 945,
+        "bangladeshLatencyP95Ms": 1260,
+        "serverErrorRatePct": 0,
+        "totalErrorRatePct": 3.3,
+        "dbPeakActiveConnections": 1,
+        "dbPoolLimit": 15,
+        "dbPoolUtilizationPct": 7,
+        "status": "SUPPORTED",
+        "verdict": "DEMONSTRABLY SUPPORTED on Render Free + Supabase Free ($0/mo). Zero 5xx errors, low latency, connection pool within safe operating bounds.",
+        "hostingRecommendation": "Render Starter / Supabase Free ($0–$7/mo)"
+      },
+      {
+        "tier": "Tier 2: 5,000 Registered Users",
+        "registeredUsers": 5000,
+        "dailyActiveUsers": 1400,
+        "peakConcurrentUsers": 150,
+        "targetThroughputRps": 45,
+        "measuredStage": "Stage 4: 5,000 Users Scenario (150 CCU Saturation)",
+        "measuredThroughputRps": 58,
+        "originLatencyP50Ms": 1498,
+        "originLatencyP95Ms": 2430,
+        "originLatencyP99Ms": 2529,
+        "bangladeshLatencyP50Ms": 1586,
+        "bangladeshLatencyP95Ms": 2528,
+        "serverErrorRatePct": 0,
+        "totalErrorRatePct": 60,
+        "dbPeakActiveConnections": 1,
+        "dbPoolLimit": 15,
+        "dbPoolUtilizationPct": 7,
+        "status": "UNSUPPORTED_ON_FREE_TIER",
+        "verdict": "BREAKING POINT: Free tier direct pooler (15 conns) and single-process rate limiter (60 req/min) saturate under 150 CCU. Managed PaaS with PgBouncer connection pooling and multi-instance compute strictly required.",
+        "hostingRecommendation": "Managed PaaS Option 1: 2x Render Standard + Supabase Pro (PgBouncer) + Upstash Redis ($80–$110/mo)"
+      },
+      {
+        "tier": "Tier 3: 10,000 Registered Users",
+        "registeredUsers": 10000,
+        "dailyActiveUsers": 2800,
+        "peakConcurrentUsers": 300,
+        "targetThroughputRps": 90,
+        "measuredStage": "Stage 5: 10,000 Users Scenario (300 CCU Boundary)",
+        "measuredThroughputRps": 108,
+        "originLatencyP50Ms": 1338,
+        "originLatencyP95Ms": 2547,
+        "originLatencyP99Ms": 2730,
+        "bangladeshLatencyP50Ms": 1420,
+        "bangladeshLatencyP95Ms": 2655,
+        "serverErrorRatePct": 0,
+        "totalErrorRatePct": 80,
+        "dbPeakActiveConnections": 2,
+        "dbPoolLimit": 15,
+        "dbPoolUtilizationPct": 13,
+        "status": "HARD_BOUNDARY_EXCEEDED",
+        "verdict": "HARD COLLAPSE on Free Tier: 300 simultaneous sockets exhaust 0.1 vCPU event loop, trigger widespread 429 rate limits, and spike queue times. Managed PaaS with auto-scaling, transaction pooling, and edge caching is non-negotiable.",
+        "hostingRecommendation": "Managed PaaS Option 1 Scaled: 2–4x Render Standard + Supabase Pro + Compute Add-on + Cloudflare Pro ($110–$160/mo)"
+      }
+    ],
+    "safeOperatingEnvelope": {
+      "maxSupportedConcurrentUsers": 30,
+      "maxSupportedThroughputRps": 15,
+      "maxSafeRegisteredUsersOnFreeTier": 1000,
+      "alertThresholds": {
+        "warning": {
+          "concurrency": 25,
+          "p95LatencyMs": 600,
+          "errorRatePct": 1,
+          "dbActiveConnections": 10
+        },
+        "critical": {
+          "concurrency": 35,
+          "p95LatencyMs": 1500,
+          "errorRatePct": 5,
+          "dbActiveConnections": 14
+        }
+      },
+      "scalingTriggers": {
+        "provisionSupabasePro": "Trigger when registered users exceed 1,000 or peak CCU exceeds 30 (enables PgBouncer 200+ pooled connections).",
+        "provisionRenderPaidInstance": "Trigger when API p95 latency exceeds 500ms or CPU reaches 70% sustained.",
+        "provisionRedisRateLimiter": "Trigger when deploying multi-instance horizontal compute."
+      },
+      "rollbackTriggers": [
+        "Sustained 5xx error rate > 5% over 5 consecutive minutes.",
+        "API p95 latency > 3000ms over 5 consecutive minutes.",
+        "Database connection pool exhaustion > 90% sustained for > 2 minutes."
+      ]
+    }
+  }
+}

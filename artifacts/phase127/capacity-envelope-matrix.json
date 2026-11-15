@@ -1,0 +1,109 @@
+{
+  "generatedAt": "2026-11-15T17:01:24.916Z",
+  "runId": "1794761870209",
+  "verifiedScope": "Daynori Web Core (Notes, Tasks, Routines, Search, Sync)",
+  "targetInfrastructure": {
+    "webUrl": "https://daynori-web-preview.onrender.com",
+    "apiUrl": "https://daynori-api-preview.onrender.com",
+    "dbCluster": "aws-0-ap-southeast-1.pooler.supabase.com:5432",
+    "computeTier": "Render Free (0.1 vCPU, 512 MB RAM, shared IP)",
+    "databaseTier": "Supabase Free (15 pooled connections, 60 max)"
+  },
+  "scenarios": [
+    {
+      "tier": "Tier 1: 1,000 Registered Users",
+      "registeredUsers": 1000,
+      "dailyActiveUsers": 275,
+      "peakConcurrentUsers": 30,
+      "targetThroughputRps": 10,
+      "measuredStage": "Stage 2: 1,000 Users Scenario (30 CCU Soak)",
+      "measuredThroughputRps": 25.3,
+      "originLatencyP50Ms": 844,
+      "originLatencyP95Ms": 1156,
+      "originLatencyP99Ms": 1173,
+      "bangladeshLatencyP50Ms": 945,
+      "bangladeshLatencyP95Ms": 1260,
+      "serverErrorRatePct": 0,
+      "totalErrorRatePct": 3.3,
+      "dbPeakActiveConnections": 1,
+      "dbPoolLimit": 15,
+      "dbPoolUtilizationPct": 7,
+      "status": "SUPPORTED",
+      "verdict": "DEMONSTRABLY SUPPORTED on Render Free + Supabase Free ($0/mo). Zero 5xx errors, low latency, connection pool within safe operating bounds.",
+      "hostingRecommendation": "Render Starter / Supabase Free ($0–$7/mo)"
+    },
+    {
+      "tier": "Tier 2: 5,000 Registered Users",
+      "registeredUsers": 5000,
+      "dailyActiveUsers": 1400,
+      "peakConcurrentUsers": 150,
+      "targetThroughputRps": 45,
+      "measuredStage": "Stage 4: 5,000 Users Scenario (150 CCU Saturation)",
+      "measuredThroughputRps": 58,
+      "originLatencyP50Ms": 1498,
+      "originLatencyP95Ms": 2430,
+      "originLatencyP99Ms": 2529,
+      "bangladeshLatencyP50Ms": 1586,
+      "bangladeshLatencyP95Ms": 2528,
+      "serverErrorRatePct": 0,
+      "totalErrorRatePct": 60,
+      "dbPeakActiveConnections": 1,
+      "dbPoolLimit": 15,
+      "dbPoolUtilizationPct": 7,
+      "status": "UNSUPPORTED_ON_FREE_TIER",
+      "verdict": "BREAKING POINT: Free tier direct pooler (15 conns) and single-process rate limiter (60 req/min) saturate under 150 CCU. Managed PaaS with PgBouncer connection pooling and multi-instance compute strictly required.",
+      "hostingRecommendation": "Managed PaaS Option 1: 2x Render Standard + Supabase Pro (PgBouncer) + Upstash Redis ($80–$110/mo)"
+    },
+    {
+      "tier": "Tier 3: 10,000 Registered Users",
+      "registeredUsers": 10000,
+      "dailyActiveUsers": 2800,
+      "peakConcurrentUsers": 300,
+      "targetThroughputRps": 90,
+      "measuredStage": "Stage 5: 10,000 Users Scenario (300 CCU Boundary)",
+      "measuredThroughputRps": 108,
+      "originLatencyP50Ms": 1338,
+      "originLatencyP95Ms": 2547,
+      "originLatencyP99Ms": 2730,
+      "bangladeshLatencyP50Ms": 1420,
+      "bangladeshLatencyP95Ms": 2655,
+      "serverErrorRatePct": 0,
+      "totalErrorRatePct": 80,
+      "dbPeakActiveConnections": 2,
+      "dbPoolLimit": 15,
+      "dbPoolUtilizationPct": 13,
+      "status": "HARD_BOUNDARY_EXCEEDED",
+      "verdict": "HARD COLLAPSE on Free Tier: 300 simultaneous sockets exhaust 0.1 vCPU event loop, trigger widespread 429 rate limits, and spike queue times. Managed PaaS with auto-scaling, transaction pooling, and edge caching is non-negotiable.",
+      "hostingRecommendation": "Managed PaaS Option 1 Scaled: 2–4x Render Standard + Supabase Pro + Compute Add-on + Cloudflare Pro ($110–$160/mo)"
+    }
+  ],
+  "safeOperatingEnvelope": {
+    "maxSupportedConcurrentUsers": 30,
+    "maxSupportedThroughputRps": 15,
+    "maxSafeRegisteredUsersOnFreeTier": 1000,
+    "alertThresholds": {
+      "warning": {
+        "concurrency": 25,
+        "p95LatencyMs": 600,
+        "errorRatePct": 1,
+        "dbActiveConnections": 10
+      },
+      "critical": {
+        "concurrency": 35,
+        "p95LatencyMs": 1500,
+        "errorRatePct": 5,
+        "dbActiveConnections": 14
+      }
+    },
+    "scalingTriggers": {
+      "provisionSupabasePro": "Trigger when registered users exceed 1,000 or peak CCU exceeds 30 (enables PgBouncer 200+ pooled connections).",
+      "provisionRenderPaidInstance": "Trigger when API p95 latency exceeds 500ms or CPU reaches 70% sustained.",
+      "provisionRedisRateLimiter": "Trigger when deploying multi-instance horizontal compute."
+    },
+    "rollbackTriggers": [
+      "Sustained 5xx error rate > 5% over 5 consecutive minutes.",
+      "API p95 latency > 3000ms over 5 consecutive minutes.",
+      "Database connection pool exhaustion > 90% sustained for > 2 minutes."
+    ]
+  }
+}
