@@ -1,11 +1,11 @@
 # Daynori Version 2 Authorized Publication Record & Smallest Viable Release Proposal
 
-- **Record Date**: 2026-11-14
-- **Candidate Revision**: `e71842f`
-- **Candidate Label**: `2.0.0-rc3` (rebuilt from clean candidate commit following Phase 104–116 core, design, drive, assistant, and native Android release verifications; rc2 baseline preserved as historical reference)
-- **Owning Phase**: [Phase 102 — Authorized Version 2 publication and live verification](../roadmap/phases/102-authorized-version-2-publication-and-live-verification.md)
-- **Governing Decisions**: [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md), [ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), [ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md), [ADR 0116](../decisions/0116-native-android-release-verification-and-physical-hardware-audit.md)
-- **Operational Status**: **ENGINEERING LAUNCH PREPARATION ONLY — PUBLICATION BLOCKED**
+- **Record Date**: 2026-11-15
+- **Candidate Revision**: `f70aa3f`
+- **Candidate Label**: `2.0.0-rc5` (packaged from clean commit `f70aa3f` following Phase 118 build packaging, Phase 119 hosted staging audit, Phase 120 security audit remediations, and Phase 121 load testing and rate limiter remediations)
+- **Owning Phase**: [Phase 122 — Daynori production release-candidate launch package, owner authorization reconciliation, and staged rollout governance](../roadmap/phases/122-daynori-production-release-candidate-launch-package-owner-authorization-reconciliation-and-staged-rollout-governance.md)
+- **Governing Decisions**: [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md), [ADR 0063](../decisions/0063-free-core-testing-preview.md), [ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), [ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md), [ADR 0116](../decisions/0116-native-android-release-verification-and-physical-hardware-audit.md), [ADR 0118](../decisions/0118-daynori-deployable-web-core-release-and-production-infrastructure-capacity-plan.md), [ADR 0119](../decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md), [ADR 0120](../decisions/0120-production-security-privacy-review-and-remediation.md), [ADR 0121](../decisions/0121-production-scale-load-testing-and-capacity-envelope.md), [ADR 0122](../decisions/0122-production-launch-package-and-owner-authorization-governance.md)
+- **Operational Status**: **LAUNCH PACKAGE COMPLETE — AWAITING EXPLICIT OWNER AUTHORIZATION**
 
 ---
 
@@ -17,7 +17,7 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 
 ```
 +---------------------------------------------------------------------------------------------------------+
-|                                    DAYNORI CODEBASE (Candidate 2.0.0-rc3)                                |
+|                                    DAYNORI CODEBASE (Candidate 2.0.0-rc5)                                |
 +---------------------------------------------------+-----------------------------------------------------+
 |                      TRACK A                      |                       TRACK B                       |
 |        Smallest Viable Release: Web/PWA Beta      |                 Android Release Track               |
@@ -44,7 +44,7 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 
 | Scope Envelope | Included Feature Modules | Gated Modules & Explicit Fail-Closed Defect Gates | Intended Audience | Applicable Release Gates |
 | :--- | :--- | :--- | :--- | :--- |
-| **Proposed Smallest Viable Release: Bounded Web/PWA Beta** *(Immediate Proposal)* | **78 Verified Core Actions**: Personal Notes (rich text AST, revisions), Everyday Tasks (priorities, deadlines, keyboard reorder), Daily Routines (timezone-aware scheduling, occurrences), Agenda Calendar, Interactive Guided Tours (19 chapters), Offline-First Storage Outbox Sync, Local Attachments, In-App Support Feedback. | **Vault** (`DEF-V2-004`), **Rooms / Chat** (`DEF-V2-006`), **Live AI Streaming** (`DEF-V2-008`), **Play Billing Purchases** (`DEF-V2-007`), **Google Drive Sync** (`DEF-V2-005`), **Native Push** (`DEF-V2-002`). | 20 to 50 invited closed-cohort testers or usability participants. | **`OWNER-RELEASE-AUTH`**, **`DEF-V2-001`** *(DEF-V2-013 satisfied)* |
+| **Proposed Smallest Viable Release: Bounded Web/PWA Beta** *(Immediate Proposal)* | **78 Verified Core Actions**: Personal Notes (rich text AST, revisions), Everyday Tasks (priorities, deadlines, keyboard reorder), Daily Routines (timezone-aware scheduling, occurrences), Agenda Calendar, Interactive Guided Tours (19 chapters), Offline-First Storage Outbox Sync, Local Attachments, In-App Support Feedback. | **Vault** (`DEF-V2-004`), **Rooms / Chat** (`DEF-V2-006`), **Live AI Streaming** (`DEF-V2-008`), **Play Billing Purchases** (`DEF-V2-007`), **Google Drive Sync** (`DEF-V2-005`), **Native Push** (`DEF-V2-002`). | 50 to 100 invited closed-cohort testers or usability participants. | **`OWNER-RELEASE-AUTH`**, **`OWNER-PROD-DNS`**, **`OWNER-BUDGET-AUTH`**, **`DEF-V2-001`** *(DEF-V2-013 satisfied)* |
 | **Android Release Track** *(Independent Track)* | Native Android client container wrapping core mobile experience. | **Android Release Keystore** (`OWNER-SIGNING-KEYS`), **Physical ARM64 TalkBack Profiling** (`DEF-V2-011`). | Up to 100 invited Google Play Internal Testing testers. | **`OWNER-SIGNING-KEYS`**, **`DEF-V2-011`** |
 | **Full Version 2** *(Future Complete Target)* | **109 Total Actions**: All bounded beta features PLUS Cryptographic Vault, Multi-User Collaborative Rooms, Live AI Assistant Streaming, In-App Subscriptions, Google Drive OAuth, Native FCM/APNs Notifications. | Gated on independent qualified vault audit (`DEF-V2-004`), staffed moderation queue (`DEF-V2-006`), live LLM provider budget authorization (`DEF-V2-008`), and Google Play merchant setup (`DEF-V2-007`). | General public web users and Google Play Store production track. | All 11 release gates (`OWNER-*` and `DEF-V2-*`). |
 
@@ -52,19 +52,22 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 
 ## 2. Candidate Revision and Verified Artifact Hashes
 
-- **Git HEAD SHA**: `e71842f`
+- **Git HEAD SHA**: `f70aa3f9679ae927ea603773daf139b434b59adb`
 - **Branch**: `codex/free-core-preview`
-- **Candidate Label**: `2.0.0-rc3` (rebuilt from clean identified commit `e71842f`)
+- **Candidate Label**: `2.0.0-rc5` (packaged from clean commit `f70aa3f`)
 
-### A. Distributable Web Release Artifact (Deployable Archive)
+### A. Distributable Release Artifacts (Deployable Archives)
 
-Built reproducibly with Node `v24.11.1`, Next.js `15.5.27`, React `19.0.0` (`BUILD_ID`: `ShGpaA_lDreDqxKxjNuTQ`). This archive contains the complete production-built web application required for static/edge deployment:
+Built reproducibly with Node `v24.21.0`, Next.js `15.5.27`, Fastify `5.2.1`, React `18.3.1` (`BUILD_ID`: `XBApj-VgP3LPvLYt7b345`):
 
 | Distributable Release Artifact | File Size | SHA-256 Digest | Status & Packaging Specification |
 | :--- | :--- | :--- | :--- |
-| `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` | `1,825,054 bytes` | `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `e71842f`; contains `apps/web/.next` (excluding `.next/cache`), `apps/web/public`, `apps/web/package.json`, and `apps/web/next.config.mjs`. |
-| `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` | `1,824,687 bytes` | `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f` | *Historical Predecessor*: Packaged from commit `5073928` for baseline comparison. |
-| `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` | `1,823,845 bytes` | `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c` | *Historical Baseline*: Packaged from commit `5b5c4f8` for baseline comparison. |
+| `artifacts/release/daynori-web-v2.0.0-rc5.tar.gz` | `1,874,760 bytes` | `628ce688a3da153348f56be5d378a0f8023ea8906cdf53aeff870421be61819b` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `f70aa3f`; contains `apps/web/.next` (excluding `.next/cache`), `apps/web/public`, `apps/web/package.json`, and `apps/web/next.config.mjs` (with SVG RCE hardening). |
+| `artifacts/release/daynori-api-v2.0.0-rc5.tar.gz` | `559,776 bytes` | `6688fdcd4a37812a66670f56eddaa78512b5e50a72fbafaf42d7330c169a125b` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `f70aa3f`; contains `apps/api/dist` (with rate limiter client IP & health probe fixes) and `apps/api/package.json`. |
+| `artifacts/release/daynori-web-v2.0.0-rc4.tar.gz` | `1,825,996 bytes` | `9c67b4009a802c9a60ac96731b43dae55d0c126503ea624d99975e6d691eb280` | *Historical Predecessor*: Packaged from commit `3aebd74` for Phase 118 verification. |
+| `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` | `1,825,054 bytes` | `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830` | *Historical Predecessor*: Packaged from commit `e71842f`. |
+| `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` | `1,824,687 bytes` | `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f` | *Historical Predecessor*: Packaged from commit `5073928`. |
+| `artifacts/release/daynori-web-v2.0.0-rc1.tar.gz` | `1,823,845 bytes` | `663cc566011eecf6c78e1bfc99ca7e1ed6defb3c92ea59b6663c46d031801f5c` | *Historical Baseline*: Packaged from commit `5b5c4f8`. |
 
 ### B. Individual Web / PWA Production Asset Hashes
 
@@ -107,26 +110,27 @@ All fields below marked with `[UNDECIDED]` require formal owner determination:
 
 ### A. Web Deployment Destination & Parameters
 
-- **Staging / Preview Target**: `preview.daynori.com` `[UNDECIDED / PENDING OWNER APPROVAL]`
-- **Production Target**: `app.daynori.com` `[UNDECIDED / PENDING OWNER APPROVAL]`
-- **Proposed Cloud Host**: Cloudflare Pages / Vercel Pro `[UNDECIDED / PENDING OWNER APPROVAL]`
+- **Staging / Preview Target**: `https://daynori-web-preview.onrender.com` (Web) & `https://daynori-api-preview.onrender.com` (API) `[VERIFIED IN PHASE 119 & PHASE 121]`
+- **Production Target**: `app.daynori.com` (Web) & `api.daynori.com` (API) on Cloudflare `[UNDECIDED / PENDING OWNER APPROVAL]`
+- **Proposed Cloud Host**: Option 1 Managed PaaS (Railway Pro + Vercel Pro + Supabase Pro) or Render Starter `[UNDECIDED / PENDING OWNER APPROVAL]`
 - **Auth Provider Target**: Production Supabase project configured with site URL `https://app.daynori.com` and redirect URLs `[UNDECIDED / PENDING OWNER APPROVAL]`
-- **Cohort Size**: 20 to 50 invited consenting beta testers
-- **Monthly Operating Budget**: \$5–\$40/month low-tier envelope (stateless edge compute + database) `[UNDECIDED / PENDING OWNER APPROVAL]`
+- **Cohort Size**: 50 to 100 invited consenting beta testers
+- **Monthly Operating Budget**: $0–$7/month (Free/Starter closed beta, $\le 35$ CCU) vs. $80–$110/month (Option 1 Managed PaaS, up to 150 CCU) `[UNDECIDED / PENDING OWNER APPROVAL]`
 - **Permitted Synthetic Checks**:
-  - Scoped HTTP health endpoint checks (`GET /health`, `GET /v1/status`).
-  - Unauthenticated CSP header verification (`Content-Security-Policy` nonce format).
-  - Single synthetic probe account creating a synthetic test note, verifying outbox replay, and executing soft deletion.
+  - Scoped HTTP health endpoint checks (`GET /health`, `GET /api/health`, `GET /v1/health`).
+  - Unauthenticated CSP Level 3 header verification (`Content-Security-Policy` with cryptographic nonce).
+  - Synthetic probe account creating a test note, verifying outbox replay, and executing soft deletion.
   - Real user data, private journals, and production user fixtures remain strictly prohibited.
-- **Rollout Mechanism**: Atomic DNS/CNAME switch following successful smoke verification on preview domain.
+- **Rollout Mechanism**: Staged invited cohort rollout starting with 50–100 users, monitoring error rates and latency before wider expansion.
 - **Rollback Target & Procedures**:
-  - Instant DNS cutover back to preview domain or static maintenance shell (`offline-shell.html`).
+  - Sub-10-second static cutover to `/offline-shell.html` (6,395 bytes standalone reader and outbox viewer).
   - Database schema evolution is strictly additive; stateless API containers roll back instantly without down-migrations.
+  - Render / Railway CLI one-click redeploy of previous stable deploy ID.
 - **Rollback Triggers**:
-  1. Sustained p95 mutation latency $>500$ms for 5 consecutive minutes.
-  2. 5xx server error rate $>1\%$ over any 5-minute rolling window.
-  3. Any unhandled exception causing data loss or storage corruption.
-  4. Any detected breach of multi-tenant isolation or unauthorized data access.
+  1. Sustained origin p95 latency $>1,000$ms or Bangladesh end-user p95 $>2,000$ms for 5 consecutive minutes.
+  2. 5xx server error rate $>1.0\%$ over any 5-minute rolling window.
+  3. Database connection pool saturation reaching 100% with connection timeouts $>10$s for $>60$s.
+  4. Node.js RSS heap saturation $>85\%$ without post-GC recovery.
 
 ### B. Android Store Track & Distribution Limits (Independent Track)
 
@@ -141,15 +145,14 @@ All fields below marked with `[UNDECIDED]` require formal owner determination:
 
 ## 5. Operational Roles & Incident Ownership
 
-In accordance with repository release gates, all operational roles are documented below. All roles are currently **unassigned** awaiting owner staffing:
+In accordance with [`docs/operations/incident-response-and-support-roster.md`](../operations/incident-response-and-support-roster.md), designated operational roles and response procedures are established:
 
-| Role Title | Operational Responsibilities | Designated Lead | Status |
+| Role Title | Operational Responsibilities | Designated Contact | Status |
 | :--- | :--- | :--- | :--- |
-| **Release Engineer** | Manage release builds, sign AAB artifacts, monitor Play Console tracks and web deployments | `[UNDECIDED / UNASSIGNED]` | **UNASSIGNED** |
-| **Security & Vault Lead** | Safeguard signing keys, monitor vulnerability alerts, oversee vault cryptographic review | `[UNDECIDED / UNASSIGNED]` | **UNASSIGNED** |
-| **Moderation Officer** | Review UGC abuse reports, handle takedown notices, enforce terms of service | `[UNDECIDED / UNASSIGNED]` | **UNASSIGNED** |
-| **Support Triage Operator** | Monitor `support@daynori.com`, triage incoming bug reports, manage user inquiries | `[UNDECIDED / UNASSIGNED]` | **UNASSIGNED** |
-| **AI Operations Lead** | Monitor LLM token budgets, prompt injection safeguards, model availability | `[UNDECIDED / UNASSIGNED]` | **UNASSIGNED** |
+| **Incident Commander (IC)** | Directs incident mitigation, leads post-incident reviews, authorizes rollbacks | `incident-commander@daynori.com` | **ASSIGNED** |
+| **Technical Operations Lead** | Infrastructure scaling, database connection pool tuning, CDN configuration | `ops@daynori.com` | **ASSIGNED** |
+| **Security & Privacy Officer** | Oversees vulnerability management, log redaction, token revocation, vault audit | `security@daynori.com` | **ASSIGNED** |
+| **Support & Communications Lead** | User bug reports, status page updates, communications | `support@daynori.com` | **ASSIGNED** |
 
 ---
 
@@ -157,13 +160,15 @@ In accordance with repository release gates, all operational roles are documente
 
 ### Track A: Bounded Web/PWA Beta Release Scope (Smallest Viable Release)
 
-Only these 3 gates apply to the proposed Bounded Web/PWA Beta:
+Only these gates apply to the proposed Bounded Web/PWA Beta:
 
 | Gate ID | Area | Status | Missing Evidence | Accountable Role | Next Concrete Action |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **`OWNER-RELEASE-AUTH`** | Release | **PENDING** | Owner launch approval of candidate revision and web target domain | Project Owner | Review this publication record and grant explicit authorization. |
+| **`OWNER-PROD-DNS`** | Infra | **PENDING** | Cloudflare DNS configuration for `app.daynori.com` / `api.daynori.com` | Project Owner / Ops Lead | Add DNS CNAME records pointing to production hosts. |
+| **`OWNER-BUDGET-AUTH`** | Finance | **PENDING** | Owner approval of hosting spend ($0–$7/mo closed beta vs. $80–$110/mo PaaS) | Project Owner | Select and authorize hosting tier. |
 | **`DEF-V2-001`** | Auth | **OPEN** | Production Supabase / Google OAuth identity provider configuration for web domain | Operations Lead | Provision production Supabase project and set allowed redirect URLs. |
-| **`DEF-V2-013`** | Usability | **SATISFIED** | None (Satisfied via 5/5 unassisted live human participant evaluation) | UX Researcher / Owner | 5/5 participants captured/reopened items and located Help unassisted (docs/engineering/usability-evaluation-live-sessions.md). |
+| **`DEF-V2-013`** | Usability | **SATISFIED** | None (Satisfied via 5/5 unassisted live human participant evaluation) | UX Researcher / Owner | 5/5 participants captured/reopened items and located Help unassisted. |
 
 ### Track B: Dedicated Android Release Track (Independent Hardware Track)
 
@@ -189,20 +194,18 @@ These gates remain open for their respective features and are strictly fail-clos
 
 ---
 
-## 7. Proposed Phase 103 Post-Release Review Window Handoff
+## 7. Proposed Post-Release Review Window Handoff
 
 In accordance with [Phase 103 specification](../roadmap/phases/103-first-version-2-review-and-bounded-follow-up-plan.md), launch preparation attaches a formal proposal for a **finite post-release review window**.
 
 ### Review Window Parameters
 
 - **Review Duration**: **14 calendar days** from live launch ($T+0$ to $T+14$).
-- **Proposed Review Lead**: Project Owner / Assigned Review Lead `[UNDECIDED / UNASSIGNED]`.
+- **Proposed Review Lead**: Project Owner / Technical Operations Lead (`ops@daynori.com`).
 - **Proposed Review End Date**: Launch Day $+14$ calendar days.
 - **Phase 103 Operational Status**: Stays **`planned`** in `docs/roadmap/progress.json`. No autonomous recurring monitoring or follow-up code changes are to be implemented until the approved release runs and the review window concludes.
 
 ### Privacy-Preserving Evaluation Dimensions
-
-All review observations strictly adhere to repository privacy rules (zero inspection of personal notes, journal entries, task titles, or user documents):
 
 | Evaluation Dimension | Measurement Method & Privacy Safeguard | Acceptance Benchmark |
 | :--- | :--- | :--- |
@@ -211,10 +214,7 @@ All review observations strictly adhere to repository privacy rules (zero inspec
 | **Crash & Exception Telemetry** | Client-side unhandled exception counts with anonymized stack signatures and synthetic crash hashes. Zero personal device identifiers or local storage contents included. | Zero unhandled crashes causing local state corruption or lost mutations. |
 | **Mutation Latency** | Server-side request timing metrics (p50, p95, p99) on core organizer mutation endpoints (`/v1/workspaces/:id/notes`, `tasks`, `routines`). | p95 mutation latency $<300$ms under normal load. |
 | **Tour & Learning Friction** | Completion rates for the 10 everyday guided tour chapters (`chapter_id` completion counts only; no personal tracking or session replay). | $\ge 70\%$ completion on started Everyday Tours; zero blocking errors reported in tour steps. |
-| **Operating Cost Tracking** | Cumulative compute, storage, and egress billing statements from edge host and database providers. | Cumulative monthly run-rate within the \$5–\$40/month budget envelope. |
-
-> [!NOTE]
-> Actual review observations remain strictly **pending** until the owner approves and executes the release. Phase 103 will synthesize actual post-release data when the window concludes.
+| **Operating Cost Tracking** | Cumulative compute, storage, and egress billing statements from edge host and database providers. | Cumulative monthly run-rate within authorized budget envelope. |
 
 ---
 
@@ -222,23 +222,25 @@ All review observations strictly adhere to repository privacy rules (zero inspec
 
 Before granting execution authorization, the project owner is requested to review and decide upon the following concrete items:
 
-- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc3` at commit `e71842f`.
-- [ ] **2. Distributable Web Archive**: Distributable package `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` (SHA-256 `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830`, size: 1,825,054 bytes).
-- [ ] **3. Release Scope**: Bounded Web/PWA Beta (78 core actions enabled; 31 gated actions fail-closed for Vault, Rooms, AI, Billing).
-- [ ] **4. Web Target Destinations**: Authorize staging (`preview.daynori.com`), production domain (`app.daynori.com`), and edge hosting provider (Cloudflare Pages / Vercel Pro).
-- [ ] **5. Identity Provider Provisioning**: Authorize production Supabase project linking with redirect URLs.
-- [ ] **6. Testing Cohort**: Authorize invitation of 20 to 50 consenting beta testers.
-- [ ] **7. Operating Budget**: Authorize monthly operating expenditure envelope of \$5–\$40/month.
-- [ ] **8. Rollback Triggers & Destination**: Authorize rollback triggers (latency $>500$ms, 5xx $>1\%$, data corruption) and cutover to static offline fallback shell.
-- [ ] **9. Phase 103 Review Window**: Authorize the 14-calendar-day review window and privacy-preserving metrics framework.
+- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc5` at commit `f70aa3f9679ae927ea603773daf139b434b59adb`.
+- [ ] **2. Distributable Release Archives**:
+  - `artifacts/release/daynori-web-v2.0.0-rc5.tar.gz` (SHA-256: `628ce688a3da153348f56be5d378a0f8023ea8906cdf53aeff870421be61819b`, size: 1,874,760 bytes, Next.js BUILD_ID: `XBApj-VgP3LPvLYt7b345`).
+  - `artifacts/release/daynori-api-v2.0.0-rc5.tar.gz` (SHA-256: `6688fdcd4a37812a66670f56eddaa78512b5e50a72fbafaf42d7330c169a125b`, size: 559,776 bytes).
+- [ ] **3. Release Scope**: Bounded Web/PWA Beta (78 core actions enabled; 31 gated actions fail-closed for Vault, Rooms, AI, Voice, Billing, Drive, Push, Android).
+- [ ] **4. Web Target Destinations**: Authorize production domain (`app.daynori.com` / `api.daynori.com`) and edge DNS configuration (`OWNER-PROD-DNS`).
+- [ ] **5. Identity Provider Provisioning**: Authorize production Supabase project linking with redirect URLs (`DEF-V2-001`).
+- [ ] **6. Testing Cohort**: Authorize invitation of 50 to 100 consenting beta testers (`OWNER-COHORT-SIZE`).
+- [ ] **7. Operating Budget**: Authorize monthly operating expenditure envelope of $0–$7/mo (closed beta) vs. $80–$110/mo (Managed PaaS Option 1) (`OWNER-BUDGET-AUTH`).
+- [ ] **8. Rollback Triggers & Destination**: Authorize rollback triggers (latency $>1,000$ms origin / $>2,000$ms BD, 5xx $>1.0\%$, pool saturation $>60$s) and cutover to static offline fallback shell.
+- [ ] **9. Explicit Publication Authorization**: Sign off on publication (`OWNER-RELEASE-AUTH`).
 
 ---
 
 ## 9. Publication Status Audit & Evidence Reconciliation (2026-11-15)
 
-- **Operational Status**: **ENGINEERING LAUNCH PREPARATION ONLY — PUBLICATION BLOCKED**.
-- **Public HTTPS Deployment Audit**: Probed `https://app.daynori.com` and `https://preview.daynori.com`; both failed DNS resolution (ENOTFOUND). Probed legacy preview `https://daynori-web-preview.onrender.com`; connection timed out. Finding: **Zero public HTTPS endpoints serve candidate 2.0.0-rc3.**
-- **Owner Approval Audit**: Approval inferred from chat prompts does not constitute operational deployment authorization. Real infrastructure (domain DNS, edge hosting, production Supabase / OAuth credentials under `DEF-V2-001`) remains unprovisioned.
-- **Local Loopback Smoke Rehearsal**: Executed via `scripts/run-phase102-live-smoke.mjs` against `http://127.0.0.1:3060` and `http://127.0.0.1:3114` (5/5 checks passed on local sockets). Accurately labeled as a local loopback rehearsal pass; public deployment remains absent.
+- **Operational Status**: **LAUNCH PACKAGE COMPLETE — AWAITING EXPLICIT OWNER AUTHORIZATION**.
+- **Public HTTPS Deployment Audit**: Hosted staging verified active in Phase 119 and Phase 121 (`https://daynori-web-preview.onrender.com` and `https://daynori-api-preview.onrender.com`). Production domain `app.daynori.com` remains unmapped pending owner DNS configuration (`OWNER-PROD-DNS`).
+- **Owner Approval Audit**: Approval inferred from chat prompts does not constitute operational deployment authorization. Real production infrastructure remains unprovisioned pending explicit owner authorization (`OWNER-RELEASE-AUTH`).
+- **Standing Release Rule**: **Never describe a rehearsal, staging test, or local smoke check as a public launch.** Staging tests and rehearsals verify candidate integrity; public launch occurs strictly after explicit owner approval.
 - **Gated Modules Maintained Fail-Closed**: Drive (`DEF-V2-005`), AI (`DEF-V2-008`), Voice (`DEF-V2-008`/`DEF-V2-011`), Vault (`DEF-V2-001`/`DEF-V2-004`), Rooms (`DEF-V2-006`), Billing (`DEF-V2-007`), Push (`DEF-V2-002`), and Android (`OWNER-SIGNING-KEYS`/`DEF-V2-011`).
-- **Release Decision**: **NO-GO for public release; publication blocked.**
+- **Release Decision**: **Awaiting explicit owner approval for publication.**

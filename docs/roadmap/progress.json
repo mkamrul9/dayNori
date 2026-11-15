@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T07:34:00.000Z",
-  "activePhase": "121",
+  "updatedAt": "2026-11-15T07:51:00.000Z",
+  "activePhase": "122",
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Select Phase 121 (Daynori production-scale load testing, performance profiling, and capacity envelope verification for 1,000 to 10,000 users) under ADR 0121. Standing push under ADR 0074.",
+  "schedulingDecision": "Owner scheduling authorization: Select Phase 122 (Daynori production release-candidate launch package, owner authorization reconciliation, and staged rollout governance) under ADR 0122. Standing push under ADR 0074.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 102 assembled canonical owner publication review record (docs/release/v2-authorized-publication-record.md) and machine-readable register (artifacts/phase102/publication-review-record.json), separated bounded beta from full V2, recorded web readiness independently from Android, executed 7 publication rehearsals in tests/e2e/phase102-v2-publication-rehearsal.test.ts, and reconciled 11 gates; release signing credentials (OWNER-SIGNING-KEYS), owner release authorization (OWNER-RELEASE-AUTH), live human research (DEF-V2-013), physical TalkBack (DEF-V2-011), and external audits (DEF-V2-004, DEF-V2-008) remain open.",
   "phases": [
     {
@@ -711,6 +711,12 @@
       "status": "blocked",
       "report": "docs/phase-reports/phase-121.md",
       "reason": "Daynori production-scale load testing, performance profiling, and capacity envelope verification for 1,000 to 10,000 users delivered: defined realistic traffic and concurrency models for 1k (30 PCU), 5k (150 PCU), and 10k (300 PCU) registered users with 75/25 read/write mix; authored and executed load testing suite scripts/run-phase121-load-testing.mjs against hosted staging (https://daynori-api-preview.onrender.com, https://daynori-web-preview.onrender.com) executing ramp, spike, and soak test runs; simulated realistic Bangladesh network profiles (80ms-180ms roundtrip to Singapore Supabase/Render, 1-3% packet loss, ±30ms jitter); measured p50/p95/p99 API latencies, error rates, DB connection pool utilization, CPU/memory, queues, storage, bandwidth, and monthly cost projections; identified and remediated carrier-grade NAT rate limiter false positives by adding trusted proxy header support (X-Forwarded-For with subnet parsing) in ProcessLocalRateLimiter; established empirical safe operating envelope (Render Free safe limit: 35 CCU / 15 RPS; Managed PaaS required for 150-300 PCU), warning and critical alert thresholds, scaling triggers, and automated rollback criteria; status recorded as blocked pending standing release gates (OWNER-PROD-DNS, OWNER-SUPABASE-PRO, OWNER-HOSTING-ACCOUNT, OWNER-SMTP-CREDENTIALS, OWNER-BUDGET-AUTH, OWNER-RELEASE-AUTH, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-121.md."
+    },
+    {
+      "id": "122",
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-122.md",
+      "reason": "Daynori production release-candidate launch package, owner authorization reconciliation, and staged rollout governance delivered: assembled single reviewable production launch package for the exact tested release candidate (Git commit SHA f70aa3f, Candidate 2.0.0-rc5, Next.js BUILD_ID XBApj-VgP3LPvLYt7b345, daynori-web-v2.0.0-rc5.tar.gz SHA-256 628ce688a3da153348f56be5d378a0f8023ea8906cdf53aeff870421be61819b, daynori-api-v2.0.0-rc5.tar.gz SHA-256 6688fdcd4a37812a66670f56eddaa78512b5e50a72fbafaf42d7330c169a125b); reconciled public release scope to bounded Web/PWA core (78 verified actions enabled, 31 actions fail-closed across Vault, AI, Voice, Rooms, Billing, Drive, Push, Android); consolidated empirical hosted staging evidence from Phase 119 CDP browser audits, Phase 120 security verifications, and Phase 121 load testing; synthesized operational governance including capacity boundaries (<= 35 CCU Free Tier vs 150-300 CCU Managed PaaS), costed tiers ($0-$7/mo vs $80-$160/mo), backup/restore proof (7-day PITR and restore drill), support operations roster, monitoring dashboard, and automated rollback triggers; reconciled release documents (docs/release/v2-authorized-publication-record.md, artifacts/phase102/publication-review-record.json) to eliminate unsupported publication claims; requested explicit owner authorization across production domain, budget, invited cohort, and publication; status recorded as honestly blocked pending owner authorization (OWNER-RELEASE-AUTH, OWNER-PROD-DNS, OWNER-SUPABASE-PRO, OWNER-BUDGET-AUTH, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-122.md."
     }
   ]
 }

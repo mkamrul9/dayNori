@@ -1,5 +1,32 @@
 # Changelog
 
+## Phase 122 — Daynori production release-candidate launch package, owner authorization reconciliation, and staged rollout governance — 2026-11-15
+
+- ADR 0122: Daynori Production Release-Candidate Launch Package, Owner Authorization Governance, and Staged Rollout Management, assembling a unified reviewable production launch package for Candidate 2.0.0-rc5 from clean verified commit `f70aa3f9679ae927ea603773daf139b434b59adb`.
+- Production Launch Package (`artifacts/phase122/production-launch-package.json`):
+  - Artifact Identity: Candidate `2.0.0-rc5`, Next.js Web `BUILD_ID`: `XBApj-VgP3LPvLYt7b345` (32 compiled production routes).
+  - Distributable Release Archives: `daynori-web-v2.0.0-rc5.tar.gz` (1,874,760 bytes; SHA-256: `628ce688a3da153348f56be5d378a0f8023ea8906cdf53aeff870421be61819b`) and `daynori-api-v2.0.0-rc5.tar.gz` (559,776 bytes; SHA-256: `6688fdcd4a37812a66670f56eddaa78512b5e50a72fbafaf42d7330c169a125b`).
+  - Runtime & Startup Commands: Pinned to repository-required Node.js runtime (`v24.21.0`), Fastify 5.2.1, Next.js 15.5.27, React 18.3.1; exact startup commands (`next start` and `node dist/start.js`) with zero engine warnings.
+- Public Scope vs. Gated Modules Reconciliation:
+  - Enabled Scope: Bounded Web/PWA core (78 verified core actions enabled across Account, Nav, Tasks, Routines, Calendar, Notes, Journal, Library, Search, Files/Attachments, Guided Tours, In-App Feedback, Offline sync/receipts).
+  - Gated Fail-Closed Modules: 31 actions across 8 gated modules maintain strict barriers (Vault `DEF-V2-004` 403, Rooms `DEF-V2-006` 403, AI `DEF-V2-008` 403, Voice `DEF-V2-008`/`DEF-V2-011` disabled, Drive `DEF-V2-005` disabled, Billing `DEF-V2-007` 403, Push `DEF-V2-002` disabled, Android `OWNER-SIGNING-KEYS`/`DEF-V2-011` task-graph guarded).
+- Hosted Staging, Security, and Capacity Consolidation:
+  - Staging Evidence: Phase 119 Chrome CDP browser journeys (10/10 passed) and Phase 121 multi-stage load testing under Bangladesh network conditions (95ms base RTT, $\pm 25\text{ms}$ jitter, 1.5% packet loss).
+  - Security Findings: Phase 120 13-dimension audit passed; Next.js SVG Image Optimization API RCE neutralized (`images.unoptimized: true`); PostgreSQL connection URL password log regex hardened; reverse-proxy header client IP parsing and health probe rate limit exemption active.
+  - Capacity Boundaries: Render Free Tier safe limit $\le 35$ CCU (10–15 RPS, ~1,000 registered users, $0–$7/mo); Managed PaaS Option 1 required for 150–300 CCU (45–90 RPS, 5,000–10,000 registered users, $80–$160/mo) with PgBouncer transaction pooling.
+  - Backup & Disaster Recovery: 7-day PITR, automated staging restore drill protocol (RPO < 5m, RTO < 15m), and irreversible deletion suppression ledger tombstones.
+- Operational Roster & Monitoring Governance:
+  - Incident Response Team: Incident Commander (`incident-commander@daynori.com`), Technical Operations Lead (`ops@daynori.com`), Security & Privacy Officer (`security@daynori.com`), and Support & Communications Lead (`support@daynori.com`).
+  - Monitoring & Alert Thresholds: Origin p95 warning $> 500\text{ms}$, critical $> 1,000\text{ms}$; 5xx error rate warning $> 0.5\%$, critical $> 1.0\%$; DB pool warning $> 75\%$, critical $> 90\%$.
+  - Rollback Runbook: Sub-10-second static cutover to `/offline-shell.html`, deploy ID redeployment via Render/Railway CLI, automated rollback triggers.
+- Release Governance Reconciliation & Staged Rollout:
+  - Reconciled `docs/release/v2-authorized-publication-record.md` and `artifacts/phase102/publication-review-record.json` to eliminate unsupported publication claims.
+  - Enforced standing rule: **Never describe a rehearsal, staging deployment, or local smoke test as a public launch.**
+  - 3-Stage Rollout Governance: Stage 1 small invited cohort (50–100 users, 72 hours), Stage 2 beta expansion (500–1,000 users, $\le 30$ PCU), Stage 3 general public launch (up to 10,000 users).
+  - Explicit Owner Approval Gates: `OWNER-PROD-DNS` (domain DNS), `OWNER-BUDGET-AUTH` (hosting budget), `OWNER-COHORT-SIZE` (50–100 cohort), and `OWNER-RELEASE-AUTH` (publication signature). Phase status recorded as honestly blocked pending owner authorization.
+- Automated Test Suite Verified (11/11 Passed):
+  - `tests/release/phase122-launch-package-and-governance.test.ts` (11 tests passed in 19ms).
+
 ## Phase 121 — Daynori production-scale load testing, performance profiling, and capacity envelope verification for 1,000 to 10,000 users — 2026-11-15
 
 - ADR 0121: Daynori Production-Scale Load Testing, Performance Profiling, and Capacity Envelope Verification for 1,000 to 10,000 Users, establishing an empirical capacity envelope and operational runbook grounded in hosted staging measurements, queuing theory, and Bangladesh network conditions.
