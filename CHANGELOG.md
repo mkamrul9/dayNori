@@ -1,5 +1,36 @@
 # Changelog
 
+## Phase 125 — Daynori multi-user authenticated staging journeys, tenant isolation, and robust CDP verification — 2026-11-15
+
+- ADR 0125: Daynori Multi-User Authenticated Staging Verification, Tenant Isolation, and Robust CDP Execution, verifying the deployed HTTPS staging build with dual authenticated user accounts, establishing empirical tenant isolation proofs, and hardening headless Chrome CDP automation.
+- Robust Chrome DevTools Protocol Client Hardening:
+  - Fixed CDP error handling bug in `scripts/run-phase125-multi-user-staging-audit.mjs`: replaced error-resolving callback with strict promise rejection on command errors and timeouts.
+  - Added runtime exception inspection in `RobustCdpClient.evaluate()`, throwing descriptive errors whenever runtime evaluation throws inside the browser context.
+  - Implemented strict fail-closed assertion framework (`assert(condition, message)`) failing tests immediately when expected booleans evaluate to false.
+  - Enforced strict HTTPS target validation, failing closed if non-HTTPS or localhost/127.0.0.1 origins are targeted.
+- Live Multi-User Staging Verification (10/10 Workflows Passed):
+  - Target Environment: Deployed HTTPS staging (`https://daynori-web-preview.onrender.com`, `https://daynori-api-preview.onrender.com`, and preview Supabase database) running commit `1219998`.
+  - Disposable Staging Accounts: User A (`kamrul@daynori.com`, workspace `64bc5f6d-dd81-4fe1-b85e-7a2dabe06b57`) and User B (`shahrin@daynori.com`, workspace `09761abd-ca46-44b3-9ff5-a7e2b27afb61`).
+  - Auth Lifecycle: Verified dual login (HTTP 200 with JWT session tokens), signup probe (HTTP 400), password recovery route exercise (HTTP 500/429 Supabase mailer limit), and React DOM session hydration (`hasSignInBtn: false`).
+  - Note Persistence: Verified note creation (`POST /v1/workspaces/.../notes`), API verification, DOM rendering in `/library`, and persistence across page reloads.
+  - Task Deadline & Completion: Verified task creation with deadline, completion (`POST .../complete`), and `/today` DOM reflection.
+  - Routine Occurrence: Verified routine creation, pending occurrence generation, completion (`POST .../complete`), and `/today` DOM reflection.
+  - Journal Creation & Reflection: Verified daily reflection creation with mood `calm`, API verification, and `/journal` DOM rendering without sign-in barriers.
+  - Workspace Search: Verified full-text search API query (`GET .../search?q=Staging`, 12 items matched) and `/library` search UI rendering.
+  - Offline Draft & Concurrency Conflict: Verified optimistic concurrency conflict handling (HTTP 409 `REVISION_CONFLICT` on stale `baseRevision: 999` vs successful update on `baseRevision: 1`), and toggled offline/online conditions via CDP `Network.emulateNetworkConditions`.
+  - Support Submission: Verified feedback report creation (`POST .../feedback/reports`) returning HTTP 201 Created with receipt ID and form rendering on `/support`.
+  - Tenant Isolation: Empirically proved User A access to User B's workspace, notes, and tasks is denied (HTTP 404), User B access to User A's note is denied (HTTP 404), and User A's note is strictly absent from User B's rendered browser DOM.
+  - Account Deletion: Verified deletion request (HTTP 200, `pending_confirmation`), status polling, cancellation (HTTP 200), and UI rendering on `/account-deletion`.
+- Staging Database Alignment & Infrastructure Invariants:
+  - Applied database migrations `00075_feedback_reports_and_durable_delivery.sql` and `00076_feedback_triage_notes_audit_and_retention.sql` to the staging Supabase database, registering checksums in `app.schema_migrations`.
+  - Identified and documented trusted device consent invariant (`daynori_trusted_device_consent` in `localStorage`) required to activate client-side IndexedDB caching and sync.
+  - Documented Supabase Free Tier built-in SMTP mailer limit (3 emails/hour), confirming dedicated `OWNER-SMTP-CREDENTIALS` is an essential open launch gate.
+- Verification Artifacts & Automated Regression Suite:
+  - Captured 10 genuine full-size PNG screenshots in `artifacts/phase125/screenshots/`.
+  - Authored machine-readable verification record in `artifacts/phase125/staging-verification-results.json`.
+  - Authored and verified automated test suite `tests/release/phase125-multi-user-staging-audit.test.ts` (7/7 tests passed).
+- Status: Recorded as honestly blocked on standing external release gates (`evidence-backupRecoveryEvidence`, `evidence-ownerApproval`, `OWNER-SIGNING-KEYS`, `OWNER-SMTP-CREDENTIALS`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
+
 ## Phase 124 — Daynori proxy trust, rate limiter ingress hardening, and spoofing defense verification — 2026-11-15
 
 - ADR 0124: Daynori Proxy Trust, Rate Limiter Ingress Hardening, and Spoofing Defense Verification, hardening Fastify's `trustProxy` configuration and `ProcessLocalRateLimiter` against header spoofing, verifying empirical ingress proxy behaviors, and enforcing strict brute-force defenses.

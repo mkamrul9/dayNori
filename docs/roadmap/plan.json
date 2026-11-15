@@ -5175,6 +5175,69 @@
         "docs/phase-reports/phase-124.md"
       ],
       "commit": "fix(security): harden proxy trust and rate limiter against header spoofing"
+    },
+    {
+      "id": "125",
+      "group": "v2-release",
+      "title": "Daynori multi-user authenticated staging journeys, tenant isolation, and robust CDP verification",
+      "dependsOn": [
+        "102",
+        "112",
+        "118",
+        "119",
+        "120",
+        "121",
+        "122",
+        "123",
+        "124"
+      ],
+      "scope": [
+        "artifacts/phase125",
+        "docs/decisions",
+        "docs/phase-reports",
+        "scripts",
+        "tests/release",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Re-architect the headless Chrome DevTools Protocol client to eliminate error suppression, reject promises on protocol errors, and throw on JavaScript evaluation exceptions.",
+        "Target the deployed HTTPS staging environment exclusively, failing closed if non-HTTPS or localhost endpoints are configured.",
+        "Authenticate two distinct disposable staging accounts (User A and User B) and verify session hydration in both browser and API contexts.",
+        "Automate 10 core end-to-end user workflows asserting data persistence across both UI and API (Auth lifecycle, note persistence, task deadline/completion, routine occurrence, journal reflection, workspace search, offline draft/reconnect/conflict, support submission, tenant isolation, and account deletion).",
+        "Empirically prove workspace tenant isolation by verifying cross-tenant API requests return 404/403 and verifying User A's data is strictly absent from User B's DOM.",
+        "Apply prerequisite staging database migrations (00075 and 00076) and document Supabase Free Tier mailer rate-limiting boundaries.",
+        "Capture full-size PNG screenshots for all 10 verified workflows and record deployed commit SHA and metadata in artifacts/phase125/staging-verification-results.json.",
+        "Author ADR 0125, phase report docs/phase-reports/phase-125.md, and automated regression test suite tests/release/phase125-multi-user-staging-audit.test.ts."
+      ],
+      "acceptance": [
+        "All 10 user workflows pass against live staging with both uiVerified and apiVerified true.",
+        "RobustCdpClient strictly rejects promises on command timeouts/errors and throws on evaluation exceptions.",
+        "Tenant isolation is proven: cross-tenant API queries return 404 Not Found and one user's private data is absent from the other user's rendered DOM.",
+        "Optimistic concurrency conflict handling is proven via 409 REVISION_CONFLICT on stale baseRevision.",
+        "Full-size PNG screenshots exist for all 10 journeys in artifacts/phase125/screenshots/.",
+        "Automated regression test suite tests/release/phase125-multi-user-staging-audit.test.ts passes all tests.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html pass all planning validators."
+      ],
+      "checks": [
+        "pnpm vitest run tests/release/phase125-multi-user-staging-audit.test.ts",
+        "node scripts/validate-planning.mjs",
+        "pnpm validate:function-register"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md",
+        "docs/decisions/0123-release-evidence-audit-claims-reclassification-and-preflight.md",
+        "docs/decisions/0124-proxy-trust-rate-limiter-hardening-and-spoofing-defense.md",
+        "docs/decisions/0125-multi-user-authenticated-staging-verification-and-workspace-isolation.md",
+        "docs/phase-reports/phase-119.md",
+        "docs/phase-reports/phase-123.md",
+        "docs/phase-reports/phase-124.md",
+        "docs/phase-reports/phase-125.md"
+      ],
+      "commit": "chore(release): verify multi-user authenticated staging journeys and tenant isolation"
     }
   ],
   "featureCoverage": [

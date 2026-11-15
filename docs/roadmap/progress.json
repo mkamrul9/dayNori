@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-15T11:00:00.000Z",
-  "activePhase": "124",
+  "updatedAt": "2026-11-15T12:00:00.000Z",
+  "activePhase": "125",
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Select Phase 124 (Daynori proxy trust, rate limiter ingress hardening, and spoofing defense verification) under ADR 0124. Standing push under ADR 0074.",
+  "schedulingDecision": "Owner scheduling authorization: Select Phase 125 (Daynori multi-user authenticated staging journeys, tenant isolation, and robust CDP verification) under ADR 0125. Standing push under ADR 0074.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 102 assembled canonical owner publication review record (docs/release/v2-authorized-publication-record.md) and machine-readable register (artifacts/phase102/publication-review-record.json), separated bounded beta from full V2, recorded web readiness independently from Android, executed 7 publication rehearsals in tests/e2e/phase102-v2-publication-rehearsal.test.ts, and reconciled 11 gates; release signing credentials (OWNER-SIGNING-KEYS), owner release authorization (OWNER-RELEASE-AUTH), live human research (DEF-V2-013), physical TalkBack (DEF-V2-011), and external audits (DEF-V2-004, DEF-V2-008) remain open.",
   "phases": [
     {
@@ -729,6 +729,12 @@
       "status": "blocked",
       "report": "docs/phase-reports/phase-124.md",
       "reason": "Daynori proxy trust, rate limiter ingress hardening, and spoofing defense verification delivered: audited Fastify trustProxy and ProcessLocalRateLimiter against Render/Cloudflare ingress; empirical staging probes proved Cloudflare edge drops client-injected CF-Connecting-IP with HTTP 403 Forbidden while proxies append connecting IP to X-Forwarded-For; proved direct-to-Render origin bypass requires verifying Cloudflare peer authenticity before trusting CF-Connecting-IP; implemented strict trusted proxy CIDR whitelist in apps/api/src/config/trustedProxies.ts (Cloudflare IPv4/IPv6, RFC 1918, Render CGNAT 100.64.0.0/10); hardened resolveClientIp using right-to-left traversal of X-Forwarded-For; added strict brute-force rate limiting (10 req/min) on sensitive auth and account deletion endpoints while exempting health probes; authored and verified comprehensive test suite in tests/security/phase124-proxy-trust-and-rate-limiter.test.ts (14 passed); documented multi-instance cluster multiplier behavior and Redis scale roadmap; status recorded as honestly blocked pending standing release gates (evidence-backupRecoveryEvidence, evidence-ownerApproval, OWNER-SIGNING-KEYS, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-124.md."
+    },
+    {
+      "id": "125",
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-125.md",
+      "reason": "Daynori multi-user authenticated staging verification, tenant isolation audit, and CDP error handling hardening delivered: re-architected RobustCdpClient in scripts/run-phase125-multi-user-staging-audit.mjs to eliminate error suppression, reject promises on command failures, and throw on JavaScript evaluation exceptions; executed 10 core end-to-end workflows against deployed HTTPS staging build (commit 1219998) using two disposable accounts (kamrul@daynori.com and shahrin@daynori.com) and asserted data persistence across both UI (DOM verification in Chrome CDP) and API/database layers; empirically proved tenant isolation by verifying cross-tenant API requests return 404/403 and confirming User A's data is strictly absent from User B's DOM; verified optimistic concurrency conflict handling (HTTP 409 REVISION_CONFLICT on stale baseRevision 999 vs successful update on baseRevision 1); applied prerequisite staging migrations 00075 and 00076 to preview Supabase database; documented Supabase Free Tier mailer rate limits (3/hour) confirming OWNER-SMTP-CREDENTIALS requirement; captured 10 full-size PNG screenshots in artifacts/phase125/screenshots/ and recorded results in artifacts/phase125/staging-verification-results.json; authored automated test suite in tests/release/phase125-multi-user-staging-audit.test.ts (7 passed); status recorded as honestly blocked pending standing release gates (evidence-backupRecoveryEvidence, evidence-ownerApproval, OWNER-SIGNING-KEYS, OWNER-SMTP-CREDENTIALS, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-125.md."
     }
   ]
 }

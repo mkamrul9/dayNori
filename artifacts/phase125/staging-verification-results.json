@@ -1,0 +1,226 @@
+{
+  "phase": "125",
+  "title": "Daynori Multi-User Authenticated Staging Journeys, Tenant Isolation & Robust CDP Audit",
+  "executedAt": "2026-11-15T11:26:15.919Z",
+  "runId": "1794741975919",
+  "targetUrls": {
+    "web": "https://daynori-web-preview.onrender.com",
+    "api": "https://daynori-api-preview.onrender.com",
+    "supabase": "https://sexxceqqknqzvxuuqnkx.supabase.co"
+  },
+  "deployedMeta": {
+    "webStatus": 200,
+    "renderDeployId": "36ce3de7-9a35-4bd5",
+    "cfRay": "a5ade6682fbd16d4-DAC",
+    "server": "cloudflare",
+    "poweredBy": "Next.js",
+    "deployedGitSha": "1219998"
+  },
+  "workflows": [
+    {
+      "id": "workflow-01-auth-lifecycle",
+      "title": "Auth Lifecycle (Signup Probe, Password Recovery, Dual Sign-In, UI Hydration)",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "signupProbeStatus": 400,
+        "recoveryStatus": 500,
+        "recoveryExercised": true,
+        "userAAuthenticated": true,
+        "userBAuthenticated": true,
+        "uiHydrated": true,
+        "documentTitle": "Daynori — Your day, gathered"
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\01-auth-lifecycle-hydrated.png",
+        "sha256": "b196a7ca69e5f036e5816e47db29daac7821f9c864361613fef8395d6837fe63",
+        "byteSize": 117559
+      }
+    },
+    {
+      "id": "workflow-02-note-create-save-reload",
+      "title": "Note Create, Save, Persistence & Page Reload",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "noteId": "25d705b4-b591-4fd9-bee4-b3060844af68",
+        "noteTitle": "Staging Verified Note 1794741975919",
+        "apiCreated": true,
+        "apiVerified": true,
+        "uiRenderedBeforeReload": true,
+        "uiRenderedAfterReload": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\02-note-persisted-and-reloaded.png",
+        "sha256": "3916a4b9ef3d129f05598adc9a822db9322e9ad017170ed8312043713ced247c",
+        "byteSize": 91944
+      }
+    },
+    {
+      "id": "workflow-03-task-deadline-completion",
+      "title": "Task Deadline & Completion Lifecycle",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "taskId": "8ba226f3-b9f7-4921-a511-73be82ca2825",
+        "taskTitle": "Staging Urgent Deadline Task 1794741975919",
+        "apiCreated": true,
+        "apiCompleted": true,
+        "apiStatus": "completed",
+        "uiVerified": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\03-task-deadline-completed.png",
+        "sha256": "23d721fdef11b3eb66383cb92523d492ba8a3312707146c3be644e65f0cc8ab5",
+        "byteSize": 73723
+      }
+    },
+    {
+      "id": "workflow-04-routine-occurrence",
+      "title": "Routine Occurrence Creation & Logging Lifecycle",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "routineId": "65a0162d-8c55-4d19-886e-617c7d996c5c",
+        "routineTitle": "Staging Daily Habits Routine 1794741975919",
+        "occurrenceId": "09561a26-72fa-5f8a-9099-ce42d18a9977",
+        "occurrenceStatusBefore": "done",
+        "apiCompleted": true,
+        "uiVerified": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\04-routine-occurrence-logged.png",
+        "sha256": "277ae33e0c207bc4a28cbf27260356f936cadb798e02798c7eb0617b59b46432",
+        "byteSize": 73690
+      }
+    },
+    {
+      "id": "workflow-05-journal-creation",
+      "title": "Journal Creation & Reflection Lifecycle",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "journalId": "42b8708e-4063-4eca-a331-a4356a6dda89",
+        "journalTitle": "Staging Nightly Reflection 1794741975919",
+        "entryDate": "2026-11-15",
+        "mood": "calm",
+        "apiCreated": true,
+        "apiVerified": true,
+        "uiRendered": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\05-journal-entry-persisted.png",
+        "sha256": "e081e41eca36655a510b2bc4b724f2125cc216b6c049755b4c49a3f35c252fc8",
+        "byteSize": 74199
+      }
+    },
+    {
+      "id": "workflow-06-workspace-search",
+      "title": "Workspace Scoped Full-Text Search",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "query": "Staging",
+        "apiMatchesCount": 12,
+        "apiVerified": true,
+        "uiVerified": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\06-search-query-results.png",
+        "sha256": "dc93f9afc8b18753d0451b3f0e5dfb9c75d73869aa237db44dbb8d727123a7de",
+        "byteSize": 56569
+      }
+    },
+    {
+      "id": "workflow-07-offline-draft-and-conflict",
+      "title": "Offline Drafts, Reconnection & Optimistic Revision Conflict Handling",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "conflictStatusCode": 409,
+        "conflictErrorCode": "REVISION_CONFLICT",
+        "reconciledRevision": 2,
+        "offlineEmulationVerified": true,
+        "onlineReconnectionVerified": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\07-offline-draft-and-reconnect.png",
+        "sha256": "f41799415e1c1d77aa4e44431ecefe596006cccfddcb3b809df374dfb6686073",
+        "byteSize": 56665
+      }
+    },
+    {
+      "id": "workflow-08-support-submission",
+      "title": "Support & Feedback Intake Submission Lifecycle",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "clientReportId": "36bf05d8-e110-4711-bbcc-ba24c0286188",
+        "reportReceiptId": "57ca60e7-462f-4777-b7ac-010a6545f100",
+        "apiSubmitted": true,
+        "deliveryNotice": "Receipt acknowledged by server. External developer inbox is not configured in this preview.",
+        "uiRendered": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\08-support-feedback-submission.png",
+        "sha256": "b74c2808711f83b1be723f1eaeff76f71a11576477d41ea052154996154788ee",
+        "byteSize": 60203
+      }
+    },
+    {
+      "id": "workflow-09-tenant-isolation-proof",
+      "title": "Multi-User Tenant Isolation & Cross-Workspace Access Rejection",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "userAGetUserBWorkspaceStatus": 404,
+        "userAGetUserBNotesStatus": 404,
+        "userAPostUserBTasksStatus": 404,
+        "userBGetUserANoteStatus": 404,
+        "userBDeleteUserANoteStatus": 404,
+        "userBDomCrossTenantLeakage": false,
+        "isolationProven": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\09-tenant-isolation-userB.png",
+        "sha256": "e13ba9bfad52f06675d8a5825705fa6b46aea798fc2d89a639a70b3d78be2aaf",
+        "byteSize": 62804
+      }
+    },
+    {
+      "id": "workflow-10-account-deletion",
+      "title": "Account Deletion Lifecycle (Request, Status Verification & Cancellation)",
+      "passed": true,
+      "uiVerified": true,
+      "apiVerified": true,
+      "details": {
+        "deletionRequestedStatus": "pending_confirmation",
+        "deletionId": "54f000d2-7aaf-4ff4-baf3-b26249e19480",
+        "cancellationDeadline": "2026-11-16T11:26:58.126Z",
+        "retainedDataDisclosure": "Confirmation removes your organizer records and blocks account access. Auth-provider cleanup remains pending until an operator completes it in this free preview. Full account erasure and backup retention have not been verified. Use sample content.",
+        "statusPolled": "pending_confirmation",
+        "cancelStatusCode": 200,
+        "uiRendered": true
+      },
+      "screenshot": {
+        "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\10-account-deletion-lifecycle.png",
+        "sha256": "464a797bebbec8eaa79715d11a994797f67d1bf030875a14700492f08430c9b8",
+        "byteSize": 80009
+      }
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "passed": 10,
+    "failed": 0
+  }
+}
