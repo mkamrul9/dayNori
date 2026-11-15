@@ -4757,6 +4757,75 @@
         "docs/engineering/release-gates.md"
       ],
       "commit": "chore(release): prepare deployable web-core rc4 release and production capacity plan"
+    },
+    {
+      "id": "119",
+      "group": "v2-release",
+      "title": "Daynori authorized HTTPS staging deployment verification and browser journey audit",
+      "dependsOn": [
+        "102",
+        "112",
+        "117",
+        "118"
+      ],
+      "scope": [
+        "scripts",
+        "tests",
+        "artifacts/phase119",
+        "docs/decisions",
+        "docs/engineering",
+        "docs/operations",
+        "docs/roadmap",
+        "docs/phase-reports",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Author and execute scripts/run-phase119-https-staging-verification.mjs targeting authorized live HTTPS staging URLs (https://daynori-web-preview.onrender.com, https://daynori-api-preview.onrender.com, https://sexxceqqknqzvxuuqnkx.supabase.co).",
+        "Enforce strict fail-closed prohibition against localhost/127.0.0.1 fallbacks in the runner, failing immediately if an insecure or local destination is detected.",
+        "Verify live HTTPS security headers: CSP Level 3 with per-request cryptographic nonces, X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy, Permissions-Policy, and TLS 1.3.",
+        "Verify live health endpoints across Web (/api/health) and API (/health, /v1/health) returning HTTP 200 with valid environment metadata.",
+        "Exercise core browser user journeys via Chrome CDP on live staging: signup/signin/recovery, two-account workspace isolation, notes, tasks, routines, journals, offline outbox queuing, sync conflicts, and account deletion.",
+        "Verify fail-closed gating on unreleased modules: Vault, Rooms, AI Assistant, Voice, Billing, Drive, and Android return 403 or remain disabled.",
+        "Verify staging backup and restore drill protocol, observability correlation tracing (rndr-id, cf-ray, requestId), rollback mechanics, and the served build SHA.",
+        "Capture genuine browser screenshots from the live HTTPS staging environment into artifacts/phase119/screenshots/ and produce machine-readable results.",
+        "Author automated unit and e2e test suites in tests/unit/phase119-https-staging-verification.test.ts and tests/e2e/phase119-staging-journeys-and-headers.test.ts.",
+        "Author ADR 0119, phase report docs/phase-reports/phase-119.md, update CHANGELOG.md, docs/roadmap/progress.json, and rebuild blueprint."
+      ],
+      "acceptance": [
+        "Smoke runner targets live HTTPS staging (https://daynori-web-preview.onrender.com) and fails immediately if localhost or 127.0.0.1 is targeted.",
+        "Security headers, CSP Level 3 nonces, and TLS 1.3 verified on live HTTPS responses.",
+        "Health endpoints (/api/health, /health, /v1/health) return HTTP 200 with valid metadata.",
+        "All 10 core browser journeys pass against the staging environment with real network conditions.",
+        "Offline draft preservation and sync conflict handling verified with emulated offline mode.",
+        "Unreleased modules (Vault, Rooms, AI, Voice, Billing, Drive, Android) strictly fail-closed.",
+        "Backup and restore drill verified, observability headers validated, and served build SHA audited.",
+        "Browser screenshots captured from live HTTPS staging and recorded with SHA-256 digests.",
+        "Automated unit and integration test suites pass cleanly.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/validate-planning.mjs",
+        "node scripts/build-phase-plans.mjs --check",
+        "node scripts/build-blueprint.mjs --check",
+        "pnpm validate:function-register",
+        "pnpm vitest run tests/unit/phase119-https-staging-verification.test.ts tests/e2e/phase119-staging-journeys-and-headers.test.ts",
+        "pnpm lint"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/decisions/0063-free-core-testing-preview.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0102-authorized-version-2-publication-and-live-verification.md",
+        "docs/decisions/0112-core-web-pwa-browser-release-verification-and-staging-isolation.md",
+        "docs/decisions/0118-daynori-deployable-web-core-release-and-production-infrastructure-capacity-plan.md",
+        "docs/decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md",
+        "docs/phase-reports/phase-112.md",
+        "docs/phase-reports/phase-118.md",
+        "docs/phase-reports/phase-119.md",
+        "docs/engineering/release-gates.md",
+        "docs/engineering/backup-and-recovery.md"
+      ],
+      "commit": "test(staging): verify authorized HTTPS staging deployment and browser journeys"
     }
   ],
   "featureCoverage": [

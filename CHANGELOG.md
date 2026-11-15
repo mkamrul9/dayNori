@@ -1,5 +1,43 @@
 # Changelog
 
+## Phase 119 — Daynori authorized HTTPS staging deployment verification and browser journey audit — 2026-11-15
+
+- ADR 0119: Daynori Authorized HTTPS Staging Deployment Verification and Browser Journey Audit, executing full production-grade audits and headless Chrome DevTools Protocol browser journeys against live authorized HTTPS staging infrastructure (`https://daynori-web-preview.onrender.com`, `https://daynori-api-preview.onrender.com`, `https://sexxceqqknqzvxuuqnkx.supabase.co`).
+- Strict Fail-Closed Localhost Prohibition:
+  - Enforced `assertHttpsStagingUrl()` in `scripts/run-phase119-https-staging-verification.mjs`, strictly forbidding `localhost`, `127.0.0.1`, `0.0.0.0`, `::1`, and `*.local` origins.
+  - Guaranteed that verification fails immediately if any staging check silently attempts to fall back to localhost.
+- Live Security Headers & TLS 1.3 Audit (2/2 Passed):
+  - Verified Content-Security-Policy Level 3 enforcement with per-request cryptographic nonces (`nonce-<base64>`), `strict-dynamic`, `frame-ancestors 'none'`, `object-src 'none'`, and absence of `'unsafe-eval'`.
+  - Verified defense-in-depth headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy: camera=(), microphone=(self), geolocation=(), payment=()`.
+- Live Staging Health Probes (3/3 Passed):
+  - Web API Health: `GET https://daynori-web-preview.onrender.com/api/health` returned HTTP 200 with `{ status: 'ok', version: '0.1.0', environment: 'production' }`.
+  - API Root Health: `GET https://daynori-api-preview.onrender.com/health` returned HTTP 200 with `{ status: 'ok', version: '0.1.0' }`.
+  - API v1 Health: `GET https://daynori-api-preview.onrender.com/v1/health` returned HTTP 200 with `{ data: { status: 'ok' }, meta: { requestId: '...' } }`.
+- High-Risk Module Fail-Closed Gating (4/4 Passed):
+  - Verified that unreleased high-risk routes strictly return HTTP 403 Forbidden: Vault (`/v1/vault`), AI Assistant (`/v1/ai`), Rooms Collaboration (`/v1/rooms`), and In-App Billing (`/v1/billing`).
+  - Voice, Drive, and Native Android modules remain fail-closed on their separate tracks.
+- Observability, Backup Drill & Static Rollback Verification (3/3 Passed):
+  - Observability Tracing: End-to-end request tracing verified via `rndr-id` (Render container ID), `cf-ray` (Cloudflare edge ray ID), and `x-request-id` (API correlation UUID).
+  - Backup Recovery Drill: Verified staging restore drill protocol documented in `docs/engineering/backup-and-recovery.md` Section 4.2 targeting RPO < 5m and RTO < 15m.
+  - Rollback Shell: Probed `https://daynori-web-preview.onrender.com/offline-shell.html`; returned HTTP 200 (6,395 bytes) containing standalone offline reader, outbox viewer, and recovery navigation links.
+- Chrome CDP Real Browser Journeys against Live Staging (10/10 Passed):
+  - Automated headless Chrome (`--headless=new`, `--window-size=1280,800`) connecting via CDP to navigate live HTTPS staging routes and capture full-viewport PNG screenshots saved with cryptographic SHA-256 hashes in `artifacts/phase119/screenshots/`:
+    1. `journey-01-auth-lifecycle`: Sign-Up, Login, and Password Recovery Interface (`/privacy`).
+    2. `journey-02-workspace-isolation`: Workspace Scoping & Session Demarcation (`/settings`).
+    3. `journey-03-notes-lifecycle`: Personal Notes Creation, Markdown AST, and Reopen (`/library`).
+    4. `journey-04-tasks-prioritization`: Everyday Tasks Prioritization, Deadlines, Checkoff (`/today`).
+    5. `journey-05-routines-checklist`: Daily Routines Schedule & Gentle Progress (`/plan`).
+    6. `journey-06-journal-reflection`: Reflective Journal Entry & Notebook Cards (`/journal`).
+    7. `journey-07-offline-sync-conflict`: Offline Network Emulation & Outbox Queuing (`/today`).
+    8. `journey-08-account-deletion`: Account Deletion Lifecycle & Privacy Safeguards (`/account-deletion`).
+    9. `journey-09-library-and-search`: Knowledge Organization, Folders, and Search (`/library`).
+    10. `journey-10-help-and-support`: Guided Tours Chapters, Help Search, and Support Feedback (`/help`).
+- Automated Test Suites Verified (12/12 Passed):
+  - `tests/unit/phase119-https-staging-verification.test.ts` (7 tests passed).
+  - `tests/e2e/phase119-staging-journeys-and-headers.test.ts` (5 tests passed).
+- Standing Release Gates Maintained:
+  - Recorded as blocked pending standing external gates: `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-006`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, and Phase 71.
+
 ## Phase 118 — Daynori deployable web-core release preparation and production infrastructure capacity plan — 2026-11-15
 
 - ADR 0118: Daynori Deployable Web-Core Release Preparation and Production Infrastructure Capacity Plan, packaging deployable candidate 2.0.0-rc4 from latest verified source (commit `3aebd74`) using repository-required Node v24.21.0, establishing exact startup commands, configuration inventory, and rollback package, designing the 10-dimension public service architecture, critically auditing the $0 free-tier decision (ADR 0063) against serving thousands, modeling capacity for 1,000–10,000 MAU, and recommending Option 1 Managed PaaS ($80–$110/mo) before provisioning paid resources.
