@@ -3,13 +3,13 @@ import { colors, radii, spacing, type ThemeMode } from '@daynori/design-tokens';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   themeMode?: ThemeMode;
-  variant?: 'subtle' | 'outlined' | 'elevated' | 'flat';
+  variant?: 'subtle' | 'outlined' | 'elevated' | 'flat' | 'calm';
   children: React.ReactNode;
 }
 
 /**
  * Notebook-inspired surface card.
- * Calmer modern styling with softer borders and optional elevation variants.
+ * Calmer modern styling with softer borders, subtle elevation variants, and warm paper feel.
  */
 export const Card: React.FC<CardProps> = ({
   themeMode = 'light',
@@ -21,7 +21,10 @@ export const Card: React.FC<CardProps> = ({
   const palette = colors[themeMode];
 
   let bg: string = palette.surface;
-  let border = `1px solid ${palette.border.subtle}`;
+  let border =
+    themeMode === 'dark'
+      ? `1px solid ${palette.border.subtle}`
+      : '1px solid rgba(23, 44, 44, 0.09)';
   let shadow = 'none';
 
   if (variant === 'flat') {
@@ -29,17 +32,23 @@ export const Card: React.FC<CardProps> = ({
     border = '1px solid transparent';
   } else if (variant === 'elevated') {
     bg = palette.surface;
-    border = `1px solid ${palette.border.subtle}`;
+    border =
+      themeMode === 'dark'
+        ? `1px solid ${palette.border.subtle}`
+        : '1px solid rgba(23, 44, 44, 0.08)';
     shadow =
       themeMode === 'dark'
         ? '0 4px 16px rgba(0, 0, 0, 0.35)'
-        : '0 2px 8px rgba(23, 44, 44, 0.05)';
-  } else if (variant === 'subtle') {
+        : '0 2px 10px rgba(23, 44, 44, 0.06)';
+  } else if (variant === 'calm' || variant === 'subtle') {
     bg = palette.surface;
-    border = `1px solid ${palette.border.subtle}`;
+    border =
+      themeMode === 'dark'
+        ? `1px solid ${palette.border.subtle}`
+        : '1px solid rgba(23, 44, 44, 0.08)';
     shadow =
       themeMode === 'dark'
-        ? '0 1px 3px rgba(0, 0, 0, 0.25)'
+        ? '0 1px 4px rgba(0, 0, 0, 0.25)'
         : '0 1px 3px rgba(23, 44, 44, 0.03)';
   }
 

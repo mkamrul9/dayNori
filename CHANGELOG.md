@@ -1,5 +1,38 @@
 # Changelog
 
+## Phase 117 — Daynori web/PWA visual polish and usability refinement — 2026-11-15
+
+- ADR 0117: Daynori Web/PWA Visual Polish and Usability Refinement, eliminating repetitive card borders and visual clutter across navigation, Today, Library, Journal, forms, dialogs, and empty states; establishing a calmer typography, spacing, and surface hierarchy while keeping a coherent design system; verifying WCAG 2.2 AA contrast, keyboard accessibility, screen reader live regions, and reduced motion; and capturing 80 baseline and 80 post-refinement genuine screenshots across 5 viewports and 2 themes.
+- UI Primitives Modernized (`packages/ui-web/src/`):
+  - `Card`: Added support for `variant="calm"`, softening light mode border (`rgba(23, 44, 44, 0.08)`) and applying subtle elevation shadows (`0 1px 3px rgba(0,0,0,0.03)` light / `0 1px 4px rgba(0,0,0,0.25)` dark) to eliminate harsh rectangular boxiness.
+  - `EmptyState`: De-boxified empty states by replacing rigid border containers with warm notebook cards (`variant="subtle"` and `variant="card"`), circular action badges with soft teal tint (`action.subtle`), bold headings, relaxed line-height descriptions, and well-spaced primary action buttons.
+  - `Dialog`: Enhanced panel presentation with softened backdrop blur (`blur(3px)`), smooth sheet radius (`radii.sheet`), subtle elevation shadow, and accessible `:focus-visible` close buttons.
+  - `CreationMenu`: Refined bottom creation sheet with >= 48px touch targets, high-contrast vector icon badges with dark borders, and clean typography.
+- Today View Usability Refinement (`apps/web/src/components/TodayView.tsx`):
+  - Replaced repetitive heavy card borders with `variant="calm"` across all 7 widget cards (Tasks, Routines, Upcoming Summary, Quick Capture, Journal Prompt, Recent Items, Favorite Folders).
+  - Streamlined routine checklist and gentle progress bar with clear status feedback and no streak anxiety.
+  - Grouped tasks due today with subtle priority badges and clean hover states.
+  - Elevated journal reflection prompt card with warm notebook invitation styling and prominent "Write reflection" button.
+- Navigation Chrome Polished (`apps/web/src/components/`):
+  - `AppHeader`: Streamlined ghost buttons with warm hover pills, refined Create button elevation and padding, crisp `/` keyboard shortcut badge.
+  - `AppSidebar`: Warm active navigation pill (`action.subtle`) with subtle left accent line, crisp uppercase letter-spaced section headers (`Primary`, `Pins`, `Utilities`), and smooth hover transitions.
+  - `AppBottomNav`: Comfortable 48px touch targets, soft indicator pill for the active tab, and complete resilience against 200% font scaling without label clipping.
+  - Mobile Menu Drawer: Streamlined section dividers, eliminated box-in-box nesting, and enhanced interactive theme toggle with high-contrast sun/moon badges.
+- Library & Journal Views Streamlined:
+  - Library View (`apps/web/src/app/library/page.tsx`): Unified search and creation toolbar, softened borders on folder cards and item list rows, and distinct high-contrast type badges.
+  - Journal View (`apps/web/src/app/journal/page.tsx`): Unified view mode segmented controls (`Day View`, `Timeline`, `Trash`), streamlined date navigation stepper, and warm reflection quote cards.
+- Visual Capture Evidence (160 Screenshots Verified):
+  - Authored and executed `scripts/capture-phase117-visual-evidence.mjs` in both `--before` and `--after` modes via Chrome CDP.
+  - Captured 80 baseline and 80 post-refinement screenshots across 8 core surfaces, 5 viewports (1280px desktop, 412px, 390px, 360px, 320px mobile), and 2 themes (`light`, `dark`).
+  - Guaranteed 40/40 distinct light/dark pairs in both before and after manifests (0 byte-identical pairs).
+  - Verified 0 horizontal layout overflow down to 320px mobile.
+  - Recorded qualitative human design feedback in `artifacts/phase117/human-design-review.md` and visual verification report in `artifacts/phase117/visual-verification-report.md`.
+- Automated Test Suites Verified (21/21 Passed):
+  - `tests/unit/phase117-web-pwa-visual-polish.test.ts` (12 tests passed).
+  - `tests/e2e/phase117-visual-polish-and-journeys.test.ts` (9 tests passed).
+- Standing Release Gates Maintained:
+  - Phase 117 status recorded as blocked strictly maintaining fail-closed release gates (`DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, `OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, Phase 71).
+
 ## Phase 102 — Return to Phase 102: Authorized Version 2 Web/PWA Core Release Candidate & Publication Verification — 2026-11-14
 
 - ADR 0102: Authorized Version 2 Publication and Live Verification, deciding and verifying the smallest release scope (Bounded Web/PWA Core), building release candidate 2.0.0-rc3 from clean commit `e71842f`, satisfying human usability gate `DEF-V2-013`, remediating UI encoding defects, verifying staging rehearsals and monitoring paths, and assembling the owner decision package.

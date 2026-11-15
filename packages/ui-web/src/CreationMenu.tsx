@@ -117,7 +117,7 @@ export const CreationMenu: React.FC<CreationMenuProps> = ({
           </div>
           <IconButton label="Close creation menu" icon="x" themeMode={themeMode} onClick={onClose} />
         </div>
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {items.map((item) => (
             <li key={item.id}>
               <button
@@ -131,7 +131,7 @@ export const CreationMenu: React.FC<CreationMenuProps> = ({
                   alignItems: 'center',
                   gap: `${spacing.md}px`,
                   width: '100%',
-                  minHeight: `${touchTargets.webMin}px`,
+                  minHeight: `${Math.max(touchTargets.webMin, 48)}px`,
                   padding: `${spacing.sm}px ${spacing.md}px`,
                   border: '1px solid transparent',
                   borderRadius: `${radii.sm}px`,
@@ -149,6 +149,13 @@ export const CreationMenu: React.FC<CreationMenuProps> = ({
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }}
+                onFocus={(e) => {
+                  e.currentTarget.style.outline = `2px solid ${palette.border.focus}`;
+                  e.currentTarget.style.outlineOffset = '-2px';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.outline = 'none';
+                }}
               >
                 {item.icon ? (
                   <span
@@ -157,11 +164,15 @@ export const CreationMenu: React.FC<CreationMenuProps> = ({
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: '36px',
-                      height: '36px',
+                      width: '38px',
+                      height: '38px',
                       borderRadius: '8px',
                       backgroundColor: palette.action.subtle,
                       color: palette.action.primary,
+                      border:
+                        themeMode === 'dark'
+                          ? `1px solid ${palette.border.subtle}`
+                          : '1px solid rgba(20, 107, 99, 0.12)',
                       flexShrink: 0,
                     }}
                   >
@@ -173,7 +184,7 @@ export const CreationMenu: React.FC<CreationMenuProps> = ({
                     {item.label}
                   </div>
                   {item.description && (
-                    <div style={{ fontSize: '12px', color: palette.text.secondary, marginTop: '1px' }}>
+                    <div style={{ fontSize: '12px', color: palette.text.secondary, marginTop: '2px' }}>
                       {item.description}
                     </div>
                   )}

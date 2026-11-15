@@ -1073,7 +1073,7 @@ export const AppModals: React.FC = () => {
               backgroundColor: palette.surfaceRaised,
               borderRadius: `${radii.card}px`,
               padding: `${spacing.xs}px`,
-              border: `1px solid ${palette.border.subtle}`,
+              border: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
             }}
           >
             <TourTarget id="create.type.task">
@@ -1504,7 +1504,7 @@ export const AppModals: React.FC = () => {
           ) : null}
           <div
             style={{
-              borderTop: `1px solid ${palette.border.subtle}`,
+              borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
               margin: `${spacing.xs}px 0`,
             }}
           />

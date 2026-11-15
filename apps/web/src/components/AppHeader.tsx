@@ -48,11 +48,12 @@ export const AppHeader: React.FC = () => {
     cursor: 'pointer',
     fontSize: '14px',
     fontWeight: 600,
+    letterSpacing: '-0.1px',
     boxSizing: 'border-box',
     transition: 'background-color 140ms ease, transform 100ms ease, box-shadow 140ms ease',
     boxShadow:
       themeMode === 'dark'
-        ? '0 2px 8px rgba(0, 0, 0, 0.4)'
+        ? '0 2px 8px rgba(0, 0, 0, 0.45)'
         : '0 2px 8px rgba(20, 107, 99, 0.22)',
     flexShrink: 0,
   };
@@ -70,7 +71,7 @@ export const AppHeader: React.FC = () => {
         minHeight: 'var(--daynori-header-height)',
         height: 'var(--daynori-header-height)',
         backgroundColor: palette.surface,
-        borderBottom: `1px solid ${palette.border.subtle}`,
+        borderBottom: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
         position: 'sticky',
         top: 0,
         zIndex: 100,

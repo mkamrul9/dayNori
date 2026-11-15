@@ -46,7 +46,7 @@ export const AppBottomNav: React.FC = () => {
         right: 0,
         minHeight: 'var(--daynori-bottom-nav-height)',
         backgroundColor: palette.surface,
-        borderTop: `1px solid ${palette.border.subtle}`,
+        borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
         boxShadow:
           themeMode === 'dark'
             ? '0 -2px 10px rgba(0, 0, 0, 0.35)'

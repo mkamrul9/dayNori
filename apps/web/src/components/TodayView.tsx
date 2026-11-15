@@ -1770,7 +1770,7 @@ export const TodayView: React.FC = () => {
             // 1. Tasks Card
             if (widget.id === 'tasks') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -1987,7 +1987,7 @@ export const TodayView: React.FC = () => {
             // 2. Routines Card
             if (widget.id === 'routines') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2148,7 +2148,7 @@ export const TodayView: React.FC = () => {
             // 3. Upcoming Summary Card (Next 7 Days)
             if (widget.id === 'upcoming_summary') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2251,7 +2251,7 @@ export const TodayView: React.FC = () => {
             // 4. Quick Capture Card
             if (widget.id === 'quick_capture') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <h2
                       id="quick-capture-heading"
@@ -2409,7 +2409,7 @@ export const TodayView: React.FC = () => {
             // 5. Journal Reflection Card (No body preview!)
             if (widget.id === 'journal_prompt') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2449,7 +2449,13 @@ export const TodayView: React.FC = () => {
                           textDecoration: 'none',
                           display: 'inline-flex',
                           alignItems: 'center',
-                          minHeight: '32px',
+                          gap: '6px',
+                          minHeight: '34px',
+                          boxShadow:
+                            themeMode === 'dark'
+                              ? '0 2px 8px rgba(0, 0, 0, 0.4)'
+                              : '0 2px 8px rgba(20, 107, 99, 0.2)',
+                          transition: 'background-color 140ms ease, transform 100ms ease',
                         }}
                       >
                         Write reflection <Icon name="arrow-right" />
@@ -2463,7 +2469,7 @@ export const TodayView: React.FC = () => {
             // 6. Recent Items Card
             if (widget.id === 'recent_items') {
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2553,7 +2559,7 @@ export const TodayView: React.FC = () => {
               );
 
               return (
-                <Card key={widget.id} themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{

@@ -2932,7 +2932,11 @@ export default function LibraryPage() {
                       style={{
                         backgroundColor: palette.surface,
                         borderRadius: radii.card,
-                        border: `1px solid ${palette.border.subtle}`,
+                        border: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+                        boxShadow:
+                          themeMode === 'dark'
+                            ? '0 1px 3px rgba(0, 0, 0, 0.2)'
+                            : '0 1px 3px rgba(23, 44, 44, 0.03)',
                         padding: spacing.sm,
                         display: 'flex',
                         alignItems: 'center',
@@ -3133,13 +3137,18 @@ export default function LibraryPage() {
                       justifyContent: 'space-between',
                       padding: `${spacing.sm} ${spacing.md}`,
                       backgroundColor: palette.surface,
-                      border: `1px solid ${palette.border.subtle}`,
+                      border: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
                       borderRadius: radii.card,
+                      boxShadow:
+                        themeMode === 'dark'
+                          ? '0 1px 3px rgba(0, 0, 0, 0.15)'
+                          : '0 1px 3px rgba(23, 44, 44, 0.02)',
                       gap: spacing.sm,
                       cursor:
                         item.kind === 'note' || item.kind === 'knowledge' || item.kind === 'file'
                           ? 'pointer'
                           : 'default',
+                      transition: 'border-color 140ms ease, box-shadow 140ms ease',
                     }}
                     onClick={() => {
                       if (item.kind === 'knowledge') {

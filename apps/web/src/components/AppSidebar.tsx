@@ -102,7 +102,7 @@ export const AppSidebar: React.FC = () => {
         justifyContent: 'space-between',
         padding: `${spacing.base}px ${spacing.sm}px`,
         backgroundColor: palette.surface,
-        borderRight: `1px solid ${palette.border.subtle}`,
+        borderRight: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
         boxSizing: 'border-box',
         minHeight: `calc(100vh - ${density.headerHeight}px)`,
         flexShrink: 0,
@@ -157,7 +157,7 @@ export const AppSidebar: React.FC = () => {
 
       <div
         style={{
-          borderTop: `1px solid ${palette.border.subtle}`,
+          borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
           paddingTop: `${spacing.sm}px`,
         }}
       >
