@@ -5375,6 +5375,77 @@
         "docs/phase-reports/phase-127.md"
       ],
       "commit": "perf(capacity): verify authenticated transactional throughput and pool saturation envelope"
+    },
+    {
+      "id": "128",
+      "group": "v2-release",
+      "title": "Daynori clean candidate 2.0.0-rc6 rebuild, multi-dimensional staging reconciliation, and owner review package assembly",
+      "dependsOn": [
+        "102",
+        "112",
+        "118",
+        "119",
+        "120",
+        "121",
+        "122",
+        "123",
+        "124",
+        "125",
+        "126",
+        "127"
+      ],
+      "scope": [
+        "artifacts/phase128",
+        "artifacts/release",
+        "docs/decisions",
+        "docs/phase-reports",
+        "docs/release",
+        "scripts",
+        "tests/release",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Rebuild clean release candidate 2.0.0-rc6 incorporating all approved fixes postdating rc5 using Node 24.21.0 requirement (^24.21.0).",
+        "Package immutable distributable archives (daynori-web-v2.0.0-rc6.tar.gz and daynori-api-v2.0.0-rc6.tar.gz), verify cryptographic SHA-256 digests, and author manifest artifacts/release/candidate-2.0.0-rc6-manifest.json.",
+        "Execute current release preflight (scripts/release-preflight.mjs) and verify full regression test suites across all four verification dimensions.",
+        "Reconcile hosted staging deployment and synthesize empirical staging evidence across user journeys (Phase 125), security ingress (Phase 124), disaster recovery (Phase 126), and capacity envelope (Phase 127).",
+        "Assemble reviewable Owner Review Package in artifacts/phase128/candidate-rc6-review-package.json and reconcile release records docs/release/v2-authorized-publication-record.md and docs/release/v2-owner-review-package.md.",
+        "Present production domain, hosting accounts, monthly budget, initial cohort, named operators, rollback procedure, and remaining disabled features for owner approval.",
+        "Author ADR 0128, phase report docs/phase-reports/phase-128.md, and automated test suite tests/release/phase128-candidate-rc6-and-owner-package.test.ts."
+      ],
+      "acceptance": [
+        "Clean release candidate 2.0.0-rc6 archives exist, match manifest SHA-256 hashes and file sizes, and compile cleanly.",
+        "Candidate preflight reports zero failures and truthfully tracks external blocked gates.",
+        "All 46 automated regression tests pass across user journeys, security ingress, recovery drill, capacity envelope, and release package suites.",
+        "Owner Review Package presents concrete production domain, hosting accounts, monthly budget (–/mo), initial cohort (25–50 users), named operational roles, zero-loss rollback, and fail-closed feature boundaries.",
+        "Public publication remains strictly blocked pending explicit affirmative owner launch authorization under OWNER-RELEASE-AUTH.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html pass all planning validators."
+      ],
+      "checks": [
+        "pnpm vitest run tests/release/phase128-candidate-rc6-and-owner-package.test.ts",
+        "node scripts/validate-planning.mjs",
+        "pnpm validate:function-register"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/release/v2-authorized-publication-record.md",
+        "docs/release/v2-owner-review-package.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0122-production-launch-package-and-owner-authorization-governance.md",
+        "docs/decisions/0123-release-evidence-audit-claims-reclassification-and-preflight.md",
+        "docs/decisions/0124-proxy-trust-rate-limiter-hardening-and-spoofing-defense.md",
+        "docs/decisions/0125-multi-user-authenticated-staging-verification-and-workspace-isolation.md",
+        "docs/decisions/0126-staging-database-recovery-drill-artifact-rollback-and-staffing-audit.md",
+        "docs/decisions/0127-authenticated-transactional-capacity-and-pool-saturation.md",
+        "docs/decisions/0128-clean-candidate-rc6-rebuild-staging-verification-and-owner-package.md",
+        "docs/phase-reports/phase-125.md",
+        "docs/phase-reports/phase-126.md",
+        "docs/phase-reports/phase-127.md",
+        "docs/phase-reports/phase-128.md"
+      ],
+      "commit": "chore(release): rebuild candidate rc6, verify staging journeys and assemble owner package"
     }
   ],
   "featureCoverage": [

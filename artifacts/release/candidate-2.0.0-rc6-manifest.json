@@ -1,0 +1,19 @@
+{
+  "candidate": "2.0.0-rc6",
+  "packagedAt": "2026-11-16T03:07:27.137Z",
+  "gitCommit": "5286df9ef1de8e498cc2cd5b72de936c52f40368",
+  "buildId": "whaN7HuVFERNvQiYRlevt",
+  "nodeEngineRequirement": "^24.21.0",
+  "artifacts": [
+    {
+      "file": "daynori-web-v2.0.0-rc6.tar.gz",
+      "hash": "8299fc016385ae5120a49e8ab745132bb422b549e320c06cf36490a76b1c299f",
+      "size": 1825946
+    },
+    {
+      "file": "daynori-api-v2.0.0-rc6.tar.gz",
+      "hash": "146f5deb7c1b82fb72950d648e25b405c84df25a9efa031cb427fdb1e45bccda",
+      "size": 564522
+    }
+  ]
+}

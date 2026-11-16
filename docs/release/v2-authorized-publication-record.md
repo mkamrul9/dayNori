@@ -1,10 +1,10 @@
 # Daynori Version 2 Authorized Publication Record & Smallest Viable Release Proposal
 
-- **Record Date**: 2026-11-15
-- **Candidate Revision**: `f70aa3f`
-- **Candidate Label**: `2.0.0-rc5` (packaged from clean commit `f70aa3f` following Phase 118 build packaging, Phase 119 hosted staging audit, Phase 120 security audit remediations, and Phase 121 load testing and rate limiter remediations)
-- **Owning Phase**: [Phase 122 — Daynori production release-candidate launch package, owner authorization reconciliation, and staged rollout governance](../roadmap/phases/122-daynori-production-release-candidate-launch-package-owner-authorization-reconciliation-and-staged-rollout-governance.md)
-- **Governing Decisions**: [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md), [ADR 0063](../decisions/0063-free-core-testing-preview.md), [ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), [ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md), [ADR 0116](../decisions/0116-native-android-release-verification-and-physical-hardware-audit.md), [ADR 0118](../decisions/0118-daynori-deployable-web-core-release-and-production-infrastructure-capacity-plan.md), [ADR 0119](../decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md), [ADR 0120](../decisions/0120-production-security-privacy-review-and-remediation.md), [ADR 0121](../decisions/0121-production-scale-load-testing-and-capacity-envelope.md), [ADR 0122](../decisions/0122-production-launch-package-and-owner-authorization-governance.md)
+- **Record Date**: 2026-11-16
+- **Candidate Revision**: `5286df9`
+- **Candidate Label**: `2.0.0-rc6` (packaged from clean commit `5286df9` following Phase 123 evidence audit, Phase 124 proxy trust & rate limiting hardening, Phase 125 multi-user staging verification, Phase 126 database restore drill and rollback audit, and Phase 127 authenticated transactional load testing)
+- **Owning Phase**: [Phase 128 — Daynori clean candidate 2.0.0-rc6 rebuild, multi-dimensional staging reconciliation, and owner review package assembly](../roadmap/phases/128-daynori-clean-candidate-2-0-0-rc6-rebuild-multi-dimensional-staging-reconciliation-and-owner-review-package-assembly.md)
+- **Governing Decisions**: [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md), [ADR 0063](../decisions/0063-free-core-testing-preview.md), [ADR 0074](../decisions/0074-standing-phase71-scheduling-and-push.md), [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), [ADR 0102](../decisions/0102-authorized-version-2-publication-and-live-verification.md), [ADR 0116](../decisions/0116-native-android-release-verification-and-physical-hardware-audit.md), [ADR 0118](../decisions/0118-daynori-deployable-web-core-release-and-production-infrastructure-capacity-plan.md), [ADR 0119](../decisions/0119-authorized-https-staging-deployment-and-browser-journey-audit.md), [ADR 0120](../decisions/0120-production-security-privacy-review-and-remediation.md), [ADR 0121](../decisions/0121-production-scale-load-testing-and-capacity-envelope.md), [ADR 0122](../decisions/0122-production-launch-package-and-owner-authorization-governance.md), [ADR 0123](../decisions/0123-release-evidence-audit-claims-reclassification-and-preflight.md), [ADR 0124](../decisions/0124-proxy-trust-rate-limiter-hardening-and-spoofing-defense.md), [ADR 0125](../decisions/0125-multi-user-authenticated-staging-verification-and-workspace-isolation.md), [ADR 0126](../decisions/0126-staging-database-recovery-drill-artifact-rollback-and-staffing-audit.md), [ADR 0127](../decisions/0127-authenticated-transactional-capacity-and-pool-saturation.md), [ADR 0128](../decisions/0128-clean-candidate-rc6-rebuild-staging-verification-and-owner-package.md)
 - **Operational Status**: **LAUNCH PACKAGE COMPLETE — AWAITING EXPLICIT OWNER AUTHORIZATION**
 
 ---
@@ -52,18 +52,20 @@ To enable rapid, safe, and controlled real-world validation without risking sens
 
 ## 2. Candidate Revision and Verified Artifact Hashes
 
-- **Git HEAD SHA**: `f70aa3f9679ae927ea603773daf139b434b59adb`
+- **Git HEAD SHA**: `5286df9ef1de8e498cc2cd5b72de936c52f40368`
 - **Branch**: `codex/free-core-preview`
-- **Candidate Label**: `2.0.0-rc5` (packaged from clean commit `f70aa3f`)
+- **Candidate Label**: `2.0.0-rc6` (packaged from clean commit `5286df9`)
 
 ### A. Distributable Release Artifacts (Deployable Archives)
 
-Built reproducibly with Node `v24.21.0`, Next.js `15.5.27`, Fastify `5.2.1`, React `18.3.1` (`BUILD_ID`: `XBApj-VgP3LPvLYt7b345`):
+Built reproducibly with Node `v24.21.0` (requesting `^24.21.0`), Next.js `15.5.27`, Fastify `5.2.1`, React `19.0.0` (`BUILD_ID`: `whaN7HuVFERNvQiYRlevt`):
 
 | Distributable Release Artifact | File Size | SHA-256 Digest | Status & Packaging Specification |
 | :--- | :--- | :--- | :--- |
-| `artifacts/release/daynori-web-v2.0.0-rc5.tar.gz` | `1,874,760 bytes` | `628ce688a3da153348f56be5d378a0f8023ea8906cdf53aeff870421be61819b` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `f70aa3f`; contains `apps/web/.next` (excluding `.next/cache`), `apps/web/public`, `apps/web/package.json`, and `apps/web/next.config.mjs` (with SVG RCE hardening). |
-| `artifacts/release/daynori-api-v2.0.0-rc5.tar.gz` | `559,776 bytes` | `6688fdcd4a37812a66670f56eddaa78512b5e50a72fbafaf42d7330c169a125b` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `f70aa3f`; contains `apps/api/dist` (with rate limiter client IP & health probe fixes) and `apps/api/package.json`. |
+| `artifacts/release/daynori-web-v2.0.0-rc6.tar.gz` | `1,825,946 bytes` | `8299fc016385ae5120a49e8ab745132bb422b549e320c06cf36490a76b1c299f` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `5286df9`; contains `apps/web/.next` (excluding `.next/cache`), `apps/web/public`, `apps/web/package.json`, and `apps/web/next.config.mjs` (with SVG RCE hardening and dialog exports). |
+| `artifacts/release/daynori-api-v2.0.0-rc6.tar.gz` | `564,522 bytes` | `146f5deb7c1b82fb72950d648e25b405c84df25a9efa031cb427fdb1e45bccda` | **ACTIVE CANDIDATE**: Rebuilt from clean commit `5286df9`; contains `apps/api/dist` (with Fastify proxy trust CIDRs, anti-spoofing client IP traversal, and 10 req/min rate limiter) and `apps/api/package.json`. |
+| `artifacts/release/daynori-web-v2.0.0-rc5.tar.gz` | `1,874,760 bytes` | `628ce688a3da153348f56be5d378a0f8023ea8906cdf53aeff870421be61819b` | *Historical Predecessor*: Packaged from commit `f70aa3f` for Phase 122 verification. |
+| `artifacts/release/daynori-api-v2.0.0-rc5.tar.gz` | `559,776 bytes` | `6688fdcd4a37812a66670f56eddaa78512b5e50a72fbafaf42d7330c169a125b` | *Historical Predecessor*: Packaged from commit `f70aa3f` for Phase 122 verification. |
 | `artifacts/release/daynori-web-v2.0.0-rc4.tar.gz` | `1,825,996 bytes` | `9c67b4009a802c9a60ac96731b43dae55d0c126503ea624d99975e6d691eb280` | *Historical Predecessor*: Packaged from commit `3aebd74` for Phase 118 verification. |
 | `artifacts/release/daynori-web-v2.0.0-rc3.tar.gz` | `1,825,054 bytes` | `508adab6404b31d51ddbce59a517ed6df017a5a707781f2432e9682006452830` | *Historical Predecessor*: Packaged from commit `e71842f`. |
 | `artifacts/release/daynori-web-v2.0.0-rc2.tar.gz` | `1,824,687 bytes` | `6a5b1284ae091be85afa5029e03031a53e2478c47aafb3b963e930fdc8357b3f` | *Historical Predecessor*: Packaged from commit `5073928`. |
@@ -222,34 +224,35 @@ In accordance with [Phase 103 specification](../roadmap/phases/103-first-version
 
 Before granting execution authorization, the project owner is requested to review and decide upon the following concrete items:
 
-- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc5` at commit `f70aa3f9679ae927ea603773daf139b434b59adb`.
+- [ ] **1. Exact Candidate Artifact**: Release candidate `2.0.0-rc6` at commit `5286df9ef1de8e498cc2cd5b72de936c52f40368`.
 - [ ] **2. Distributable Release Archives**:
-  - `artifacts/release/daynori-web-v2.0.0-rc5.tar.gz` (SHA-256: `628ce688a3da153348f56be5d378a0f8023ea8906cdf53aeff870421be61819b`, size: 1,874,760 bytes, Next.js BUILD_ID: `XBApj-VgP3LPvLYt7b345`).
-  - `artifacts/release/daynori-api-v2.0.0-rc5.tar.gz` (SHA-256: `6688fdcd4a37812a66670f56eddaa78512b5e50a72fbafaf42d7330c169a125b`, size: 559,776 bytes).
+  - `artifacts/release/daynori-web-v2.0.0-rc6.tar.gz` (SHA-256: `8299fc016385ae5120a49e8ab745132bb422b549e320c06cf36490a76b1c299f`, size: 1,825,946 bytes, Next.js BUILD_ID: `whaN7HuVFERNvQiYRlevt`).
+  - `artifacts/release/daynori-api-v2.0.0-rc6.tar.gz` (SHA-256: `146f5deb7c1b82fb72950d648e25b405c84df25a9efa031cb427fdb1e45bccda`, size: 564,522 bytes).
 - [ ] **3. Release Scope**: Bounded Web/PWA Beta (78 core actions enabled; 31 gated actions fail-closed for Vault, Rooms, AI, Voice, Billing, Drive, Push, Android).
 - [ ] **4. Web Target Destinations**: Authorize production domain (`app.daynori.com` / `api.daynori.com`) and edge DNS configuration (`OWNER-PROD-DNS`).
 - [ ] **5. Identity Provider Provisioning**: Authorize production Supabase project linking with redirect URLs (`DEF-V2-001`).
-- [ ] **6. Testing Cohort**: Authorize invitation of 50 to 100 consenting beta testers (`OWNER-COHORT-SIZE`).
-- [ ] **7. Operating Budget**: Authorize monthly operating expenditure envelope of $0–$7/mo (closed beta) vs. $80–$110/mo (Managed PaaS Option 1) (`OWNER-BUDGET-AUTH`).
+- [ ] **6. Testing Cohort**: Authorize invitation of 25 to 50 consenting beta testers (`OWNER-COHORT-SIZE`).
+- [ ] **7. Operating Budget**: Authorize monthly operating expenditure envelope of $32/mo (Option A: Low-Cost Closed Beta) vs. $105/mo (Option B: Recommended Production Managed PaaS) (`OWNER-BUDGET-AUTH`).
 - [ ] **8. Rollback Triggers & Destination**: Authorize rollback triggers (latency $>1,000$ms origin / $>2,000$ms BD, 5xx $>1.0\%$, pool saturation $>60$s) and cutover to static offline fallback shell.
 - [ ] **9. Explicit Publication Authorization**: Sign off on publication (`OWNER-RELEASE-AUTH`).
 
 ---
 
-## 9. Publication Status Audit & Evidence Reconciliation (2026-11-15)
+## 9. Publication Status Audit & Evidence Reconciliation (2026-11-16)
 
 - **Operational Status**: **LAUNCH PACKAGE COMPLETE — AWAITING EXPLICIT OWNER AUTHORIZATION**.
-- **Public HTTPS Deployment Audit**: Hosted staging verified active in Phase 119 and Phase 121 (`https://daynori-web-preview.onrender.com` and `https://daynori-api-preview.onrender.com`). Production domain `app.daynori.com` remains unmapped pending owner DNS configuration (`OWNER-PROD-DNS`).
+- **Public HTTPS Deployment Audit**: Hosted staging verified active across all phases (`https://daynori-web-preview.onrender.com` and `https://daynori-api-preview.onrender.com`). Production domain `app.daynori.com` remains unmapped pending owner DNS configuration (`OWNER-PROD-DNS`).
 - **Owner Approval Audit**: Approval inferred from chat prompts does not constitute operational deployment authorization. Real production infrastructure remains unprovisioned pending explicit owner authorization (`OWNER-RELEASE-AUTH`).
 - **Standing Release Rule**: **Never describe a rehearsal, staging test, or local smoke check as a public launch.** Staging tests and rehearsals verify candidate integrity; public launch occurs strictly after explicit owner approval.
-- **Evidence Claims Reclassification & Empirical Staging Audits (Phases 123–127)**:
+- **Evidence Claims Reclassification & Empirical Staging Audits (Phases 123–128)**:
   - **Phase 119 Staging Checks**: Reclassified from "10 real browser journeys" to **10 unauthenticated page-presence / DOM-inspection checks** (verifying route reachability, titles, and layout containers).
-  - **Phase 121 Load Testing**: Reclassified from "proof of 10,000-user capacity" to **health-endpoint throughput profiling, proxy rate-limiter boundary verification, and mathematical capacity modeling** (~140 requests to health probes and static assets). Full transactional database load testing for 10,000 users remains unexecuted and requires paid infrastructure.
+  - **Phase 121 Load Testing**: Reclassified from "proof of 10,000-user capacity" to **health-endpoint throughput profiling, proxy rate-limiter boundary verification, and mathematical capacity modeling** (~140 requests to health probes and static assets).
   - **Phase 124 Ingress Hardening**: Fastify `trustProxy` restricted to strict CIDRs (`TRUSTED_PROXY_CIDRS`); client IP resolution hardened via right-to-left `X-Forwarded-For` traversal; 10 req/min brute-force limit added on sensitive routes.
   - **Phase 125 Multi-User Staging Verification**: Executed 10 authenticated multi-step user workflows on live HTTPS staging using dual disposable accounts (`kamrul@daynori.com` and `shahrin@daynori.com`), asserting data persistence across both UI (DOM verification in Chrome CDP) and API, empirically proving tenant isolation at database/API and client presentation layers, and hardening CDP error handling.
   - **Phase 126 Operations Recovery & Staffing Audit**: Executed actual database backup and restore into isolated staging database `daynori_restore_drill`, measuring RTO = 1.71s, RPO = 0s, 0 bytes data loss, and zero resurrected records with pre-access suppression barrier. Demonstrated non-destructive artifact rollback between rc5 and rc4 with zero data loss, and verified emergency offline shell (`offline-shell.html`). Live DNS audit confirmed 0 MX records on `daynori.com` (support and security mailboxes unconfigured); automated pager alerts and operational on-call staff remain unassigned.
   - **Phase 127 Authenticated Transactional Load Testing & Envelope**: Executed authenticated create/read/update/search/sync traffic against production-like hosted staging infrastructure (`daynori-api-preview.onrender.com`). Proved Tier 1 (1,000 users / 30 CCU) is demonstrably supported on Render Free + Supabase Free ($0/mo), achieving 25.3 RPS throughput, 0.00% 5xx errors, origin p95 latency 1,156ms (BD net 1,260ms), and safe DB pool utilization (1–3 active / 15 pooler cap). Verified 60 CCU spike burst (31.7 RPS, 0% 5xx). Captured physical breaking points at 150 CCU (40% ok, 60% 429 throttled, latency 2,430ms) and 300 CCU (hard saturation), proving that paid Managed PaaS ($80–$160/mo) with PgBouncer transaction pooling and multi-instance compute is strictly required for higher scale.
+  - **Phase 128 Clean Candidate rc6 Rebuild & Owner Package**: Rebuilt clean candidate `2.0.0-rc6` incorporating all approved post-rc5 fixes. Packaged immutable archives (`daynori-web-v2.0.0-rc6.tar.gz` and `daynori-api-v2.0.0-rc6.tar.gz`). Verified 4-dimensional staging evidence (32/32 tests passed across journeys, ingress security, disaster recovery, and capacity envelope). Preflight check confirmed 20 passing checks, 0 failures, and 13 truthfully blocked gates (`releaseEligible: false`). Assembled reviewable owner decision package in `artifacts/phase128/candidate-rc6-review-package.json`.
 - **Preflight Reconciliation**: Current candidate preflight (`scripts/release-preflight.mjs`) reports **20 pass, 13 blocked, 1 unexecuted**. Blocked gates include `manifest-provisional`, `android-version-code`, `db-roles`, `deviceEvidence`, `betaEvidence`, `accessibilityEvidence`, `backupRecoveryEvidence` (cloud continuous WAL streaming/PITR), `opsEvidence`, `signedArtifactEvidence`, `sixteenKbEvidence`, `ownerApproval`, `node-engines`, and `human-launch-authorization`.
-- **Working Tree Delta vs. rc5**: Dirty working tree contains modifications (`packages/ui-web/src/Dialog.tsx`, `infra/supabase/migrations/00077_moderation_takedown_enforcement.sql`, `assets/brand/nori/*`, tests) that postdate or were excluded from candidate `2.0.0-rc5` tarballs.
+- **Candidate Packaging Integrity**: Candidate `2.0.0-rc6` incorporates all changes postdating `2.0.0-rc5` (`Dialog.tsx` exports, moderation migration 00077, Fastify proxy trust CIDRs, anti-spoofing client IP resolution, 10 req/min rate limiter).
 - **Gated Modules Maintained Fail-Closed**: Drive (`DEF-V2-005`), AI (`DEF-V2-008`), Voice (`DEF-V2-008`/`DEF-V2-011`), Vault (`DEF-V2-001`/`DEF-V2-004`), Rooms (`DEF-V2-006`), Billing (`DEF-V2-007`), Push (`DEF-V2-002`), and Android (`OWNER-SIGNING-KEYS`/`DEF-V2-011`).
 - **Release Decision**: **Publication strictly BLOCKED pending owner resolution of operational staffing (`OWNER-SUPPORT-STAFFING`), mailbox setup (`OWNER-MAILBOX-SETUP`), pager alerting (`OWNER-PAGER-ALERTING`), production domain (`OWNER-PROD-DNS`), database tier (`OWNER-SUPABASE-PRO`), release signing (`OWNER-SIGNING-KEYS`), and explicit launch authorization (`OWNER-RELEASE-AUTH`).**

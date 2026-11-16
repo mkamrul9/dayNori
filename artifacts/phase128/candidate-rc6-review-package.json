@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
+  "packageVersion": "2.0.0-rc6",
+  "operationalStatus": "LAUNCH_PACKAGE_COMPLETE_AWAITING_OWNER_AUTHORIZATION",
+  "assembledAt": "2026-11-16T03:15:00.000Z",
+  "artifactIdentity": {
+    "gitCommitSha": "5286df9ef1de8e498cc2cd5b72de936c52f40368",
+    "gitBranch": "codex/free-core-preview",
+    "nodeEngineRequirement": "^24.21.0",
+    "web": {
+      "tarball": "artifacts/release/daynori-web-v2.0.0-rc6.tar.gz",
+      "sha256": "8299fc016385ae5120a49e8ab745132bb422b549e320c06cf36490a76b1c299f",
+      "sizeBytes": 1825946,
+      "buildId": "whaN7HuVFERNvQiYRlevt",
+      "routesCompiled": 32,
+      "framework": "Next.js 15.5.27 / React 19.0.0"
+    },
+    "api": {
+      "tarball": "artifacts/release/daynori-api-v2.0.0-rc6.tar.gz",
+      "sha256": "146f5deb7c1b82fb72950d648e25b405c84df25a9efa031cb427fdb1e45bccda",
+      "sizeBytes": 564522,
+      "framework": "Fastify 5.2.1 / TypeScript 5.7.3"
+    },
+    "clientAssets": {
+      "manifestJson": "417faac1bd5c0d083657a7a69c645a2387c797e1ac60500f462d9db3d280cf40",
+      "serviceWorkerJs": "6e243130bed7d29e51c330a378380805f87539798692abe5c4f8127bb1f70cb3",
+      "offlineShellHtml": "1b0bf5f65c8d7330d0560fe41acc73a6a9806e9b7aff5cb60daacfc0fbd009cc",
+      "offlineShellJs": "69649cdab12d593dc7a9fed5607aba0a22b9e5336e855d6117a9fd0ce0462e4f",
+      "icon192": "eab6433abbca70b7392ead34a499c1d901bc48fe4e849bfff9ee43b66d6eee64",
+      "icon512": "dc0ebf905510c9cae68046262c198a76d11fa010bcab53e3c1745bb8467b377e",
+      "iconMaskable512": "69d0b2d8a9438f3262692ba76aa64a9e547d5d4aab718d6450b6395f5f868835"
+    }
+  },
+  "preflightSummary": {
+    "passed": 20,
+    "failed": 0,
+    "blocked": 13,
+    "unexecuted": 1,
+    "releaseEligible": false,
+    "blockedGates": [
+      "manifest-provisional",
+      "android-version-code",
+      "db-roles",
+      "deviceEvidence",
+      "betaEvidence",
+      "accessibilityEvidence",
+      "backupRecoveryEvidence",
+      "opsEvidence",
+      "signedArtifactEvidence",
+      "sixteenKbEvidence",
+      "ownerApproval",
+      "node-engines",
+      "human-launch-authorization"
+    ]
+  },
+  "fourDimensionalStagingEvidence": {
+    "stagingEndpoints": {
+      "web": "https://daynori-web-preview.onrender.com",
+      "api": "https://daynori-api-preview.onrender.com",
+      "database": "aws-0-ap-southeast-1.pooler.supabase.com:5432"
+    },
+    "dimension1_userJourneys": {
+      "phase": "125",
+      "testSuite": "tests/release/phase125-multi-user-staging-audit.test.ts",
+      "testsPassed": 7,
+      "disposableAccountsTested": [
+        "kamrul@daynori.com",
+        "shahrin@daynori.com"
+      ],
+      "workflowsAutomatedAndPersisted": [
+        "signup_login_token_exchange",
+        "note_create_save_reload",
+        "task_priority_deadline_completion",
+        "routine_timezone_occurrence",
+        "journal_reflection_entry",
+        "search_fulltext_execution",
+        "offline_draft_reconnect_conflict",
+        "support_ticket_submission",
+        "account_deletion_soft_purge"
+      ],
+      "workspaceIsolationProven": true,
+      "crossTenantLeakageObserved": false,
+      "cdpErrorHandlingHardened": true
+    },
+    "dimension2_securityIngress": {
+      "phase": "124",
+      "testSuite": "tests/security/phase124-proxy-trust-and-rate-limiter.test.ts",
+      "testsPassed": 14,
+      "proxyTrustCidrsEnforced": true,
+      "trustedCidrCount": 18,
+      "untrustedHeaderSpoofingDefeated": true,
+      "clientIpResolution": "Right-to-left traversal through trusted proxy hops",
+      "sensitiveRouteRateLimit": "10 req/min with 429 response",
+      "unauthenticatedBruteForceProtection": "Verified active on auth and sensitive routes"
+    },
+    "dimension3_disasterRecoveryAndOperations": {
+      "phase": "126",
+      "testSuite": "tests/release/phase126-operations-recovery-and-staffing.test.ts",
+      "testsPassed": 5,
+      "databaseRestoreDrill": {
+        "sourceDatabase": "postgres (staging)",
+        "targetDatabase": "daynori_restore_drill",
+        "rtoSeconds": 1.71,
+        "rpoSeconds": 0,
+        "survivorDataLossBytes": 0,
+        "tombstoneResurrections": 0,
+        "preAccessSuppressionBarrier": true
+      },
+      "artifactRollback": {
+        "evaluatedPath": "2.0.0-rc5 -> 2.0.0-rc4 -> 2.0.0-rc6",
+        "schemaCompatibility": "Additive forward-fix schema invariants; zero loss of user items on rollback",
+        "offlineFallbackShell": "offline-shell.html (6,395 bytes standalone reader, HTTP 503, Retry-After 300)"
+      },
+      "operationalStaffingAudit": {
+        "dnsMxRecordCount": 0,
+        "supportMailboxStatus": "UNCONFIGURED (support@daynori.com has 0 MX records)",
+        "securityMailboxStatus": "UNCONFIGURED (security@daynori.com has 0 MX records)",
+        "pagerWebhooks": "UNCONFIGURED (dashboard telemetry exists; automated paging webhook pending)",
+        "assignedOnCallStaff": "PROPOSED_UNCONFIRMED"
+      }
+    },
+    "dimension4_capacityEnvelope": {
+      "phase": "127",
+      "testSuite": "tests/performance/phase127-capacity-envelope.test.ts",
+      "testsPassed": 6,
+      "trafficMix": "75% read / 25% write authenticated transactional traffic",
+      "networkProfile": "Bangladesh SEA-ME-WE 4/5 (95ms base RTT, Box-Muller jitter, 1.5% packet loss)",
+      "tier1_safeEnvelope": {
+        "scenario": "1,000 Registered Users / 275 DAU",
+        "concurrency": "30 CCU",
+        "measuredThroughputRps": 25.3,
+        "serverErrorRate": "0.00%",
+        "p95OriginLatencyMs": 1156,
+        "p95BangladeshLatencyMs": 1260,
+        "dbPoolActivePeak": 3,
+        "dbPoolCap": 15,
+        "verdict": "DEMONSTRABLY_SUPPORTED_ON_FREE_TIER"
+      },
+      "spikeBurst": {
+        "concurrency": "60 CCU",
+        "measuredThroughputRps": 31.7,
+        "serverErrorRate": "0.00%",
+        "verdict": "ABSORBED_SAFELY"
+      },
+      "tier2_breakingPoint": {
+        "scenario": "5,000 Registered Users / 1,400 DAU",
+        "concurrency": "150 CCU",
+        "measuredThroughputRps": 59.9,
+        "throttledRequests429": "60.0%",
+        "serverErrorRate": "0.00%",
+        "p95OriginLatencyMs": 2430,
+        "verdict": "PHYSICAL_BREAKING_POINT_REQUIRES_MANAGED_PAAS"
+      },
+      "tier3_hardSaturation": {
+        "scenario": "10,000 Registered Users / 2,800 DAU",
+        "concurrency": "300 CCU",
+        "throttledRequests429": "100.0%",
+        "outcome": "Hard event-loop and rate-limiter saturation",
+        "verdict": "STRICTLY_REQUIRES_PGBOUNCER_TRANSACTION_POOLING_AND_PAAS_PRO"
+      }
+    }
+  },
+  "ownerApprovalPresentation": {
+    "productionDomain": "app.daynori.com (Web) & api.daynori.com (API)",
+    "hostingAccountOptions": [
+      {
+        "tier": "Option A: Low-Cost Closed Beta ($32/month)",
+        "web": "Render Static Site or Vercel Hobby ($0/mo)",
+        "api": "Render Starter ($7/mo)",
+        "database": "Supabase Pro ($25/mo, 60 direct pooler connections)",
+        "capacityCeiling": "<= 30 CCU / 1,000 users safe envelope",
+        "recommended": false
+      },
+      {
+        "tier": "Option B: Recommended Production Managed PaaS ($105/month)",
+        "web": "Vercel Pro ($20/mo)",
+        "api": "Railway Team / Fly.io 2x instances ($40/mo)",
+        "database": "Supabase Pro + Compute Add-on ($45/mo, PgBouncer transaction pooling)",
+        "capacityCeiling": "Up to 150–300 CCU / 5,000–10,000 users",
+        "recommended": true
+      }
+    ],
+    "monthlyBudgetRangeUsd": "$32–$160/mo",
+    "initialCohortProposal": "25–50 invited consenting beta testers on closed invite",
+    "namedOperationalRoles": {
+      "incidentCommander": {
+        "role": "Directs mitigation, leads post-incident reviews, authorizes emergency rollback",
+        "proposedAssignee": "Project Owner",
+        "status": "PENDING_OWNER_CONFIRMATION"
+      },
+      "technicalOperationsLead": {
+        "role": "Infrastructure scaling, database connection pool tuning, CDN configuration",
+        "proposedAssignee": "Platform Architecture Lead",
+        "status": "PENDING_OWNER_CONFIRMATION"
+      },
+      "securityAndPrivacyOfficer": {
+        "role": "Oversees vulnerability management, log redaction, token revocation, vault audit",
+        "proposedAssignee": "Security Officer",
+        "status": "PENDING_OWNER_CONFIRMATION"
+      },
+      "supportAndCommunicationsLead": {
+        "role": "User bug reports, status page updates, communications",
+        "proposedAssignee": "Support Lead",
+        "status": "PENDING_OWNER_CONFIRMATION"
+      }
+    },
+    "rollbackProcedure": {
+      "emergencyFallback": "Cutover to offline-shell.html (6,395 bytes standalone reader and outbox viewer, sub-10s DNS/CDN cutover)",
+      "databaseRollback": "Additive schema changes guarantee zero data loss; stateless API containers roll back instantly without destructive down-migrations",
+      "containerRollback": "One-click deployment roll-back to previous immutable digest"
+    },
+    "remainingDisabledFeaturesFailClosed": [
+      "Cryptographic Vault (DEF-V2-004: requires independent cryptographic audit)",
+      "Live AI Assistant Streaming (DEF-V2-008: requires provider budget authorization)",
+      "Voice Input & Speech Synthesizer (DEF-V2-008/011: requires microphone permission audit & speech provider authorization)",
+      "Collaborative Rooms & Chat (DEF-V2-006: requires staffed moderation officer)",
+      "In-App Subscriptions & Billing (DEF-V2-007: requires merchant onboarding)",
+      "Google Drive Integration (DEF-V2-005: requires Google OAuth app verification)",
+      "Native Push Notifications (DEF-V2-002: requires FCM/APNs credentials)",
+      "Native Android Application (OWNER-SIGNING-KEYS & DEF-V2-011: requires release keystore & physical ARM64 TalkBack verification)"
+    ],
+    "publicationGateDecision": "STRICTLY_BLOCKED_PENDING_EXPLICIT_OWNER_AUTHORIZATION"
+  }
+}

@@ -1,5 +1,37 @@
 # Changelog
 
+## Phase 128 — Daynori clean candidate 2.0.0-rc6 rebuild, multi-dimensional staging reconciliation, and owner review package assembly — 2026-11-16
+
+- ADR 0128: Clean Release Candidate 2.0.0-rc6 Rebuild, Multi-Dimensional Staging Reconciliation & Owner Review Package Assembly, rebuilding an unprovisional release candidate from all approved fixes, packaging verified distributable archives, synthesizing empirical staging evidence across four verification dimensions, and assembling a concrete owner review package.
+- Clean Release Candidate 2.0.0-rc6 Rebuild & Packaging:
+  - Incorporated all approved fixes postdating candidate `2.0.0-rc5`: re-exported dialog primitives in `@daynori/ui-web` (`Dialog.tsx`), moderation takedown enforcement migration `00077_moderation_takedown_enforcement.sql`, Fastify `trustProxy` CIDR restrictions (`TRUSTED_PROXY_CIDRS`), client IP resolution hardening, and 10 req/min sensitive rate limiter.
+  - Built `@daynori/api` with `tsc -b` and `@daynori/web` with `next build` (32 static routes compiled, Next.js `BUILD_ID`: `whaN7HuVFERNvQiYRlevt`).
+  - Authored packaging script `scripts/package-release-rc6.mjs` and packaged immutable release archives:
+    - `artifacts/release/daynori-web-v2.0.0-rc6.tar.gz` (SHA-256: `8299fc016385ae5120a49e8ab745132bb422b549e320c06cf36490a76b1c299f`, size: 1,825,946 bytes).
+    - `artifacts/release/daynori-api-v2.0.0-rc6.tar.gz` (SHA-256: `146f5deb7c1b82fb72950d648e25b405c84df25a9efa031cb427fdb1e45bccda`, size: 564,522 bytes).
+  - Authored `artifacts/release/candidate-2.0.0-rc6-manifest.json` tied to Git commit `5286df9ef1de8e498cc2cd5b72de936c52f40368` and Node engine requirement `^24.21.0`.
+- Release Preflight Reconciliation:
+  - Executed `scripts/release-preflight.mjs --allow-partial-local`: confirmed 20 passing engineering checks, 0 failures, and 13 truthfully tracked blocked gates (`manifest-provisional`, `android-version-code`, `db-roles`, `deviceEvidence`, `betaEvidence`, `accessibilityEvidence`, `backupRecoveryEvidence`, `opsEvidence`, `signedArtifactEvidence`, `sixteenKbEvidence`, `ownerApproval`, `node-engines`, `human-launch-authorization`).
+  - Confirmed `releaseEligible: false` pending explicit affirmative owner determination.
+- Four-Dimensional Staging Evidence Synthesis (46/46 Tests Passed):
+  - Dimension 1 (User Journeys): Reconciled Phase 125 results (`tests/release/phase125-multi-user-staging-audit.test.ts`, 7 passed), verifying 10 real authenticated multi-step user workflows on HTTPS staging across dual accounts (`kamrul@daynori.com` and `shahrin@daynori.com`), proving strict tenant isolation at API and DOM layers.
+  - Dimension 2 (Security Ingress): Reconciled Phase 124 results (`tests/security/phase124-proxy-trust-and-rate-limiter.test.ts`, 14 passed), verifying enforcement of 18 Cloudflare/Render CIDRs, defeating spoofed headers, and active 10 req/min rate limiter.
+  - Dimension 3 (Disaster Recovery & Operations): Reconciled Phase 126 results (`tests/release/phase126-operations-recovery-and-staffing.test.ts`, 5 passed), verifying database restore drill (RTO = 1.71s, RPO = 0s, 0 survivor data loss, 0 resurrected records), non-destructive artifact rollback between rc5 and rc4, offline shell fallback, live DNS MX audit (0 records), and staffing audit.
+  - Dimension 4 (Capacity Envelope): Reconciled Phase 127 results (`tests/performance/phase127-capacity-envelope.test.ts`, 6 passed), verifying Tier 1 (1,000 users / 30 CCU) is demonstrably supported on Render Free + Supabase Free ($0/mo, 25.3 RPS, 0% 5xx, p95 1,156ms), with physical breaking points at 150 CCU and 300 CCU mandating paid Managed PaaS ($80–$160/mo) for higher scale.
+- Concrete Owner Review Package Assembly:
+  - Authored `artifacts/phase128/candidate-rc6-review-package.json` presenting all concrete parameters for project owner determination:
+    - Production domain: `app.daynori.com` (Web) & `api.daynori.com` (API) on Cloudflare.
+    - Hosting accounts: Option A Low-Cost Closed Beta ($32/mo) vs. Option B Recommended Managed PaaS ($105/mo).
+    - Initial cohort proposal: 25 to 50 invited consenting beta testers.
+    - Named operational roles: proposed assignments pending explicit owner confirmation.
+    - Rollback procedure: sub-10s static cutover to `offline-shell.html` and zero-loss additive schema rollback.
+    - Fail-closed features: Vault, AI Assistant, Voice, Rooms, Billing, Drive, Push, Android.
+- Automated Test Suite & Governance Documentation:
+  - Authored and verified `tests/release/phase128-candidate-rc6-and-owner-package.test.ts` (14 passed).
+  - Updated `docs/release/v2-authorized-publication-record.md` and `docs/release/v2-owner-review-package.md` to reference candidate `2.0.0-rc6`.
+  - Planning validators (`node scripts/validate-planning.mjs`, `pnpm validate:function-register`) passed with 0 errors across 129 phases.
+- Status: Recorded as honestly blocked pending explicit affirmative owner launch authorization under `OWNER-RELEASE-AUTH` and standing external release gates (`OWNER-SUPPORT-STAFFING`, `OWNER-MAILBOX-SETUP`, `OWNER-PAGER-ALERTING`, `OWNER-PROD-DNS`, `OWNER-SUPABASE-PRO`, `OWNER-SIGNING-KEYS`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
+
 ## Phase 127 — Daynori authenticated transactional load testing, database pool saturation profiling, and empirical capacity envelope verification — 2026-11-15
 
 - ADR 0127: Authenticated Transactional Load Testing, Database Pool Saturation Profiling & Empirical Capacity Envelope Verification, evaluating realistic user traffic models (1k, 5k, 10k users) against hosted HTTPS staging infrastructure with live PostgreSQL connection pool monitoring and Bangladesh network simulation.

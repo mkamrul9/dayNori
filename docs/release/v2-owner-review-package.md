@@ -1,32 +1,36 @@
 # Daynori Version 2 Owner Review Package
 
-- **Review Date**: 2026-11-10
-- **Scope**: Version 2 Release Candidate & Operational Preparation (Phase 101)
-- **Git HEAD**: `bf7a201f89508f267eda07d36c2eb32a62ac36cf`
-- **Candidate Label**: `2.0.0-rc1`
-- **Status**: **Engineering Preparation Only — Release Approval BLOCKED**
+- **Review Date**: 2026-11-16
+- **Scope**: Version 2 Release Candidate & Multi-Dimensional Staging Reconciliation (Phase 128)
+- **Git HEAD**: `5286df9ef1de8e498cc2cd5b72de936c52f40368`
+- **Candidate Label**: `2.0.0-rc6`
+- **Status**: **Launch Package Complete — Release Approval BLOCKED**
 
 ---
 
 ## 1. Executive Summary
 
-This package provides the project owner with all operational, legal, architectural, and financial information needed to evaluate Daynori Version 2. Under [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md) and [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), engineering rehearsals and artifact builds do not constitute launch approval. Publication, store uploads, beta cohort invitations, live provider spending, and cloud deployments remain strictly blocked until the owner explicitly authorizes them.
+This package provides the project owner with all operational, legal, architectural, and financial information needed to evaluate Daynori Version 2. Under [ADR 0057](../decisions/0057-public-release-preflight-and-first-publication.md), [ADR 0101](../decisions/0101-version-2-release-candidate-and-operational-preparation.md), [ADR 0122](../decisions/0122-production-launch-package-and-owner-authorization-governance.md), and [ADR 0128](../decisions/0128-clean-candidate-rc6-rebuild-staging-verification-and-owner-package.md), engineering rehearsals and artifact builds do not constitute launch approval. Publication, store uploads, beta cohort invitations, live provider spending, and cloud deployments remain strictly blocked until the owner explicitly authorizes them.
 
 ---
 
 ## 2. Candidate Artifacts, Hashes, and Build Toolchain
 
-### A. Web / PWA Production Build
-- **Build Command**: `pnpm --filter @daynori/web build`
-- **Toolchain**: Node `v24.11.1` (engines request `^24.21.0`), Next.js `15.5.27`, React `19.0.0`
-- **Artifact Hashes**:
-  - `apps/web/public/manifest.json`: `417FAAC1BD5C0D083657A7A69C645A2387C797E1AC60500F462D9DB3D280CF40`
-  - `apps/web/public/sw.js`: `6E243130BED7D29E51C330A378380805F87539798692ABE5C4F8127BB1F70CB3`
-  - `apps/web/public/offline-shell.html`: `1B0BF5F65C8D7330D0560FE41ACC73A6A9806E9B7AFF5CB60DAACFC0FBD009CC`
-  - `apps/web/public/offline-shell.js`: `69649CDAB12D593DC7A9FED5607ABA0A22B9E5336E855D6117A9FD0CE0462E4F`
-  - `apps/web/public/brand/icon-192.png`: `EAB6433ABBCA70B7392EAD34A499C1D901BC48FE4E849BFFF9EE43B66D6EEE64`
-  - `apps/web/public/brand/icon-512.png`: `DC0EBF905510C9CAE68046262C198A76D11FA010BCAB53E3C1745BB8467B377E`
-  - `apps/web/public/brand/icon-maskable-512.png`: `69D0B2D8A9438F3262692BA76AA64A9E547D5D4AAB718D6450B6395F5F868835`
+### A. Distributable Release Artifacts (Candidate 2.0.0-rc6)
+- **Build Toolchain**: Node `v24.21.0` (engines request `^24.21.0`), Next.js `15.5.27`, Fastify `5.2.1`, React `19.0.0`
+- **Next.js BUILD_ID**: `whaN7HuVFERNvQiYRlevt` (32 routes compiled)
+- **Distributable Archives**:
+  - `artifacts/release/daynori-web-v2.0.0-rc6.tar.gz` (SHA-256: `8299fc016385ae5120a49e8ab745132bb422b549e320c06cf36490a76b1c299f`, size: 1,825,946 bytes)
+  - `artifacts/release/daynori-api-v2.0.0-rc6.tar.gz` (SHA-256: `146f5deb7c1b82fb72950d648e25b405c84df25a9efa031cb427fdb1e45bccda`, size: 564,522 bytes)
+  - Manifest: `artifacts/release/candidate-2.0.0-rc6-manifest.json`
+- **Public Client Asset Digests**:
+  - `apps/web/public/manifest.json`: `417faac1bd5c0d083657a7a69c645a2387c797e1ac60500f462d9db3d280cf40`
+  - `apps/web/public/sw.js`: `6e243130bed7d29e51c330a378380805f87539798692abe5c4f8127bb1f70cb3`
+  - `apps/web/public/offline-shell.html`: `1b0bf5f65c8d7330d0560fe41acc73a6a9806e9b7aff5cb60daacfc0fbd009cc`
+  - `apps/web/public/offline-shell.js`: `69649cdab12d593dc7a9fed5607aba0a22b9e5336e855d6117a9fd0ce0462e4f`
+  - `apps/web/public/brand/icon-192.png`: `eab6433abbca70b7392ead34a499c1d901bc48fe4e849bfff9ee43b66d6eee64`
+  - `apps/web/public/brand/icon-512.png`: `dc0ebf905510c9cae68046262c198a76d11fa010bcab53e3c1745bb8467b377e`
+  - `apps/web/public/brand/icon-maskable-512.png`: `69d0b2d8a9438f3262692ba76aa64a9e547d5d4aab718d6450b6395f5f868835`
 
 ### B. Android Candidate Verification
 - **Application ID**: `com.daynori.app`
@@ -96,31 +100,31 @@ Under [ADR 0057](../decisions/0057-public-release-preflight-and-first-publicatio
 
 ## 6. Hosting, Database, and Worker Operating Cost Estimates
 
-All costs are projections for budgeting purposes only. **No paid resources have been provisioned.**
+All costs are empirical projections reconciled against the measured Phase 127 capacity envelope and free-tier saturation limits. **No paid resources have been provisioned.**
 
-| Component | Provider / Architecture | Low Usage Tier (20–100 Users) | Medium Usage Tier (500–1,000 Users) | Approval Status |
+| Component | Provider / Architecture | Low-Cost Closed Beta Tier ($\le 30$ CCU / 1k Users) | Recommended Managed PaaS Tier (150–300 CCU / 5k–10k Users) | Approval Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Web / PWA Hosting** | Cloudflare Pages / Vercel Pro | \$0 / mo (Free tier) | \$20 / mo (Pro tier) | **UNAPPROVED** |
-| **API Compute** | Fly.io / Railway / Cloud Run | \$5 – \$15 / mo (2 instances) | \$30 – \$60 / mo (autoscaled) | **UNAPPROVED** |
-| **PostgreSQL Database** | Managed Supabase / Neon | \$0 – \$25 / mo (Pro tier) | \$25 – \$50 / mo (Compute Add-on) | **UNAPPROVED** |
+| **Web / PWA Hosting** | Render Static / Vercel Pro | \$0 / mo (Free/Hobby tier) | \$20 / mo (Pro tier) | **UNAPPROVED** |
+| **API Compute** | Render Starter / Railway Team / Fly.io | \$7 / mo (Starter 0.5 vCPU / 512MB) | \$40 / mo (2 instances with autoscaling) | **UNAPPROVED** |
+| **PostgreSQL Database** | Managed Supabase Pro | \$25 / mo (Pro tier, 60 direct pooler connections) | \$45 / mo (Pro tier + Compute Add-on + PgBouncer pooling) | **UNAPPROVED** |
 | **Object Storage (Blob)** | Cloudflare R2 / Supabase Storage | \$0 (Within 10GB free tier) | \$5 – \$15 / mo (Egress free) | **UNAPPROVED** |
 | **Email Transport** | Resend / Postmark (Transactional) | \$0 (Free tier < 3,000/mo) | \$20 / mo (Basic plan) | **UNAPPROVED** |
-| **AI LLM Inference** | Gemini 1.5 Flash / Groq / OpenAI | \$0 (Live streaming disabled) | \$15 – \$50 / mo (Usage-based) | **UNAPPROVED** |
-| **Total Projected Cost** | — | **\$5 – \$40 / month** | **\$90 – \$215 / month** | **UNAPPROVED** |
+| **AI LLM Inference** | Gemini 1.5 Flash / Groq / OpenAI | \$0 (Live streaming disabled) | \$15 – \$50 / mo (Usage-based, post-beta) | **UNAPPROVED** |
+| **Total Projected Cost** | — | **\$32 / month** | **\$105 – \$160 / month** | **UNAPPROVED** |
 
 ---
 
 ## 7. Operational Roles & Responsibilities
 
-In accordance with repository release gates, all operational roles are documented below. All roles are currently **unassigned** awaiting owner staffing:
+In accordance with [`docs/operations/incident-response-and-support-roster.md`](../operations/incident-response-and-support-roster.md), operational roles are proposed below. All roles are currently **pending explicit owner confirmation**:
 
-| Role | Responsibilities | Current Assignee |
-| :--- | :--- | :--- |
-| **Release Engineer** | Manage release builds, sign AAB artifacts, monitor Play Console tracks | `unassigned` |
-| **Security & Vault Lead** | Oversee cryptographic key safety, commission external vault audit | `unassigned` |
-| **Moderation Officer** | Review UGC abuse reports, handle takedown notices, enforce terms | `unassigned` |
-| **Support Triage Operator** | Monitor `support@daynori.com`, triage incoming bug reports & suggestions | `unassigned` |
-| **AI Operations Lead** | Monitor LLM token budgets, prompt injection safeguards, model availability | `unassigned` |
+| Role Title | Operational Responsibilities | Proposed Assignee | Current Status |
+| :--- | :--- | :--- | :--- |
+| **Incident Commander (IC)** | Directs incident mitigation, leads post-incident reviews, authorizes emergency rollback | Project Owner | `PENDING_OWNER_CONFIRMATION` |
+| **Technical Operations Lead** | Infrastructure scaling, database connection pool tuning, CDN configuration | Platform Architecture Lead | `PENDING_OWNER_CONFIRMATION` |
+| **Security & Privacy Officer** | Oversees vulnerability management, log redaction, token revocation, vault audit | Security Officer | `PENDING_OWNER_CONFIRMATION` |
+| **Support & Communications Lead** | User bug reports, status page updates, communications | Support Lead | `PENDING_OWNER_CONFIRMATION` |
+| **Moderation Officer** | Review UGC abuse reports, handle takedown notices, enforce terms | Moderation Lead | `PENDING_OWNER_CONFIRMATION` |
 
 ---
 
