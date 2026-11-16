@@ -1,8 +1,8 @@
 {
   "phase": "125",
   "title": "Daynori Multi-User Authenticated Staging Journeys, Tenant Isolation & Robust CDP Audit",
-  "executedAt": "2026-11-15T11:26:15.919Z",
-  "runId": "1794741975919",
+  "executedAt": "2026-11-16T06:15:56.637Z",
+  "runId": "1794809756637",
   "targetUrls": {
     "web": "https://daynori-web-preview.onrender.com",
     "api": "https://daynori-api-preview.onrender.com",
@@ -10,8 +10,8 @@
   },
   "deployedMeta": {
     "webStatus": 200,
-    "renderDeployId": "36ce3de7-9a35-4bd5",
-    "cfRay": "a5ade6682fbd16d4-DAC",
+    "renderDeployId": "14304363-e3b0-45ee",
+    "cfRay": "a5b45d3269ff540a-DAC",
     "server": "cloudflare",
     "poweredBy": "Next.js",
     "deployedGitSha": "1219998"
@@ -19,165 +19,178 @@
   "workflows": [
     {
       "id": "workflow-01-auth-lifecycle",
-      "title": "Auth Lifecycle (Signup Probe, Password Recovery, Dual Sign-In, UI Hydration)",
-      "passed": true,
+      "title": "Auth Lifecycle (Signup, Password Recovery, Dual Sign-In, UI Hydration)",
+      "workflowType": "ui_and_api",
+      "passed": false,
       "uiVerified": true,
-      "apiVerified": true,
+      "apiVerified": false,
       "details": {
-        "signupProbeStatus": 400,
-        "recoveryStatus": 500,
-        "recoveryExercised": true,
-        "userAAuthenticated": true,
-        "userBAuthenticated": true,
-        "uiHydrated": true,
-        "documentTitle": "Daynori — Your day, gathered"
+        "error": "ASSERTION_FAILED: Password recovery failed: expected HTTP 200, got 500"
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\01-auth-lifecycle-hydrated.png",
-        "sha256": "b196a7ca69e5f036e5816e47db29daac7821f9c864361613fef8395d6837fe63",
-        "byteSize": 117559
+        "sha256": "4a747de003aa4afb92f6dfa3b639428d10c40c6824539e8c09c383987e40a2d9",
+        "byteSize": 122543
       }
     },
     {
       "id": "workflow-02-note-create-save-reload",
       "title": "Note Create, Save, Persistence & Page Reload",
+      "workflowType": "ui_and_api",
       "passed": true,
       "uiVerified": true,
       "apiVerified": true,
       "details": {
-        "noteId": "25d705b4-b591-4fd9-bee4-b3060844af68",
-        "noteTitle": "Staging Verified Note 1794741975919",
+        "noteId": "4155e91f-1225-4099-a51b-a4efe870a7e1",
+        "noteTitle": "Staging Verified Note 1794809756637",
         "apiCreated": true,
         "apiVerified": true,
-        "uiRenderedBeforeReload": true,
-        "uiRenderedAfterReload": true
+        "uiRenderedAfterReload": true,
+        "hasSpecificItemAfterReload": true
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\02-note-persisted-and-reloaded.png",
-        "sha256": "3916a4b9ef3d129f05598adc9a822db9322e9ad017170ed8312043713ced247c",
-        "byteSize": 91944
+        "sha256": "d673fdaf2e847ac0b76183b23321b97718e3c894a24dc0ff3dd4d729fab4f577",
+        "byteSize": 65246
       }
     },
     {
       "id": "workflow-03-task-deadline-completion",
       "title": "Task Deadline & Completion Lifecycle",
+      "workflowType": "ui_and_api",
       "passed": true,
       "uiVerified": true,
       "apiVerified": true,
       "details": {
-        "taskId": "8ba226f3-b9f7-4921-a511-73be82ca2825",
-        "taskTitle": "Staging Urgent Deadline Task 1794741975919",
+        "taskId": "3c91b00a-7082-4846-bf9e-75713173cd1b",
+        "taskTitle": "Staging Urgent Deadline Task 1794809756637",
         "apiCreated": true,
         "apiCompleted": true,
         "apiStatus": "completed",
-        "uiVerified": true
+        "apiVerified": true,
+        "uiVerified": true,
+        "hasSpecificItemAfterReload": true
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\03-task-deadline-completed.png",
-        "sha256": "23d721fdef11b3eb66383cb92523d492ba8a3312707146c3be644e65f0cc8ab5",
-        "byteSize": 73723
+        "sha256": "d870a433ae4ea981bb9d06033f66aef2a1ccd20b1978901fe8984de080c3f200",
+        "byteSize": 83103
       }
     },
     {
       "id": "workflow-04-routine-occurrence",
       "title": "Routine Occurrence Creation & Logging Lifecycle",
+      "workflowType": "ui_and_api",
       "passed": true,
       "uiVerified": true,
       "apiVerified": true,
       "details": {
-        "routineId": "65a0162d-8c55-4d19-886e-617c7d996c5c",
-        "routineTitle": "Staging Daily Habits Routine 1794741975919",
-        "occurrenceId": "09561a26-72fa-5f8a-9099-ce42d18a9977",
+        "routineId": "5ad892fe-5e50-49a0-ac63-bb1f348796d9",
+        "routineTitle": "Staging Daily Habits Routine 1794809756637",
+        "occurrenceId": "56a7e4ca-57cc-5ea4-a222-74256cbdffe1",
         "occurrenceStatusBefore": "done",
         "apiCompleted": true,
-        "uiVerified": true
+        "apiVerified": true,
+        "uiVerified": true,
+        "hasSpecificItemAfterReload": true
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\04-routine-occurrence-logged.png",
-        "sha256": "277ae33e0c207bc4a28cbf27260356f936cadb798e02798c7eb0617b59b46432",
-        "byteSize": 73690
+        "sha256": "b5311352c808a5edfdf3f50a02995a106cece01f236ba345b9e44bcf8633cdec",
+        "byteSize": 72654
       }
     },
     {
       "id": "workflow-05-journal-creation",
       "title": "Journal Creation & Reflection Lifecycle",
+      "workflowType": "ui_and_api",
       "passed": true,
       "uiVerified": true,
       "apiVerified": true,
       "details": {
-        "journalId": "42b8708e-4063-4eca-a331-a4356a6dda89",
-        "journalTitle": "Staging Nightly Reflection 1794741975919",
-        "entryDate": "2026-11-15",
+        "journalId": "b3a045b9-2683-4caf-b7eb-8f420bc95c9b",
+        "journalTitle": "Staging Nightly Reflection 1794809756637",
+        "entryDate": "2026-11-16",
         "mood": "calm",
         "apiCreated": true,
         "apiVerified": true,
-        "uiRendered": true
+        "uiRendered": true,
+        "uiVerified": true,
+        "hasSpecificItemAfterReload": true
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\05-journal-entry-persisted.png",
-        "sha256": "e081e41eca36655a510b2bc4b724f2125cc216b6c049755b4c49a3f35c252fc8",
-        "byteSize": 74199
+        "sha256": "368f71c059f7a761c749c944b92f351b04f8af879c27fafb543ed983ae95c76f",
+        "byteSize": 74892
       }
     },
     {
       "id": "workflow-06-workspace-search",
       "title": "Workspace Scoped Full-Text Search",
+      "workflowType": "ui_and_api",
       "passed": true,
       "uiVerified": true,
       "apiVerified": true,
       "details": {
         "query": "Staging",
-        "apiMatchesCount": 12,
+        "apiMatchesCount": 20,
         "apiVerified": true,
         "uiVerified": true
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\06-search-query-results.png",
-        "sha256": "dc93f9afc8b18753d0451b3f0e5dfb9c75d73869aa237db44dbb8d727123a7de",
-        "byteSize": 56569
+        "sha256": "e13ba9bfad52f06675d8a5825705fa6b46aea798fc2d89a639a70b3d78be2aaf",
+        "byteSize": 62804
       }
     },
     {
       "id": "workflow-07-offline-draft-and-conflict",
       "title": "Offline Drafts, Reconnection & Optimistic Revision Conflict Handling",
+      "workflowType": "api_only",
       "passed": true,
-      "uiVerified": true,
+      "uiVerified": false,
       "apiVerified": true,
       "details": {
         "conflictStatusCode": 409,
         "conflictErrorCode": "REVISION_CONFLICT",
         "reconciledRevision": 2,
         "offlineEmulationVerified": true,
-        "onlineReconnectionVerified": true
+        "onlineReconnectionVerified": true,
+        "apiVerified": true,
+        "uiVerified": false
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\07-offline-draft-and-reconnect.png",
-        "sha256": "f41799415e1c1d77aa4e44431ecefe596006cccfddcb3b809df374dfb6686073",
-        "byteSize": 56665
+        "sha256": "ea37298b13c1f6a1ac9d8327a3cd5abcc944a2f277909534c61032b8fc667b6e",
+        "byteSize": 62901
       }
     },
     {
       "id": "workflow-08-support-submission",
       "title": "Support & Feedback Intake Submission Lifecycle",
+      "workflowType": "ui_and_api",
       "passed": true,
       "uiVerified": true,
       "apiVerified": true,
       "details": {
-        "clientReportId": "36bf05d8-e110-4711-bbcc-ba24c0286188",
-        "reportReceiptId": "57ca60e7-462f-4777-b7ac-010a6545f100",
+        "clientReportId": "25044037-f7c5-4988-bfe8-40be4ddd48aa",
+        "reportReceiptId": "57b01a7f-abba-41fd-a462-3265f196b7a0",
         "apiSubmitted": true,
         "deliveryNotice": "Receipt acknowledged by server. External developer inbox is not configured in this preview.",
-        "uiRendered": true
+        "uiRendered": true,
+        "apiVerified": true,
+        "uiVerified": true
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\08-support-feedback-submission.png",
-        "sha256": "b74c2808711f83b1be723f1eaeff76f71a11576477d41ea052154996154788ee",
-        "byteSize": 60203
+        "sha256": "7c8772601aa8d715279d9418b5d6b92c34d1f69388f125c3ad071b4ee8a6de22",
+        "byteSize": 53973
       }
     },
     {
       "id": "workflow-09-tenant-isolation-proof",
       "title": "Multi-User Tenant Isolation & Cross-Workspace Access Rejection",
+      "workflowType": "ui_and_api",
       "passed": true,
       "uiVerified": true,
       "apiVerified": true,
@@ -188,7 +201,9 @@
         "userBGetUserANoteStatus": 404,
         "userBDeleteUserANoteStatus": 404,
         "userBDomCrossTenantLeakage": false,
-        "isolationProven": true
+        "isolationProven": true,
+        "apiVerified": true,
+        "uiVerified": true
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\09-tenant-isolation-userB.png",
@@ -199,17 +214,20 @@
     {
       "id": "workflow-10-account-deletion",
       "title": "Account Deletion Lifecycle (Request, Status Verification & Cancellation)",
+      "workflowType": "ui_and_api",
       "passed": true,
       "uiVerified": true,
       "apiVerified": true,
       "details": {
         "deletionRequestedStatus": "pending_confirmation",
-        "deletionId": "54f000d2-7aaf-4ff4-baf3-b26249e19480",
-        "cancellationDeadline": "2026-11-16T11:26:58.126Z",
+        "deletionId": "214ed9c3-83ea-4b79-bd26-300e1963ca1c",
+        "cancellationDeadline": "2026-11-17T06:16:53.889Z",
         "retainedDataDisclosure": "Confirmation removes your organizer records and blocks account access. Auth-provider cleanup remains pending until an operator completes it in this free preview. Full account erasure and backup retention have not been verified. Use sample content.",
         "statusPolled": "pending_confirmation",
         "cancelStatusCode": 200,
-        "uiRendered": true
+        "uiRendered": true,
+        "apiVerified": true,
+        "uiVerified": true
       },
       "screenshot": {
         "path": "D:\\SWE\\UNIQUE WORK\\dailyLIfe\\artifacts\\phase125\\screenshots\\10-account-deletion-lifecycle.png",
@@ -220,7 +238,11 @@
   ],
   "summary": {
     "total": 10,
-    "passed": 10,
-    "failed": 0
+    "passed": 9,
+    "failed": 1,
+    "uiAndApiWorkflows": 9,
+    "apiOnlyWorkflows": 1,
+    "uiVerifiedCount": 9,
+    "apiVerifiedCount": 9
   }
 }

@@ -1,5 +1,27 @@
 # Changelog
 
+## Phase 129 — Daynori staging credential rotation, session revocation, secure runtime secrets integration, and multi-user assertion fidelity hardening — 2026-11-16
+
+- ADR 0129: Staging Credential Rotation, Session Revocation, Secure Runtime Secrets Integration, and Multi-User Assertion Fidelity Hardening, rotating plaintext staging passwords in the hosted Supabase database, revoking 44 sessions and 50 refresh tokens, auditing access logs, replacing static credentials with secure runtime secrets, and hardening Phase 125 assertions against false positives.
+- Live Staging Credential Rotation & Session Revocation:
+  - Rotated credentials for staging accounts User A (`kamrul@daynori.com`) and User B (`shahrin@daynori.com`) in hosted PostgreSQL cluster (`aws-0-ap-southeast-1.pooler.supabase.com:5432`) using high-entropy random secrets and `crypt(..., gen_salt('bf', 10))`.
+  - Permanently revoked all 44 active sessions (`DELETE FROM auth.sessions`) and 50 refresh tokens (`DELETE FROM auth.refresh_tokens`) in Supabase auth tables.
+  - Inspected `auth.audit_log_entries` and recorded audit in `artifacts/phase129/staging-access-log-audit.json`.
+  - Empirically verified against `https://daynori-web-preview.onrender.com`: old password rejected with HTTP 401 `AUTHENTICATION_FAILED`; rotated credentials succeed with HTTP 200 and valid JWT.
+- Secure Runtime Secrets Helper (`getStagingCredentials`):
+  - Removed plaintext credentials from `scripts/run-phase125-multi-user-staging-audit.mjs` and `scripts/run-phase127-capacity-load-test.mjs`.
+  - Added `getStagingCredentials()`, resolving credentials from environment variables or gitignored local secrets without printing or committing secrets or rewriting Git history.
+- Phase 125 Assertion Fidelity Hardening:
+  - Strict Auth Outcomes: Recovery probe strictly requires HTTP 200; signup probe strictly requires HTTP 201; removed permissive status arrays; truthfully records failure (`passed: false`, `apiVerified: false`) when Supabase free-tier email quota (3 emails/hr) is exceeded.
+  - Specific Newly Created Item Persistence: Notes (`/library?noteId=...`), Tasks (`/plan?view=completed`), Routines (`/today`), and Journal (`/journal`) strictly assert that the specific created title/ID is present in the DOM after page reload (`hasSpecificItemAfterReload`).
+  - Dynamic Booleans: Eliminated all hardcoded `uiVerified: true, apiVerified: true` assignments, computing them dynamically from actual DOM and API verification results.
+  - Workflow Classification: Explicitly distinguished 9 UI & API journeys (`workflowType: 'ui_and_api'`) from 1 API-only optimistic conflict protocol test (`workflow-07-offline-draft-and-conflict`, `workflowType: 'api_only'`).
+- Empirical Verification & Automated Test Suites (49/49 Tests Passed):
+  - Executed hardened multi-user audit against deployed HTTPS staging: 9/10 passed (Workflow 1 truthfully recorded failure due to Supabase email rate limit); 10 updated screenshots captured in `artifacts/phase125/screenshots/`.
+  - Expanded `tests/release/phase125-multi-user-staging-audit.test.ts` to 10 passing tests.
+  - Full release regression suite passed with zero errors across all 5 test files (49/49 tests passed).
+- Status: Recorded as honestly blocked pending explicit affirmative owner launch authorization under `OWNER-RELEASE-AUTH` and standing external release gates (`OWNER-SUPPORT-STAFFING`, `OWNER-MAILBOX-SETUP`, `OWNER-PAGER-ALERTING`, `OWNER-PROD-DNS`, `OWNER-SUPABASE-PRO`, `OWNER-SIGNING-KEYS`, `OWNER-SMTP-CREDENTIALS`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
+
 ## Phase 128 — Daynori clean candidate 2.0.0-rc6 rebuild, multi-dimensional staging reconciliation, and owner review package assembly — 2026-11-16
 
 - ADR 0128: Clean Release Candidate 2.0.0-rc6 Rebuild, Multi-Dimensional Staging Reconciliation & Owner Review Package Assembly, rebuilding an unprovisional release candidate from all approved fixes, packaging verified distributable archives, synthesizing empirical staging evidence across four verification dimensions, and assembling a concrete owner review package.

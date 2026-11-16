@@ -5446,6 +5446,63 @@
         "docs/phase-reports/phase-128.md"
       ],
       "commit": "chore(release): rebuild candidate rc6, verify staging journeys and assemble owner package"
+    },
+    {
+      "id": "129",
+      "group": "v2-release",
+      "title": "Daynori staging credential rotation, session revocation, secure runtime secrets integration, and multi-user assertion fidelity hardening",
+      "dependsOn": [
+        "125",
+        "127",
+        "128"
+      ],
+      "scope": [
+        "artifacts/phase125",
+        "artifacts/phase129",
+        "docs/decisions",
+        "docs/phase-reports",
+        "docs/roadmap",
+        "scripts",
+        "tests/release",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Immediately rotate staging account credentials for User A and User B in hosted Supabase database using high-entropy random secrets and crypt(..., gen_salt('bf', 10)).",
+        "Revoke all active sessions (44 rows) and refresh tokens (50 rows) in auth.sessions and auth.refresh_tokens, and inspect staging access logs in auth.audit_log_entries (recording audit in artifacts/phase129/staging-access-log-audit.json).",
+        "Remove plaintext credentials from scripts/run-phase125-multi-user-staging-audit.mjs and scripts/run-phase127-capacity-load-test.mjs, replacing with getStagingCredentials() resolving from environment variables or gitignored local secrets without printing or committing secrets or rewriting Git history.",
+        "Harden Phase 125 multi-user staging assertions: strictly assert successful outcomes for auth (201 signup probe, 200 recovery probe); fail UI verification if specific newly created item is absent after reload; eliminate hardcoded unconditional uiVerified/apiVerified assignments.",
+        "Accurately categorize workflows into ui_and_api (9 journeys) and api_only (1 protocol test: offline draft, revision conflict, and network conditions).",
+        "Empirically execute hardened staging verification against live deployed HTTPS staging, updating artifacts/phase125/staging-verification-results.json and screenshots.",
+        "Expand and verify automated regression test suite tests/release/phase125-multi-user-staging-audit.test.ts (10 passing tests) and author ADR 0129 and phase report docs/phase-reports/phase-129.md."
+      ],
+      "acceptance": [
+        "Zero plaintext credentials committed in test harness scripts; runtime helper getStagingCredentials() resolves credentials securely or fails closed.",
+        "Staging account credentials rotated with high-entropy cryptographic secrets, sessions revoked (44 sessions, 50 refresh tokens), and audit logged.",
+        "Strict assertions enforced: recovery and signup fail if not 200/201; UI verification asserts specific newly created item persistence in DOM after reload; booleans are computed dynamically.",
+        "Summary and workflow artifacts distinguish ui_and_api journeys from api_only protocol tests.",
+        "Automated regression test suite tests/release/phase125-multi-user-staging-audit.test.ts passes all 10 tests, and all 49 release regression tests pass.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html pass all planning validators."
+      ],
+      "checks": [
+        "pnpm vitest run tests/release/phase125-multi-user-staging-audit.test.ts",
+        "node scripts/validate-planning.mjs",
+        "pnpm validate:function-register"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0125-multi-user-authenticated-staging-verification-and-workspace-isolation.md",
+        "docs/decisions/0127-authenticated-transactional-capacity-and-pool-saturation.md",
+        "docs/decisions/0128-clean-candidate-rc6-rebuild-staging-verification-and-owner-package.md",
+        "docs/decisions/0129-staging-credential-rotation-session-revocation-and-assertion-hardening.md",
+        "docs/phase-reports/phase-125.md",
+        "docs/phase-reports/phase-127.md",
+        "docs/phase-reports/phase-128.md",
+        "docs/phase-reports/phase-129.md"
+      ],
+      "commit": "fix(security): rotate staging credentials, revoke sessions and harden assertion fidelity"
     }
   ],
   "featureCoverage": [

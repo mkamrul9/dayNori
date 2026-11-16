@@ -64,6 +64,29 @@ export function assertHttpsStagingUrl(url, label) {
   }
 }
 
+export function getStagingCredentials() {
+  const envPath = path.join(REPO_ROOT, 'artifacts', 'local', 'staging-accounts-private.env');
+  let userAEmail = process.env.STAGING_USER_A_EMAIL;
+  let userAPassword = process.env.STAGING_USER_A_PASSWORD;
+  let userBEmail = process.env.STAGING_USER_B_EMAIL;
+  let userBPassword = process.env.STAGING_USER_B_PASSWORD;
+
+  if (fs.existsSync(envPath)) {
+    const raw = fs.readFileSync(envPath, 'utf8');
+    userAEmail = userAEmail || raw.match(/^STAGING_USER_A_EMAIL=(.*)$/m)?.[1]?.trim();
+    userAPassword = userAPassword || raw.match(/^STAGING_USER_A_PASSWORD=(.*)$/m)?.[1]?.trim();
+    userBEmail = userBEmail || raw.match(/^STAGING_USER_B_EMAIL=(.*)$/m)?.[1]?.trim();
+    userBPassword = userBPassword || raw.match(/^STAGING_USER_B_PASSWORD=(.*)$/m)?.[1]?.trim();
+  }
+
+  if (!userAEmail || !userAPassword || !userBEmail || !userBPassword) {
+    throw new Error(
+      'FAIL-CLOSED: Missing required staging credentials. Provide STAGING_USER_A_EMAIL/PASSWORD and STAGING_USER_B_EMAIL/PASSWORD via environment variables or gitignored artifacts/local/staging-accounts-private.env.'
+    );
+  }
+  return { userAEmail, userAPassword, userBEmail, userBPassword };
+}
+
 export function assert(condition, message) {
   if (!condition) {
     throw new Error(`ASSERTION_FAILED: ${message}`);
@@ -353,67 +376,32 @@ export async function runMultiUserStagingAudit(options = {}) {
     await cdp.send('Network.enable');
 
     // =========================================================================
-    // WORKFLOW 1: Auth Lifecycle (Signup Probe, Recovery, Sign-In, UI Hydration)
+    // WORKFLOW 1: Auth Lifecycle (Signup, Password Recovery, Dual Sign-In, UI Hydration)
     // =========================================================================
     console.log('\n[1/10] Workflow 1: Auth Lifecycle...');
     {
       const workflowId = 'workflow-01-auth-lifecycle';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
       try {
-        // Initial session for CSRF token & cookies
-        const initSessionRes = await fetch(`${webUrl}/api/auth/session`);
-        const initSessionData = await initSessionRes.json();
-        const initCsrf = initSessionData.csrfToken;
-        const initCookies = initSessionRes.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+        const creds = getStagingCredentials();
 
-        // 1a. Signup Probe on /api/auth/sign-up (with valid CSRF and Origin)
-        const probeSignupRes = await fetch(`${webUrl}/api/auth/sign-up`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Cookie: initCookies,
-            'x-csrf-token': initCsrf,
-            Origin: webUrl,
-          },
-          body: JSON.stringify({
-            email: `probe-${runId}@daynori.com`,
-            password: 'DaynoriStaging2026!Secure',
-          }),
-        });
-        const signupHandled = [200, 201, 400, 429].includes(probeSignupRes.status);
-        assert(signupHandled, `Signup handler returned unexpected status: ${probeSignupRes.status}`);
-
-        // 1b. Password Recovery on /api/auth/recover
-        const recoverRes = await fetch(`${webUrl}/api/auth/recover`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Cookie: initCookies,
-            'x-csrf-token': initCsrf,
-            Origin: webUrl,
-          },
-          body: JSON.stringify({ email: 'kamrul@daynori.com' }),
-        });
-        // 200 = instructions dispatched; 500/429 = Supabase free tier built-in mailer limit (3 emails/hr) handled.
-        // Both prove endpoint invocation, CSRF validation, and Supabase auth recovery execution.
-        const recoverHandled = [200, 429, 500].includes(recoverRes.status);
-        assert(recoverHandled, `Password recovery failed: status ${recoverRes.status}`);
-
-        // 1c. Real Sign-In for User A and User B
-        const userA = await loginViaWeb(webUrl, 'kamrul@daynori.com', 'DaynoriStaging2026!Secure');
-        const userB = await loginViaWeb(webUrl, 'shahrin@daynori.com', 'DaynoriStaging2026!Secure');
+        // 1a. Real Sign-In for User A and User B using secure runtime credentials
+        const userA = await loginViaWeb(webUrl, creds.userAEmail, creds.userAPassword);
+        const userB = await loginViaWeb(webUrl, creds.userBEmail, creds.userBPassword);
         assert(userA.bearerToken.length > 50, 'User A bearer token missing or too short');
         assert(userB.bearerToken.length > 50, 'User B bearer token missing or too short');
 
-        // 1d. Inject User A cookies into Browser CDP
+        // 1b. Inject User A cookies into Browser CDP, navigate to /today, grant storage consent, verify UI hydration
         for (const c of userA.parsedCookies) {
           await cdp.send('Network.setCookie', c);
         }
 
-        // 1e. Navigate to /today and verify UI hydrates
         await cdp.navigateAndWait(`${webUrl}/today`);
         await sleep(2500);
 
@@ -434,20 +422,76 @@ export async function runMultiUserStagingAudit(options = {}) {
           })()
         `);
         assert(uiAuth.isAuthenticated, `UI failed to hydrate authenticated session: ${JSON.stringify(uiAuth)}`);
+        uiVerified = Boolean(uiAuth.isAuthenticated);
 
         // Screenshot
         const shotPath = path.join(screenshotsDir, '01-auth-lifecycle-hydrated.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        // Initial session for CSRF token & cookies for subsequent auth endpoint probes
+        const initSessionRes = await fetch(`${webUrl}/api/auth/session`);
+        const initSessionData = await initSessionRes.json();
+        const initCsrf = initSessionData.csrfToken;
+        const initCookies = initSessionRes.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ');
+
+        // 1c. Password Recovery on /api/auth/recover (must pass ONLY on successful outcome HTTP 200)
+        const recoverRes = await fetch(`${webUrl}/api/auth/recover`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: initCookies,
+            'x-csrf-token': initCsrf,
+            Origin: webUrl,
+          },
+          body: JSON.stringify({ email: creds.userAEmail }),
+        });
+        assert(recoverRes.status === 200, `Password recovery failed: expected HTTP 200, got ${recoverRes.status}`);
+        const recoverData = await recoverRes.json();
+        assert(recoverData.status === 'ok', `Expected status 'ok' in recovery response, got: ${recoverData.status}`);
+
+        // 1d. Signup on /api/auth/sign-up (must pass ONLY on successful outcome HTTP 201)
+        const probeEmail = `probe-signup-${runId}@daynori.com`;
+        const probePassword = 'ProbePass_' + crypto.randomBytes(16).toString('base64url') + '!9';
+        const probeSignupRes = await fetch(`${webUrl}/api/auth/sign-up`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: initCookies,
+            'x-csrf-token': initCsrf,
+            Origin: webUrl,
+          },
+          body: JSON.stringify({
+            email: probeEmail,
+            password: probePassword,
+            displayName: 'Probe Staging User',
+          }),
+        });
+        assert(probeSignupRes.status === 201, `Signup failed: expected HTTP 201, got ${probeSignupRes.status}`);
+        const signupData = await probeSignupRes.json();
+        assert(Boolean(signupData.user?.id), 'Signup response missing user id');
+        assert(signupData.user?.email === probeEmail, 'Signup response email mismatch');
+
+        apiVerified = Boolean(
+          userA.bearerToken.length > 50 &&
+          userB.bearerToken.length > 50 &&
+          recoverRes.status === 200 &&
+          recoverData.status === 'ok' &&
+          probeSignupRes.status === 201 &&
+          signupData.user?.id
+        );
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
-          signupProbeStatus: probeSignupRes.status,
+          signupStatus: probeSignupRes.status,
+          signupUserId: signupData.user?.id,
           recoveryStatus: recoverRes.status,
-          recoveryExercised: true,
+          recoveryMessage: recoverData.message,
           userAAuthenticated: true,
           userBAuthenticated: true,
-          uiHydrated: true,
+          uiHydrated: uiVerified,
           documentTitle: uiAuth.title,
+          apiVerified,
+          uiVerified,
         };
         console.log('  ✓ Workflow 1 passed');
       } catch (err) {
@@ -457,30 +501,37 @@ export async function runMultiUserStagingAudit(options = {}) {
 
       results.workflows.push({
         id: workflowId,
-        title: 'Auth Lifecycle (Signup Probe, Password Recovery, Dual Sign-In, UI Hydration)',
+        title: 'Auth Lifecycle (Signup, Password Recovery, Dual Sign-In, UI Hydration)',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
     }
 
-    // Common identifiers for User A and B
+    // Common identifiers for User A and B using secure runtime credentials
+    const creds = getStagingCredentials();
     const wsA = '64bc5f6d-dd81-4fe1-b85e-7a2dabe06b57';
     const wsB = '09761abd-ca46-44b3-9ff5-a7e2b27afb61';
-    const userA = await loginViaWeb(webUrl, 'kamrul@daynori.com', 'DaynoriStaging2026!Secure');
-    const userB = await loginViaWeb(webUrl, 'shahrin@daynori.com', 'DaynoriStaging2026!Secure');
+    const userA = await loginViaWeb(webUrl, creds.userAEmail, creds.userAPassword);
+    const userB = await loginViaWeb(webUrl, creds.userBEmail, creds.userBPassword);
 
     let createdNoteId = null;
     let createdTaskId = null;
     let createdRoutineId = null;
     let createdJournalId = null;
 
-    // Helper to ensure User A is active in CDP
+    // Helper to ensure User A is active in CDP with storage consent granted
     async function ensureUserACookies() {
       for (const c of userA.parsedCookies) {
         await cdp.send('Network.setCookie', c);
+      }
+      try {
+        await cdp.evaluate(`localStorage.setItem('daynori_trusted_device_consent', 'granted');`);
+      } catch {
+        /* ignore */
       }
     }
 
@@ -490,7 +541,10 @@ export async function runMultiUserStagingAudit(options = {}) {
     console.log('\n[2/10] Workflow 2: Note Create, Save, Persistence & Reload...');
     {
       const workflowId = 'workflow-02-note-create-save-reload';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
@@ -534,47 +588,44 @@ export async function runMultiUserStagingAudit(options = {}) {
         const getData = await getRes.json();
         assert(getData.data?.title === noteTitle, 'Retrieved note title does not match');
 
-        // 2c. Navigate to /library and wait for background sync engine to pull
-        await cdp.navigateAndWait(`${webUrl}/library`);
-        await sleep(5000); // Allow syncEngine to pull changes from API into IndexedDB
+        // 2c. Navigate directly to canonical note view in UI: /library?noteId=${createdNoteId}
+        await cdp.navigateAndWait(`${webUrl}/library?noteId=${createdNoteId}`);
+        await sleep(3500); // Allow sync and NoteEditor hydration
 
-        // Reload page so local repository re-reads headers from IndexedDB
+        // 2d. Reload Page & Assert Persistence Invariant: specific note title MUST be present in DOM after reload
         await cdp.send('Page.reload');
-        await sleep(3000);
+        await sleep(4000);
 
-        const libDomCheck = await cdp.evaluate(`
+        const reloadDomCheck = await cdp.evaluate(`
           (() => {
             const text = document.body.innerText;
             return {
-              hasNoteTitle: text.includes('${noteTitle}'),
-              hasItemsOrLibrary: text.includes('Inbox & Unfiled Items') || text.includes('Library & Folders'),
+              hasSpecificItem: text.includes('${noteTitle}'),
+              hasEditorOrLibrary: text.includes('Title:') || text.includes('Library') || text.includes('Saved on this device'),
               textSnippet: text.slice(0, 300).replace(/\\s+/g, ' '),
             };
           })()
         `);
-        assert(libDomCheck.hasNoteTitle || libDomCheck.hasItemsOrLibrary, `Library view failed to render items: ${JSON.stringify(libDomCheck)}`);
-
-        // 2d. Reload Page a second time & Assert Persistence Invariant
-        await cdp.send('Page.reload');
-        await sleep(2500);
-
-        const reloadDomCheck = await cdp.evaluate(`
-          document.body.innerText.includes('Library') || document.body.innerText.includes('Inbox')
-        `);
-        assert(reloadDomCheck === true, 'Library view not rendered after Page.reload');
+        assert(
+          reloadDomCheck.hasSpecificItem === true,
+          `UI verification failed: specific note '${noteTitle}' is absent after reload: ${JSON.stringify(reloadDomCheck)}`
+        );
 
         // Screenshot
         const shotPath = path.join(screenshotsDir, '02-note-persisted-and-reloaded.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        apiVerified = Boolean(createRes.status === 201 && getRes.status === 200 && getData.data?.title === noteTitle);
+        uiVerified = Boolean(reloadDomCheck.hasSpecificItem === true);
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
           noteId: createdNoteId,
           noteTitle,
           apiCreated: true,
-          apiVerified: true,
-          uiRenderedBeforeReload: true,
-          uiRenderedAfterReload: true,
+          apiVerified,
+          uiRenderedAfterReload: uiVerified,
+          hasSpecificItemAfterReload: reloadDomCheck.hasSpecificItem,
         };
         console.log('  ✓ Workflow 2 passed');
       } catch (err) {
@@ -585,9 +636,10 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Note Create, Save, Persistence & Page Reload',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
@@ -599,7 +651,10 @@ export async function runMultiUserStagingAudit(options = {}) {
     console.log('\n[3/10] Workflow 3: Task Deadline & Completion...');
     {
       const workflowId = 'workflow-03-task-deadline-completion';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
@@ -648,33 +703,51 @@ export async function runMultiUserStagingAudit(options = {}) {
         const getData = await getRes.json();
         assert(getData.data?.status === 'completed', `Task status !== "completed" (got ${getData.data?.status})`);
 
-        // 3d. UI Verification via CDP
-        await cdp.navigateAndWait(`${webUrl}/today`);
-        await sleep(2500);
+        // 3d. UI Verification via CDP on /plan?view=completed
+        await cdp.navigateAndWait(`${webUrl}/plan?view=completed`);
+        await sleep(3000);
 
-        const uiCheck = await cdp.evaluate(`
+        // Reload page & Assert Persistence Invariant: specific completed task MUST be present in DOM
+        await cdp.send('Page.reload');
+        await sleep(4000);
+
+        const reloadDomCheck = await cdp.evaluate(`
           (() => {
             const text = document.body.innerText;
             return {
-              hasTodayView: text.includes('Today'),
-              hasCompletedIndicator: text.includes('Completed') || text.includes('Done') || text.includes('Tasks'),
+              hasSpecificItem: text.includes('${taskTitle}'),
+              hasCompletedView: text.includes('Completed') || text.includes('All Tasks'),
+              textSnippet: text.slice(0, 300).replace(/\\s+/g, ' '),
             };
           })()
         `);
-        assert(uiCheck.hasTodayView, 'Today view not rendered in DOM');
+        assert(
+          reloadDomCheck.hasSpecificItem === true,
+          `UI verification failed: specific completed task '${taskTitle}' is absent after reload: ${JSON.stringify(reloadDomCheck)}`
+        );
 
         // Screenshot
         const shotPath = path.join(screenshotsDir, '03-task-deadline-completed.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        apiVerified = Boolean(
+          createRes.status === 201 &&
+          completeRes.status === 200 &&
+          getRes.status === 200 &&
+          getData.data?.status === 'completed'
+        );
+        uiVerified = Boolean(reloadDomCheck.hasSpecificItem === true);
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
           taskId: createdTaskId,
           taskTitle,
           apiCreated: true,
           apiCompleted: true,
           apiStatus: getData.data?.status,
-          uiVerified: true,
+          apiVerified,
+          uiVerified,
+          hasSpecificItemAfterReload: reloadDomCheck.hasSpecificItem,
         };
         console.log('  ✓ Workflow 3 passed');
       } catch (err) {
@@ -685,9 +758,10 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Task Deadline & Completion Lifecycle',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
@@ -699,7 +773,10 @@ export async function runMultiUserStagingAudit(options = {}) {
     console.log('\n[4/10] Workflow 4: Routine Occurrence Lifecycle...');
     {
       const workflowId = 'workflow-04-routine-occurrence';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
@@ -761,27 +838,58 @@ export async function runMultiUserStagingAudit(options = {}) {
         );
         assert(completeRes.status === 200, `Complete occurrence failed: status ${completeRes.status}`);
 
-        // 4e. UI Verification via CDP
+        // 4e. UI Verification via CDP on /today
         await cdp.navigateAndWait(`${webUrl}/today`);
-        await sleep(2500);
+        await cdp.evaluate(`localStorage.setItem('daynori_trusted_device_consent', 'granted');`);
+        await sleep(4000); // Allow syncEngine to pull changes from API into IndexedDB
 
-        const uiCheck = await cdp.evaluate(`
-          document.body.innerText.includes('Today')
-        `);
-        assert(uiCheck === true, 'Today view not rendered in DOM');
+        // Reload page & Assert Persistence Invariant: specific routine title MUST be present in DOM
+        await cdp.send('Page.reload');
+        await sleep(3000);
+
+        // Poll for TodayView layout hydration and specific routine persistence
+        let reloadDomCheck = { hasSpecificItem: false, hasTodayView: false };
+        const pollDeadlineRoutine = Date.now() + 35000;
+        while (Date.now() < pollDeadlineRoutine) {
+          reloadDomCheck = await cdp.evaluate(`
+            (() => {
+              const text = document.body.innerText;
+              const hasRoutinesCard = text.includes("Today's Routines");
+              const hasSpecificItem = text.includes('${routineTitle}');
+              return {
+                hasSpecificItem,
+                hasRoutinesCard,
+                hasTodayView: text.includes('Today'),
+                textSnippet: text.slice(0, 400).replace(/\\s+/g, ' '),
+              };
+            })()
+          `);
+          if (reloadDomCheck.hasSpecificItem) break;
+          await sleep(1500);
+        }
+
+        assert(
+          reloadDomCheck.hasSpecificItem === true,
+          `UI verification failed: specific routine '${routineTitle}' is absent after reload: ${JSON.stringify(reloadDomCheck)}`
+        );
 
         // Screenshot
         const shotPath = path.join(screenshotsDir, '04-routine-occurrence-logged.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        apiVerified = Boolean(createRes.status === 201 && genRes.status === 200 && occRes.status === 200 && completeRes.status === 200);
+        uiVerified = Boolean(reloadDomCheck.hasSpecificItem === true);
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
           routineId: createdRoutineId,
           routineTitle,
           occurrenceId: occurrence.id,
           occurrenceStatusBefore: occurrence.status,
           apiCompleted: true,
-          uiVerified: true,
+          apiVerified,
+          uiVerified,
+          hasSpecificItemAfterReload: reloadDomCheck.hasSpecificItem,
         };
         console.log('  ✓ Workflow 4 passed');
       } catch (err) {
@@ -792,9 +900,10 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Routine Occurrence Creation & Logging Lifecycle',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
@@ -806,7 +915,10 @@ export async function runMultiUserStagingAudit(options = {}) {
     console.log('\n[5/10] Workflow 5: Journal Creation & Reflection...');
     {
       const workflowId = 'workflow-05-journal-creation';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
@@ -845,34 +957,58 @@ export async function runMultiUserStagingAudit(options = {}) {
 
         // 5c. Verify UI Rendering via CDP on /journal
         await cdp.navigateAndWait(`${webUrl}/journal`);
-        await sleep(3500);
+        await cdp.evaluate(`localStorage.setItem('daynori_trusted_device_consent', 'granted');`);
+        await sleep(4000); // Allow syncEngine to pull changes into IndexedDB
 
-        const uiJournalCheck = await cdp.evaluate(`
-          (() => {
-            const text = document.body.innerText;
-            return {
-              hasJournalHeader: text.includes('Journal'),
-              hasSignInRequired: text.includes('Sign in required'),
-              hasTimelineOrWrite: text.includes('Write Entry') || text.includes('Day View') || text.includes('Timeline') || text.includes('Reflection') || text.includes('calm'),
-              textSnippet: text.slice(0, 300).replace(/\\s+/g, ' '),
-            };
-          })()
-        `);
-        assert(!uiJournalCheck.hasSignInRequired && uiJournalCheck.hasJournalHeader && uiJournalCheck.hasTimelineOrWrite, `Journal view failed to render: ${JSON.stringify(uiJournalCheck)}`);
+        // Reload page & Assert Persistence Invariant: specific journal entry MUST be present in DOM
+        await cdp.send('Page.reload');
+        await sleep(3000);
+
+        // Poll for JournalView hydration and specific journal entry persistence
+        let reloadDomCheck = { hasSpecificItem: false, hasJournalHeader: false, hasSignInRequired: true };
+        const pollDeadlineJournal = Date.now() + 35000;
+        while (Date.now() < pollDeadlineJournal) {
+          reloadDomCheck = await cdp.evaluate(`
+            (() => {
+              const text = document.body.innerText;
+              const hasSpecificItem = text.includes('${journalTitle}');
+              const hasJournalHeader = text.includes('Journal');
+              const hasSignInRequired = text.includes('Sign in required');
+              return {
+                hasSpecificItem,
+                hasJournalHeader,
+                hasSignInRequired,
+                textSnippet: text.slice(0, 400).replace(/\\s+/g, ' '),
+              };
+            })()
+          `);
+          if (reloadDomCheck.hasSpecificItem) break;
+          await sleep(1500);
+        }
+
+        assert(
+          !reloadDomCheck.hasSignInRequired && reloadDomCheck.hasJournalHeader && reloadDomCheck.hasSpecificItem === true,
+          `UI verification failed: specific journal entry '${journalTitle}' is absent after reload: ${JSON.stringify(reloadDomCheck)}`
+        );
 
         // Screenshot
         const shotPath = path.join(screenshotsDir, '05-journal-entry-persisted.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        apiVerified = Boolean(createRes.status === 201 && getRes.status === 200 && getData.data?.mood === 'calm');
+        uiVerified = Boolean(reloadDomCheck.hasSpecificItem === true);
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
           journalId: createdJournalId,
           journalTitle,
           entryDate: todayStr,
           mood: 'calm',
           apiCreated: true,
-          apiVerified: true,
+          apiVerified,
           uiRendered: true,
+          uiVerified,
+          hasSpecificItemAfterReload: reloadDomCheck.hasSpecificItem,
         };
         console.log('  ✓ Workflow 5 passed');
       } catch (err) {
@@ -883,9 +1019,10 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Journal Creation & Reflection Lifecycle',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
@@ -897,7 +1034,10 @@ export async function runMultiUserStagingAudit(options = {}) {
     console.log('\n[6/10] Workflow 6: Workspace Search...');
     {
       const workflowId = 'workflow-06-workspace-search';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
@@ -917,28 +1057,37 @@ export async function runMultiUserStagingAudit(options = {}) {
         await cdp.navigateAndWait(`${webUrl}/library`);
         await sleep(2500);
 
+        // Reload page & verify search interface persists and renders input
+        await cdp.send('Page.reload');
+        await sleep(3000);
+
         const searchUiCheck = await cdp.evaluate(`
           (() => {
             const text = document.body.innerText;
             const hasSearchOrFilter = text.includes('Search') || text.includes('Filter') || text.includes('Library');
+            const hasSearchInput = Boolean(document.querySelector('input[type="search"]'));
             return {
               hasSearchOrFilter,
+              hasSearchInput,
               renderedItemsCount: document.querySelectorAll('[data-item-card], tr, li').length,
             };
           })()
         `);
-        assert(searchUiCheck.hasSearchOrFilter, 'Search/Library UI not rendered');
+        assert(searchUiCheck.hasSearchOrFilter && searchUiCheck.hasSearchInput, 'Search UI input not rendered in DOM after reload');
 
         // Screenshot
         const shotPath = path.join(screenshotsDir, '06-search-query-results.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        apiVerified = Boolean(searchRes.status === 200 && items.length >= 1);
+        uiVerified = Boolean(searchUiCheck.hasSearchOrFilter && searchUiCheck.hasSearchInput);
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
           query: 'Staging',
           apiMatchesCount: items.length,
-          apiVerified: true,
-          uiVerified: true,
+          apiVerified,
+          uiVerified,
         };
         console.log('  ✓ Workflow 6 passed');
       } catch (err) {
@@ -949,21 +1098,25 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Workspace Scoped Full-Text Search',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
     }
 
     // =========================================================================
-    // WORKFLOW 7: Offline Draft, Reconnect & Conflict Handling
+    // WORKFLOW 7: Offline Draft, Reconnect & Conflict Handling (API Protocol Test)
     // =========================================================================
     console.log('\n[7/10] Workflow 7: Offline Draft, Reconnect & Conflict Handling...');
     {
       const workflowId = 'workflow-07-offline-draft-and-conflict';
+      const workflowType = 'api_only';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
@@ -1033,13 +1186,25 @@ export async function runMultiUserStagingAudit(options = {}) {
         const shotPath = path.join(screenshotsDir, '07-offline-draft-and-reconnect.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        apiVerified = Boolean(
+          conflictRes.status === 409 &&
+          (conflictCode?.includes('REVISION_CONFLICT') || conflictCode?.includes('CONFLICT')) &&
+          updateRes.status === 200 &&
+          updateData.data?.revision === 2 &&
+          isOffline &&
+          isOnline
+        );
+        uiVerified = false; // Dedicated API protocol and network emulation test, not a DOM journey
+        passed = apiVerified;
+
         details = {
           conflictStatusCode: conflictRes.status,
           conflictErrorCode: conflictCode,
           reconciledRevision: updateData.data?.revision,
-          offlineEmulationVerified: true,
-          onlineReconnectionVerified: true,
+          offlineEmulationVerified: isOffline,
+          onlineReconnectionVerified: isOnline,
+          apiVerified,
+          uiVerified,
         };
         console.log('  ✓ Workflow 7 passed');
       } catch (err) {
@@ -1050,9 +1215,10 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Offline Drafts, Reconnection & Optimistic Revision Conflict Handling',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
@@ -1064,7 +1230,10 @@ export async function runMultiUserStagingAudit(options = {}) {
     console.log('\n[8/10] Workflow 8: Support / Feedback Submission...');
     {
       const workflowId = 'workflow-08-support-submission';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
@@ -1097,6 +1266,10 @@ export async function runMultiUserStagingAudit(options = {}) {
         await cdp.navigateAndWait(`${webUrl}/support`);
         await sleep(2500);
 
+        // Reload page & verify UI support form persists
+        await cdp.send('Page.reload');
+        await sleep(3000);
+
         const supportUiCheck = await cdp.evaluate(`
           (() => {
             const text = document.body.innerText;
@@ -1106,19 +1279,24 @@ export async function runMultiUserStagingAudit(options = {}) {
             };
           })()
         `);
-        assert(supportUiCheck.hasSupportHeader, 'Support view header not rendered in DOM');
+        assert(supportUiCheck.hasSupportHeader && supportUiCheck.hasFormOrContact, 'Support view header/form not rendered in DOM after reload');
 
         // Screenshot
         const shotPath = path.join(screenshotsDir, '08-support-feedback-submission.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        apiVerified = Boolean(submitRes.status === 201 && reportReceiptId);
+        uiVerified = Boolean(supportUiCheck.hasSupportHeader && supportUiCheck.hasFormOrContact);
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
           clientReportId,
           reportReceiptId,
           apiSubmitted: true,
           deliveryNotice: submitData.data?.deliveryNotice,
           uiRendered: true,
+          apiVerified,
+          uiVerified,
         };
         console.log('  ✓ Workflow 8 passed');
       } catch (err) {
@@ -1129,9 +1307,10 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Support & Feedback Intake Submission Lifecycle',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
@@ -1143,7 +1322,10 @@ export async function runMultiUserStagingAudit(options = {}) {
     console.log('\n[9/10] Workflow 9: Tenant Isolation Proof...');
     {
       const workflowId = 'workflow-09-tenant-isolation-proof';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
@@ -1209,18 +1391,38 @@ export async function runMultiUserStagingAudit(options = {}) {
         await cdp.navigateAndWait(`${webUrl}/library`);
         await sleep(2500);
 
+        // Reload page to verify persistence under User B
+        await cdp.send('Page.reload');
+        await sleep(3000);
+
         // Verify User A's note is STRICTLY ABSENT from User B's UI
         const aNoteTitle = `Staging Verified Note ${runId}`;
         const userBDomCheck = await cdp.evaluate(`
-          document.body.innerText.includes('${aNoteTitle}')
+          (() => {
+            const text = document.body.innerText;
+            return {
+              hasLeakedNote: text.includes('${aNoteTitle}'),
+              hasUserBLibrary: text.includes('Library') || text.includes('Inbox'),
+            };
+          })()
         `);
-        assert(userBDomCheck === false, `SECURITY VIOLATION: User A note '${aNoteTitle}' leaked into User B DOM!`);
+        assert(userBDomCheck.hasLeakedNote === false, `SECURITY VIOLATION: User A note '${aNoteTitle}' leaked into User B DOM!`);
+        assert(userBDomCheck.hasUserBLibrary, 'User B library failed to render after reload');
 
         // Screenshot of User B library proving complete isolation
         const shotPath = path.join(screenshotsDir, '09-tenant-isolation-userB.png');
         screenshotInfo = await cdp.screenshot(shotPath);
 
-        passed = true;
+        apiVerified = Boolean(
+          (aReadBws.status === 403 || aReadBws.status === 404) &&
+          (aListBNotes.status === 403 || aListBNotes.status === 404) &&
+          (aCreateBTask.status === 403 || aCreateBTask.status === 404) &&
+          (bReadANote.status === 403 || bReadANote.status === 404) &&
+          (bDeleteANote.status === 403 || bDeleteANote.status === 404)
+        );
+        uiVerified = Boolean(userBDomCheck.hasLeakedNote === false && userBDomCheck.hasUserBLibrary);
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
           userAGetUserBWorkspaceStatus: aReadBws.status,
           userAGetUserBNotesStatus: aListBNotes.status,
@@ -1229,6 +1431,8 @@ export async function runMultiUserStagingAudit(options = {}) {
           userBDeleteUserANoteStatus: bDeleteANote.status,
           userBDomCrossTenantLeakage: false,
           isolationProven: true,
+          apiVerified,
+          uiVerified,
         };
         console.log('  ✓ Workflow 9 passed');
       } catch (err) {
@@ -1239,9 +1443,10 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Multi-User Tenant Isolation & Cross-Workspace Access Rejection',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
@@ -1253,12 +1458,15 @@ export async function runMultiUserStagingAudit(options = {}) {
     console.log('\n[10/10] Workflow 10: Account Deletion Lifecycle...');
     {
       const workflowId = 'workflow-10-account-deletion';
+      const workflowType = 'ui_and_api';
       let passed = false;
+      let uiVerified = false;
+      let apiVerified = false;
       let details = {};
       let screenshotInfo = null;
 
       try {
-        // 10a. User B requests account deletion via API
+        // 10a. User B requests account deletion via API using rotated credentials
         const reqRes = await fetch(`${apiUrl}/v1/auth/account-deletion/request`, {
           method: 'POST',
           headers: {
@@ -1266,7 +1474,7 @@ export async function runMultiUserStagingAudit(options = {}) {
             Authorization: `Bearer ${userB.bearerToken}`,
           },
           body: JSON.stringify({
-            password: 'DaynoriStaging2026!Secure',
+            password: creds.userBPassword,
             reason: 'Automated staging audit testing account deletion lifecycle',
           }),
         });
@@ -1286,6 +1494,10 @@ export async function runMultiUserStagingAudit(options = {}) {
         await cdp.navigateAndWait(`${webUrl}/account-deletion`);
         await sleep(2500);
 
+        // Reload page to verify deletion view persists
+        await cdp.send('Page.reload');
+        await sleep(3000);
+
         const deletionUiCheck = await cdp.evaluate(`
           (() => {
             const text = document.body.innerText;
@@ -1295,7 +1507,7 @@ export async function runMultiUserStagingAudit(options = {}) {
             };
           })()
         `);
-        assert(deletionUiCheck.hasDeletionHeader, 'Account deletion view header not rendered in DOM');
+        assert(deletionUiCheck.hasDeletionHeader, 'Account deletion view header not rendered in DOM after reload');
 
         // Screenshot
         const shotPath = path.join(screenshotsDir, '10-account-deletion-lifecycle.png');
@@ -1312,7 +1524,16 @@ export async function runMultiUserStagingAudit(options = {}) {
         });
         assert(cancelRes.status === 200, `Cancel account deletion failed: status ${cancelRes.status}`);
 
-        passed = true;
+        apiVerified = Boolean(
+          reqRes.status === 200 &&
+          reqData.status === 'pending_confirmation' &&
+          statRes.status === 200 &&
+          statData.status === 'pending_confirmation' &&
+          cancelRes.status === 200
+        );
+        uiVerified = Boolean(deletionUiCheck.hasDeletionHeader && deletionUiCheck.hasExplanationOrNotice);
+        passed = (workflowType === 'ui_and_api') ? (apiVerified && uiVerified) : apiVerified;
+
         details = {
           deletionRequestedStatus: reqData.status,
           deletionId: reqData.deletionId,
@@ -1321,6 +1542,8 @@ export async function runMultiUserStagingAudit(options = {}) {
           statusPolled: statData.status,
           cancelStatusCode: cancelRes.status,
           uiRendered: true,
+          apiVerified,
+          uiVerified,
         };
         console.log('  ✓ Workflow 10 passed');
       } catch (err) {
@@ -1331,9 +1554,10 @@ export async function runMultiUserStagingAudit(options = {}) {
       results.workflows.push({
         id: workflowId,
         title: 'Account Deletion Lifecycle (Request, Status Verification & Cancellation)',
+        workflowType,
         passed,
-        uiVerified: true,
-        apiVerified: true,
+        uiVerified,
+        apiVerified,
         details,
         screenshot: screenshotInfo,
       });
@@ -1344,10 +1568,24 @@ export async function runMultiUserStagingAudit(options = {}) {
     }
   }
 
-  // Summary calculation
-  results.summary.total = results.workflows.length;
-  results.summary.passed = results.workflows.filter((w) => w.passed).length;
-  results.summary.failed = results.workflows.filter((w) => !w.passed).length;
+  // Summary calculation distinguishing UI workflows and API protocol tests
+  const total = results.workflows.length;
+  const passed = results.workflows.filter((w) => w.passed).length;
+  const failed = results.workflows.filter((w) => !w.passed).length;
+  const uiAndApiWorkflows = results.workflows.filter((w) => w.workflowType === 'ui_and_api').length;
+  const apiOnlyWorkflows = results.workflows.filter((w) => w.workflowType === 'api_only').length;
+  const uiVerifiedCount = results.workflows.filter((w) => w.uiVerified).length;
+  const apiVerifiedCount = results.workflows.filter((w) => w.apiVerified).length;
+
+  results.summary = {
+    total,
+    passed,
+    failed,
+    uiAndApiWorkflows,
+    apiOnlyWorkflows,
+    uiVerifiedCount,
+    apiVerifiedCount,
+  };
 
   console.log(`\n=======================================================`);
   console.log(`Phase 125 Audit Completed: ${results.summary.passed}/${results.summary.total} Workflows Passed`);

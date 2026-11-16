@@ -80,6 +80,29 @@ function getDatabasePassword() {
   return process.env.PREVIEW_DATABASE_PASSWORD || process.env.SUPABASE_DATABASE_PASSWORD || '';
 }
 
+export function getStagingCredentials() {
+  const envPath = path.join(REPO_ROOT, 'artifacts', 'local', 'staging-accounts-private.env');
+  let userAEmail = process.env.STAGING_USER_A_EMAIL;
+  let userAPassword = process.env.STAGING_USER_A_PASSWORD;
+  let userBEmail = process.env.STAGING_USER_B_EMAIL;
+  let userBPassword = process.env.STAGING_USER_B_PASSWORD;
+
+  if (fs.existsSync(envPath)) {
+    const raw = fs.readFileSync(envPath, 'utf8');
+    userAEmail = userAEmail || raw.match(/^STAGING_USER_A_EMAIL=(.*)$/m)?.[1]?.trim();
+    userAPassword = userAPassword || raw.match(/^STAGING_USER_A_PASSWORD=(.*)$/m)?.[1]?.trim();
+    userBEmail = userBEmail || raw.match(/^STAGING_USER_B_EMAIL=(.*)$/m)?.[1]?.trim();
+    userBPassword = userBPassword || raw.match(/^STAGING_USER_B_PASSWORD=(.*)$/m)?.[1]?.trim();
+  }
+
+  if (!userAEmail || !userAPassword || !userBEmail || !userBPassword) {
+    throw new Error(
+      'FAIL-CLOSED: Missing required staging credentials. Provide STAGING_USER_A_EMAIL/PASSWORD and STAGING_USER_B_EMAIL/PASSWORD via environment variables or gitignored artifacts/local/staging-accounts-private.env.'
+    );
+  }
+  return { userAEmail, userAPassword, userBEmail, userBPassword };
+}
+
 async function loginViaWeb(webUrl, email, password) {
   const sessionRes = await fetch(`${webUrl}/api/auth/session`);
   if (!sessionRes.ok) {
@@ -250,12 +273,13 @@ export async function runCapacityLoadTest(options = {}) {
   console.log(`DB Host: ${DEFAULT_DB_HOST}:5432`);
   console.log(`========================================================================\n`);
 
-  // 1. Authenticate real staging accounts
+  // 1. Authenticate real staging accounts using secure runtime secrets
   console.log(`[Step 1] Authenticating staging accounts via ${webUrl}...`);
-  const userA = await loginViaWeb(webUrl, 'kamrul@daynori.com', 'DaynoriStaging2026!Secure');
-  const userB = await loginViaWeb(webUrl, 'shahrin@daynori.com', 'DaynoriStaging2026!Secure');
-  console.log(`  ✓ User A authenticated (kamrul@daynori.com, token length: ${userA.bearerToken.length})`);
-  console.log(`  ✓ User B authenticated (shahrin@daynori.com, token length: ${userB.bearerToken.length})`);
+  const creds = getStagingCredentials();
+  const userA = await loginViaWeb(webUrl, creds.userAEmail, creds.userAPassword);
+  const userB = await loginViaWeb(webUrl, creds.userBEmail, creds.userBPassword);
+  console.log(`  ✓ User A authenticated (${creds.userAEmail}, token length: ${userA.bearerToken.length})`);
+  console.log(`  ✓ User B authenticated (${creds.userBEmail}, token length: ${userB.bearerToken.length})`);
 
   const users = [
     { ...userA, workspaceId: '64bc5f6d-dd81-4fe1-b85e-7a2dabe06b57', name: 'User A' },
