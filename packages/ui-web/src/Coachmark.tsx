@@ -48,7 +48,7 @@ export const Coachmark: React.FC<CoachmarkProps> = ({
         borderRadius: radii.card,
         backgroundColor: palette.surface,
         border: `2px solid ${palette.border.focus}`,
-        boxShadow: `0 8px 24px rgba(23, 44, 44, 0.12)`,
+        boxShadow: `0 8px 24px rgba(23, 35, 58, 0.12)`,
         color: palette.text.primary,
       }}
     >

@@ -80,7 +80,7 @@ describe('Phase 104: Gated Features Truthfulness and Barrier Verification', () =
 
     expect(panelContent).toContain('assistant-gated-banner');
     expect(panelContent).toContain('DEF-V2-008');
-    expect(panelContent).toContain('cursor: isGated ? \'not-allowed\' : \'text\'');
-    expect(headerContent).toContain('aria-label="Ask Nori assistant (Gated under DEF-V2-008)"');
+    expect(panelContent).toContain("cursor: isGated ? 'not-allowed' : 'text'");
+    expect(headerContent).toContain('aria-label="Ask Nori assistant (coming later)"');
   });
 });

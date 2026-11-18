@@ -11,10 +11,10 @@
     "splash": {
       "image": "./assets/brand/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F7F5EF",
+      "backgroundColor": "#F7F7FF",
       "dark": {
         "image": "./assets/brand/splash-inverse.png",
-        "backgroundColor": "#0D1919"
+        "backgroundColor": "#0E1024"
       }
     },
     "ios": {
@@ -51,7 +51,7 @@
       [
         "expo-notifications",
         {
-          "color": "#146B63",
+          "color": "#623DE8",
           "icon": "./assets/brand/notification-icon.png",
           "sounds": [],
           "mode": "production"
@@ -76,7 +76,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/adaptive-foreground.png",
         "monochromeImage": "./assets/brand/adaptive-monochrome.png",
-        "backgroundColor": "#146B63"
+        "backgroundColor": "#623DE8"
       },
       "package": "com.daynori.app",
       "versionCode": 1,

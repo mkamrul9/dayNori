@@ -71,9 +71,9 @@ export function NoriCompanionLauncher({
   const label = getNoriStateAccessibilityLabel(currentState);
 
   // Icon color derived from truthful state
-  let iconColor = isDark ? '#2FA89A' : palette.action.primary;
+  let iconColor: string = palette.action.primary;
   if (currentState === 'listening') {
-    iconColor = isDark ? '#E5B55A' : '#D9A441';
+    iconColor = palette.accent.warm;
   } else if (currentState === 'error') {
     iconColor = isDark ? colors.dark.status.danger : colors.light.status.danger;
   } else if (currentState === 'offline') {

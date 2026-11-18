@@ -31,10 +31,7 @@ describe('PWA unsaved-work guard and banner stacking', () => {
     const unsub = subscribeUnsavedWork(() => undefined);
     expect(typeof unsub).toBe('function');
     unsub();
-    const src = fs.readFileSync(
-      path.join(repoRoot, 'apps/web/src/editing/unsavedWork.ts'),
-      'utf8'
-    );
+    const src = fs.readFileSync(path.join(repoRoot, 'apps/web/src/editing/unsavedWork.ts'), 'utf8');
     expect(src).toContain('data-daynori-unsaved');
     expect(src).toContain('daynori:unsaved-change');
   });
@@ -65,7 +62,10 @@ describe('PWA unsaved-work guard and banner stacking', () => {
     expect(banners).toMatch(/showInstall.*!showUpdate|!showUpdate[\s\S]*showInstall/);
     const layout = fs.readFileSync(path.join(repoRoot, 'apps/web/src/app/layout.tsx'), 'utf8');
     expect(layout).not.toContain('ServiceWorkerRegistration');
-    const shell = fs.readFileSync(path.join(repoRoot, 'apps/web/src/components/AppShell.tsx'), 'utf8');
+    const shell = fs.readFileSync(
+      path.join(repoRoot, 'apps/web/src/components/AppShell.tsx'),
+      'utf8'
+    );
     expect(shell).toContain('AppStatusBanners');
     expect(shell).toContain('FirstLoginOnboardingGate');
     expect(shell).not.toContain('PwaInstallBanner');
@@ -99,7 +99,7 @@ describe('PWA unsaved-work guard and banner stacking', () => {
     expect(shellJs).toContain('offline_boot');
     expect(shellJs).not.toContain('/api/');
     const sw = fs.readFileSync(path.join(repoRoot, 'apps/web/public/sw.js'), 'utf8');
-    expect(sw).toMatch(/daynori-static-v9/);
+    expect(sw).toMatch(/daynori-static-v11/);
     expect(sw).toContain("path.startsWith('/api/')");
     expect(sw).toContain('/offline.html');
     expect(sw).toContain('/offline-shell.html');

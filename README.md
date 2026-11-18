@@ -36,21 +36,23 @@ A calm, offline-first personal organizer for notes, routines, tasks, journals, c
 
 ## <img src="assets/brand/icons/sparkle.svg" width="22" height="22" align="absmiddle" alt="" /> Product Showcase
 
+The Today screenshots show the current violet and coral Day Path palette from a local production build. The Plan, Calendar, Library, Journal, and Android screenshots below are historical previews. [Phase 131](docs/phase-reports/phase-131.md) records the current light and dark visual evidence and its limits.
+
 ### Desktop & Responsive Web Application
 
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/web-today-dark.png" />
-    <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/web-today-light.png" />
-    <img src="assets/screenshots/web-today-light.png" alt="Daynori Web Today Workspace" width="100%" />
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/day-path-web-today-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/day-path-web-today-light.png" />
+    <img src="assets/screenshots/day-path-web-today-light.png" alt="Daynori Web Today Workspace" width="100%" />
   </picture>
-  <p><sub><b>Today Workspace</b> — Unified daily command center with prioritized tasks due today, recurring habit checklists, bilingual English/Bangla typography, and real-time sync telemetry (automatically adapts to your GitHub Light or Dark theme above).</sub></p>
+  <p><sub><b>Today Workspace</b> — A focused view of tasks and recurring routines. This capture uses an empty local workspace and adapts to your GitHub Light or Dark theme.</sub></p>
 </div>
 
-| <img src="assets/brand/icons/sun.svg" width="18" height="18" align="absmiddle" alt="" /> **Warm Paper (Light Mode)** | <img src="assets/brand/icons/moon.svg" width="18" height="18" align="absmiddle" alt="" /> **Deep Ink (Dark Mode)** |
-| :------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------: |
-|       <img src="assets/screenshots/web-today-light.png" alt="Daynori Today View in Light Mode" width="100%" />       |       <img src="assets/screenshots/web-today-dark.png" alt="Daynori Today View in Dark Mode" width="100%" />       |
-|         <sub>High-contrast warm paper palette (`#F7F5EF`) tuned for daytime reading and calm planning.</sub>         |       <sub>Low-glare deep ink palette (`#121A1D`) with balanced semantic contrast for night sessions.</sub>        |
+|     <img src="assets/brand/icons/sun.svg" width="18" height="18" align="absmiddle" alt="" /> **Lilac Light**      |  <img src="assets/brand/icons/moon.svg" width="18" height="18" align="absmiddle" alt="" /> **Midnight Violet**  |
+| :---------------------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------------------: |
+| <img src="assets/screenshots/day-path-web-today-light.png" alt="Daynori Today View in Light Mode" width="100%" /> | <img src="assets/screenshots/day-path-web-today-dark.png" alt="Daynori Today View in Dark Mode" width="100%" /> |
+|                            <sub>Cool lilac canvas with violet and coral accents.</sub>                            |                        <sub>Midnight violet canvas with accessible light accents.</sub>                         |
 
 |   <img src="assets/brand/icons/check-square.svg" width="18" height="18" align="absmiddle" alt="" /> **Plan & Prioritized Tasks**    | <img src="assets/brand/icons/calendar.svg" width="18" height="18" align="absmiddle" alt="" /> **Unified Calendar & Deadlines** |
 | :---------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------: |

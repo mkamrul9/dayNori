@@ -54,9 +54,9 @@ describe('Phase 117: Web/PWA Visual Polish and Usability Refinement Tests', () =
 
       expect(content).toContain("variant?: 'card' | 'subtle' | 'inline';");
       expect(content).toContain('borderRadius: `${radii.card}px`');
-      expect(content).toContain('themeMode === \'dark\' ? palette.border.subtle : \'rgba(23, 44, 44, 0.08)\'');
-      expect(content).toContain('width: \'52px\'');
-      expect(content).toContain('height: \'52px\'');
+      expect(content).toContain('palette.border.subtle');
+      expect(content).toContain("width: '52px'");
+      expect(content).toContain("height: '52px'");
     });
 
     it('verifies Card primitive supports calm variant and softer border delineations', () => {
@@ -65,7 +65,7 @@ describe('Phase 117: Web/PWA Visual Polish and Usability Refinement Tests', () =
 
       expect(content).toContain("variant?: 'subtle' | 'outlined' | 'elevated' | 'flat' | 'calm';");
       expect(content).toContain("variant === 'calm'");
-      expect(content).toContain('rgba(23, 44, 44, 0.08)');
+      expect(content).toContain('rgba(23, 35, 58, 0.08)');
     });
 
     it('verifies Dialog primitive includes softened backdrop, sheet radii, and focus-visible close button', () => {
@@ -93,7 +93,9 @@ describe('Phase 117: Web/PWA Visual Polish and Usability Refinement Tests', () =
       const todayFile = path.join(repoRoot, 'apps/web/src/components/TodayView.tsx');
       const content = fs.readFileSync(todayFile, 'utf8');
 
-      expect(content).toContain('<Card key={widget.id} variant="calm" themeMode={themeMode}>');
+      expect(content).toContain(
+        '<Card key={widget.id} variant="calm" themeMode={themeMode} style={{ padding: 0 }}>'
+      );
       expect(content).toContain('id="today-create-btn"');
       expect(content).toContain('className="desktop-only"');
       expect(content).toContain('id="customize-today-btn"');
@@ -109,15 +111,15 @@ describe('Phase 117: Web/PWA Visual Polish and Usability Refinement Tests', () =
       expect(content).toContain('id="global-create-btn"');
       expect(content).toContain('id="global-search-btn"');
       expect(content).toContain('id="global-theme-toggle"');
-      expect(content).toContain('borderBottom: `1px solid ${themeMode === \'dark\' ? palette.border.subtle : \'rgba(23, 44, 44, 0.08)\'}`');
+      expect(content).toContain('borderBottom: `1px solid ${palette.border.subtle}`');
     });
 
     it('verifies AppSidebar applies soft borders, uppercase headers, and active pill state', () => {
       const sidebarFile = path.join(repoRoot, 'apps/web/src/components/AppSidebar.tsx');
       const content = fs.readFileSync(sidebarFile, 'utf8');
 
-      expect(content).toContain('borderRight: `1px solid ${themeMode === \'dark\' ? palette.border.subtle : \'rgba(23, 44, 44, 0.08)\'}`');
-      expect(content).toContain('letterSpacing: \'0.06em\'');
+      expect(content).toContain('borderRight: `1px solid ${palette.border.subtle}`');
+      expect(content).toContain("letterSpacing: '0.06em'");
       expect(content).toContain('palette.action.subtle');
     });
 
@@ -125,7 +127,7 @@ describe('Phase 117: Web/PWA Visual Polish and Usability Refinement Tests', () =
       const bottomNavFile = path.join(repoRoot, 'apps/web/src/components/AppBottomNav.tsx');
       const content = fs.readFileSync(bottomNavFile, 'utf8');
 
-      expect(content).toContain('borderTop: `1px solid ${themeMode === \'dark\' ? palette.border.subtle : \'rgba(23, 44, 44, 0.08)\'}`');
+      expect(content).toContain('borderTop: `1px solid ${palette.border.subtle}`');
       expect(content).toContain('minHeight: `${touchTargets.webMin}px`');
       expect(content).toContain('daynori-bottom-nav-label');
     });
@@ -134,7 +136,7 @@ describe('Phase 117: Web/PWA Visual Polish and Usability Refinement Tests', () =
       const libraryFile = path.join(repoRoot, 'apps/web/src/app/library/page.tsx');
       const content = fs.readFileSync(libraryFile, 'utf8');
 
-      expect(content).toContain('themeMode === \'dark\' ? palette.border.subtle : \'rgba(23, 44, 44, 0.08)\'');
+      expect(content).toContain('palette.border.subtle');
       expect(content).toContain('ItemTypeBadge');
       expect(content).toContain('Search notes and folders...');
     });
@@ -144,7 +146,9 @@ describe('Phase 117: Web/PWA Visual Polish and Usability Refinement Tests', () =
       const content = fs.readFileSync(journalFile, 'utf8');
 
       expect(content).toContain('<Card key={entry.id} variant="calm" themeMode={themeMode}>');
-      expect(content).toContain('borderBottom: `1px solid ${themeMode === \'dark\' ? palette.border.subtle : \'rgba(23, 44, 44, 0.08)\'}`');
+      expect(content).toContain(
+        "borderBottom: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 35, 58, 0.08)'}`"
+      );
       expect(content).toContain('data-testid="tab-day-view"');
       expect(content).toContain('data-testid="tab-timeline-view"');
       expect(content).toContain('data-testid="tab-trash-view"');

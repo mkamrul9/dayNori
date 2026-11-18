@@ -56,7 +56,7 @@ describe('Phase 68 Warm notebook primitives', () => {
       React.createElement(TextLink, { href: '/help', children: 'Open Help' })
     );
     expect(html).toContain('Open Help');
-    expect(html).toContain('color:#146B63');
+    expect(html).toContain('color:#623DE8');
     expect(
       getContrastRatio(colors.light.action.primary, colors.light.background)
     ).toBeGreaterThanOrEqual(4.5);

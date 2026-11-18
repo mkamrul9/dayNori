@@ -3,7 +3,7 @@
 import { Icon } from '@daynori/ui-web';
 import { isCorePreview } from '../config/preview';
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { colors, radii, spacing } from '@daynori/design-tokens';
 import {
   Button,
@@ -45,6 +45,7 @@ import type { SearchResultItem, SearchItemType } from '@daynori/contracts';
 export const AppModals: React.FC = () => {
   const tour = useTour();
   const router = useRouter();
+  const pathname = usePathname();
   const {
     themeMode,
     toggleTheme,
@@ -54,7 +55,16 @@ export const AppModals: React.FC = () => {
     isMobileDrawerOpen,
     setMobileDrawerOpen,
   } = useShell();
-  const { user, isAuthenticated, signOut, openAuthModal, workspaceId, csrfToken, preferences, savePreferences } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    signOut,
+    openAuthModal,
+    workspaceId,
+    csrfToken,
+    preferences,
+    savePreferences,
+  } = useAuth();
   const { primaryTabs, pins, isOperator } = useFeatureNavigation();
 
   const palette = colors[themeMode];
@@ -1069,11 +1079,7 @@ export const AppModals: React.FC = () => {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '6px',
-              backgroundColor: palette.surfaceRaised,
-              borderRadius: `${radii.card}px`,
-              padding: `${spacing.xs}px`,
-              border: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+              gap: '2px',
             }}
           >
             <TourTarget id="create.type.task">
@@ -1474,6 +1480,13 @@ export const AppModals: React.FC = () => {
             <ListRow
               key={tab.id}
               title={tab.label}
+              variant="flat"
+              selected={
+                tab.webPath === '/today'
+                  ? pathname === '/' || pathname === '/today'
+                  : pathname.startsWith(tab.webPath)
+              }
+              leading={<Icon name={tab.icon} size={20} />}
               onClick={() => navigateTo(tab.webPath)}
               themeMode={themeMode}
             />
@@ -1496,6 +1509,8 @@ export const AppModals: React.FC = () => {
                 <ListRow
                   key={pin.id}
                   title={pin.label}
+                  variant="flat"
+                  leading={<Icon name={pin.icon} size={20} />}
                   onClick={() => navigateTo(pin.webPath)}
                   themeMode={themeMode}
                 />
@@ -1504,7 +1519,7 @@ export const AppModals: React.FC = () => {
           ) : null}
           <div
             style={{
-              borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+              borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 35, 58, 0.08)'}`,
               margin: `${spacing.xs}px 0`,
             }}
           />
@@ -1523,7 +1538,8 @@ export const AppModals: React.FC = () => {
           <ListRow
             id="mobile-menu-theme-toggle"
             title={themeMode === 'light' ? 'Switch to Dark Theme' : 'Switch to Light Theme'}
-            subtitle={`Current mode: ${themeMode === 'light' ? 'Warm paper (Light)' : 'Deep ink (Dark)'}`}
+            subtitle={`Current mode: ${themeMode === 'light' ? 'Lilac light' : 'Midnight violet'}`}
+            variant="flat"
             leading={
               <span
                 aria-hidden="true"
@@ -1551,38 +1567,55 @@ export const AppModals: React.FC = () => {
             themeMode={themeMode}
           />
           <ListRow
+            title="Search"
+            subtitle="Find tasks, notes, and journal entries"
+            variant="flat"
+            leading={<Icon name="search" size={20} />}
+            onClick={() => {
+              setMobileDrawerOpen(false);
+              openModal('search');
+            }}
+            themeMode={themeMode}
+          />
+          <ListRow
             title="All features"
             subtitle="Find, pin, hide, or restore modules"
+            variant="flat"
             onClick={() => navigateTo('/features')}
             themeMode={themeMode}
           />
           <ListRow
             title="Calendar"
             subtitle="See Plan on a calendar"
+            variant="flat"
             onClick={() => navigateTo('/plan/calendar')}
             themeMode={themeMode}
           />
           <ListRow
             title="Help & tutorial"
             subtitle="How-tos and replay the beginner guide"
+            variant="flat"
             onClick={() => navigateTo('/help')}
             themeMode={themeMode}
           />
           <ListRow
             title="Support"
             subtitle="Self-serve links and contact status"
+            variant="flat"
             onClick={() => navigateTo('/support')}
             themeMode={themeMode}
           />
           <ListRow
             title="Settings"
             subtitle="Theme, language, and account tools"
+            variant="flat"
             onClick={() => navigateTo('/settings')}
             themeMode={themeMode}
           />
           <ListRow
             title="Sync status"
             subtitle="Connection and offline queue"
+            variant="flat"
             onClick={() => {
               closeModal();
               openModal('sync-diagnostics');
@@ -1592,6 +1625,7 @@ export const AppModals: React.FC = () => {
           <ListRow
             title="Recovery export"
             subtitle="Export local drafts if needed"
+            variant="flat"
             onClick={() => {
               closeModal();
               openModal('recovery-export');
@@ -1602,6 +1636,7 @@ export const AppModals: React.FC = () => {
             <ListRow
               title="Developer"
               subtitle="Operator tools"
+              variant="flat"
               onClick={() => navigateTo('/developer')}
               themeMode={themeMode}
             />

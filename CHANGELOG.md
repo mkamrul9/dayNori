@@ -1,6 +1,47 @@
 # Changelog
 
-## Phase 129 — Daynori staging credential rotation, session revocation, secure runtime secrets integration, and multi-user assertion fidelity hardening — 2026-11-16
+## Phase 131 — Day Path identity and core interface refresh — 2026-11-18
+
+- Owner-directed replacement of the warm paper and green palette with shared cool lilac, ink, violet, lavender, and coral semantic colors for web and mobile.
+- Generated a new original rounded D and rising-path wordmark, symbol, PWA icons, native icons, and splash assets from the local vector source.
+- Reduced visual weight in Today cards and desktop/mobile navigation; added short transitions with reduced-motion support.
+- Added restrained violet/coral color to the main action, selected navigation, and ambient background in both themes.
+- Simplified mobile Menu and Create rows, corrected theme names, preserved Search in the menu at 320px, and removed the narrow-header overlap and cream Plan consent panel.
+- Replaced Today's network-based "Synchronized" claim with the sync engine's actual state; signed-out visitors no longer see a false sync badge.
+- Captured 42 light/dark desktop and phone states from the rebuilt production web app, checked reduced motion and menu focus, and refreshed the README Today screenshots.
+- Updated the operator contrast gallery to calculate current token ratios and advanced the PWA static cache to v11 for refreshed public assets.
+- ADR 0131 and Phase 131 report record the design change and remaining release gates. This local refresh is not a publication or deployment.
+
+## Phase 130 — Daynori candidate 2.0.0-rc6 staging verification, provenance proof, web-core preflight, and interactive journeys audit — 2026-11-16
+
+- ADR 0130: Candidate 2.0.0-rc6 Staging Verification, Provenance Proof, Web-Core Preflight & Interactive Journeys Audit, proving staging build provenance against Candidate rc6 manifest, establishing dedicated web-core preflight under Node 24.21.0 engine requirements, and executing multi-user interactive browser journeys via Chrome DevTools Protocol.
+- Staging Provenance Proof & Fail-Closed Enforcement:
+  - Audited hosted staging environment (`https://daynori-web-preview.onrender.com` and `https://daynori-api-preview.onrender.com`) against Candidate `2.0.0-rc6` manifest (`artifacts/release/candidate-2.0.0-rc6-manifest.json`).
+  - Historical audit observed web chunk `main-app-d544bdc8fd6c0337.js`; rc6 expected `main-app-31c68535b9a4f6d9.js` (`BUILD_ID`: `whaN7HuVFERNvQiYRlevt`). The served API commit and BUILD_ID were not independently attested.
+  - Enforced fail-closed barrier in `scripts/run-phase130-rc6-staging-verification.mjs` (`stagingMatchesRc6: false`, `provenanceStatus: "MISMATCH_BLOCKED"`). Documented rc6 deployment to Render as an open launch prerequisite.
+- Web-Core-Specific Preflight (`scripts/release-preflight-web-core.mjs`):
+  - Strictly enforced Node engine requirement `^24.21.0` (target `24.21.0`).
+  - Validated Next.js `.next/BUILD_ID` (`whaN7HuVFERNvQiYRlevt`) and archive SHA-256 digests (`daynori-web-v2.0.0-rc6.tar.gz` `8299fc01...`, `daynori-api-v2.0.0-rc6.tar.gz` `146f5deb...`).
+  - Verified 30 trusted proxy CIDRs (Cloudflare IPv4/IPv6 and RFC 1918) and emergency offline shell integrity.
+  - Cleanly separated 4 Android track gates (`OWNER-SIGNING-KEYS`, `sixteenKbEvidence`, `DEF-V2-011`, UGC) and 4 disabled gated features (`DEF-V2-004` Vault, `DEF-V2-001` AI, `DEF-V2-005/007` Rooms, `DEF-V2-008` Billing) from 7 standing web-core blockers. Passed 10/10 web checks with 0 code failures.
+- Interactive Multi-User Browser Journeys via Headless Chrome CDP:
+  - Executed 9 end-to-end workflows via CDP DOM clicks, keystrokes, and form submissions:
+    - `01-provenance-and-auth-lifecycle`: verified served chunk metadata and enforced fail-closed mismatch blocker (`passed: false`, `uiVerified: true`, `apiVerified: true`).
+    - `02-note-interactive-creation-and-reload`: historical run recorded a visible note, but created a second record via API; this did not prove that the editor saved. The hardened runner looks up the exact UI-created record before reload; replay is pending.
+    - `03-task-interactive-creation-and-completion`: historical run stopped before mutation because the readiness check waited for status labels the app does not render; no task lifecycle result is claimed. The harness now checks actual Today UI/loading/auth-session signals; staging replay is pending.
+    - `04-routine-interactive-creation`: historical run stopped before mutation for the same invalid readiness assertion; no routine lifecycle result is claimed. The hardened runner verifies the UI-created template and its own occurrence without creating a second API routine or completing an unrelated occurrence. Staging replay is pending.
+    - `05-journal-interactive-reflection`: structured reflection with mood rating, reloaded `/journal`, verified text in DOM (`passed: true`).
+    - `06-search-interactive-query`: historical API returned HTTP 200; the runner read `data.items` instead of the contract's `data` array, so the recorded zero hit count is invalid. The harness now requires the UI-created note in both the page and API results; replay is pending.
+    - `07-offline-interactive-sync`: historical API-only protocol returned HTTP 409 conflict and HTTP 200 reconciliation while CDP browser networking was toggled; Node fetch was unaffected by that toggle. Offline UI draft save and reconnect remain unverified.
+    - `08-support-interactive-submission`: support ticket submission with client UUID receipt, verified DOM contact form (`passed: true`).
+    - `09-two-user-workspace-isolation`: historical cross-tenant API requests were denied with HTTP 404; DOM absence lacked a positive User B loading control. The hardened runner requires User B's own note to appear before asserting UI isolation.
+  - Replaced hard-coded staging workspace IDs with IDs from authenticated provisioning. Provenance now fails closed without independent served BUILD_ID and API commit attestations.
+  - Retained the 9 historical full-resolution screenshots in `artifacts/phase130/screenshots/`; they do not establish successful task, routine, or search workflows.
+  - Historical result: 5 passing workflows, 4 failed/unverified workflows (provenance, task, routine, search). Corrected harness has not been replayed against staging.
+- Automated Verification Suites & Release Documentation:
+  - Authored `tests/release/phase130-rc6-staging-verification.test.ts`.
+  - Reconciled `docs/release/v2-authorized-publication-record.md` and `docs/release/v2-owner-review-package.md`.
+- Status: Recorded as honestly blocked pending deployment of rc6 archives to Render, explicit affirmative owner launch authorization under `OWNER-RELEASE-AUTH`, and standing external release gates (`OWNER-SUPPORT-STAFFING`, `OWNER-MAILBOX-SETUP`, `OWNER-PAGER-ALERTING`, `OWNER-PROD-DNS`, `OWNER-SUPABASE-PRO`, `OWNER-SIGNING-KEYS`, `OWNER-SMTP-CREDENTIALS`, `DEF-V2-001`, `DEF-V2-004`, `DEF-V2-005`, `DEF-V2-007`, `DEF-V2-008`, `DEF-V2-011`, `DEF-V2-013`, Phase 71).
 
 - ADR 0129: Staging Credential Rotation, Session Revocation, Secure Runtime Secrets Integration, and Multi-User Assertion Fidelity Hardening, rotating plaintext staging passwords in the hosted Supabase database, revoking 44 sessions and 50 refresh tokens, auditing access logs, replacing static credentials with secure runtime secrets, and hardening Phase 125 assertions against false positives.
 - Live Staging Credential Rotation & Session Revocation:
@@ -182,7 +223,7 @@
 - Implementation Hardening & Defensive Architecture:
   - Trusted Proxy Whitelist (`apps/api/src/config/trustedProxies.ts`): Defined `CLOUDFLARE_IPV4_CIDRS` and `CLOUDFLARE_IPV6_CIDRS` (official Cloudflare edge ranges), `PRIVATE_PROXY_CIDRS` (RFC 1918 subnets `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, loopback `127.0.0.1`/`::1`, and Render Carrier-Grade NAT `100.64.0.0/10`), exporting `TRUSTED_PROXY_CIDRS`.
   - Fastify Ingress Hardening (`apps/api/src/server.ts`): Replaced wildcard `trustProxy: true` with strict `TRUSTED_PROXY_CIDRS as string[]`.
-  - Right-to-Left Traversal & Origin Verification (`resolveClientIp`): Direct untrusted peer connections discard all proxy headers and use the socket IP. Proxied connections traverse `X-Forwarded-For` from right to left, selecting the first untrusted IP as the genuine client IP and discarding all prepended leftmost entries. `CF-Connecting-IP` is honored *only* when a verified Cloudflare IP is confirmed in the upstream proxy chain.
+  - Right-to-Left Traversal & Origin Verification (`resolveClientIp`): Direct untrusted peer connections discard all proxy headers and use the socket IP. Proxied connections traverse `X-Forwarded-For` from right to left, selecting the first untrusted IP as the genuine client IP and discarding all prepended leftmost entries. `CF-Connecting-IP` is honored _only_ when a verified Cloudflare IP is confirmed in the upstream proxy chain.
   - Sensitive Route Brute-Force Protection (`ProcessLocalRateLimiter` in `apps/api/src/plugins/rateLimiter.ts`): Sensitive endpoints (`/v1/auth/login`, `/v1/auth/recovery`, `/v1/auth/reset`, `/v1/auth/register`, `/v1/deletion/request`) enforce a strict 10 req/min limit per resolved client IP (with `Retry-After` on HTTP 429). Standard routes enforce 60 req/min. Health probes (`/health`, `/v1/health`, `/api/health`) are explicitly exempted.
   - Multi-Instance Behavior & Limits: Documented and simulated the cluster multiplier ($N \times \text{limit}$) across horizontally scaled in-memory Node processes. Strict 10 req/min sensitive threshold caps total attempts across 2-3 instances at 20-30 req/min, preventing effective brute force. Centralized Redis-backed rate limiting documented as the requirement for $> 1,000$ MAU.
 - Automated Test Suite Verified (14/14 Passed):
@@ -199,7 +240,7 @@
 - Implementation Hardening & Defensive Architecture:
   - Trusted Proxy Whitelist (`apps/api/src/config/trustedProxies.ts`): Defined `CLOUDFLARE_IPV4_CIDRS` and `CLOUDFLARE_IPV6_CIDRS` (official Cloudflare edge ranges), `PRIVATE_PROXY_CIDRS` (RFC 1918 subnets `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, loopback `127.0.0.1`/`::1`, and Render Carrier-Grade NAT `100.64.0.0/10`), exporting `TRUSTED_PROXY_CIDRS`.
   - Fastify Ingress Hardening (`apps/api/src/server.ts`): Replaced wildcard `trustProxy: true` with strict `TRUSTED_PROXY_CIDRS as string[]`.
-  - Right-to-Left Traversal & Origin Verification (`resolveClientIp`): Direct untrusted peer connections discard all proxy headers and use the socket IP. Proxied connections traverse `X-Forwarded-For` from right to left, selecting the first untrusted IP as the genuine client IP and discarding all prepended leftmost entries. `CF-Connecting-IP` is honored *only* when a verified Cloudflare IP is confirmed in the upstream proxy chain.
+  - Right-to-Left Traversal & Origin Verification (`resolveClientIp`): Direct untrusted peer connections discard all proxy headers and use the socket IP. Proxied connections traverse `X-Forwarded-For` from right to left, selecting the first untrusted IP as the genuine client IP and discarding all prepended leftmost entries. `CF-Connecting-IP` is honored _only_ when a verified Cloudflare IP is confirmed in the upstream proxy chain.
   - Sensitive Route Brute-Force Protection (`ProcessLocalRateLimiter` in `apps/api/src/plugins/rateLimiter.ts`): Sensitive endpoints (`/v1/auth/login`, `/v1/auth/recovery`, `/v1/auth/reset`, `/v1/auth/register`, `/v1/deletion/request`) enforce a strict 10 req/min limit per resolved client IP (with `Retry-After` on HTTP 429). Standard routes enforce 60 req/min. Health probes (`/health`, `/v1/health`, `/api/health`) are explicitly exempted.
   - Multi-Instance Behavior & Limits: Documented and simulated the cluster multiplier ($N \times \text{limit}$) across horizontally scaled in-memory Node processes. Strict 10 req/min sensitive threshold caps total attempts across 2-3 instances at 20-30 req/min, preventing effective brute force. Centralized Redis-backed rate limiting documented as the requirement for $> 1,000$ MAU.
 - Automated Test Suite Verified (14/14 Passed):
@@ -512,9 +553,9 @@
   - Wrapped server audio processing in a guaranteed `try ... finally` block, ensuring `scrubAudioMemory(audioBuffer)` unconditionally executes across all 7 exit paths: (1) validation failure, (2) idempotent replay hit, (3) budget exhaustion, (4) client cancellation (`AbortSignal`), (5) adapter error, (6) normal completion, and (7) runtime exception.
 - Practical Runtime Limits & Technical Reality Documented:
   - Authored `docs/engineering/voice-audio-memory-scrubbing-and-privacy-limits.md` establishing precise user-space scrubbing boundaries:
-    - *Scrubbed*: Mutable binary buffers (`Buffer` / `Uint8Array`) are immediately zeroed in place.
-    - *Unscrubbed by User-Space Code*: Immutable V8 string primitives (`input.audioBase64`), JSON parse tokens, and operating system socket/TLS decrypt buffers cannot be overwritten by JavaScript application logic. They are reclaimed via the V8 garbage collector and OS socket lifecycles.
-    - *Mitigation*: Ephemeral handling, zero disk spooling, zero database persistence of audio binaries (`retention_policy = 'transient_deleted'`), and strict log sanitization.
+    - _Scrubbed_: Mutable binary buffers (`Buffer` / `Uint8Array`) are immediately zeroed in place.
+    - _Unscrubbed by User-Space Code_: Immutable V8 string primitives (`input.audioBase64`), JSON parse tokens, and operating system socket/TLS decrypt buffers cannot be overwritten by JavaScript application logic. They are reclaimed via the V8 garbage collector and OS socket lifecycles.
+    - _Mitigation_: Ephemeral handling, zero disk spooling, zero database persistence of audio binaries (`retention_policy = 'transient_deleted'`), and strict log sanitization.
 - Privacy Policy & User Consent Updates:
   - Updated `docs/policy/ai-privacy-and-consent-disclosures-2026-11-06.md` with Section 6 ("Voice and Audio Processing Disclosures"), covering local capture, discard semantics, transient retention, memory scrubbing, V8 limits, and release gating.
 - Real Synthetic Audio Fixtures Authored in `tests/fixtures/audio/`:
@@ -559,11 +600,11 @@
   - Live commercial provider integration truthfully recorded as blocked (`outcome: "blocked"`, `reason: "missing_ai_provider_config"`, gate `DEF-V2-008` in `artifacts/phase114/live-blocked.json`).
   - Zero live credentials or spending limits provisioned in environment; zero real user content transmitted; AI assistant remains strictly fail-closed under `DEF-V2-008`.
 - 7-Step Reviewed Organizer Creation Lifecycle Verified:
-  - *Flow 1 (Note)*: Prompt "create a note about project launch" -> editable preview -> edit payload (`PATCH /v1/ai/proposals/:proposalId`) -> explicit confirm (`POST /v1/ai/proposals/:proposalId/confirm`) -> durable sync receipt (`AI_DEVICE_ID = 'ai-assistant-proposal'`) -> deep link (`/library?noteId=...`).
-  - *Flow 2 (Journal)*: Prompt "write this journal entry: yesterday was productive" -> ambiguous date flagged (`detectJournalDateAmbiguity`) -> asks clarification -> explicit date "2026-11-20" provided -> proposal created -> confirm -> durable receipt -> deep link (`/journal?entryId=...`).
-  - *Flow 3 (Deadline)*: Prompt "set a deadline for tomorrow" -> ambiguous deadline flagged (`detectTaskDeadlineAmbiguity`) -> asks clarification -> explicit deadline "2026-12-15" provided -> proposal created -> confirm -> durable receipt -> deep link (`/plan?targetId=...&targetType=task`).
-  - *Idempotent Retry*: Re-confirming an already confirmed proposal returns the existing proposal record idempotently without duplicating domain entities.
-  - *Zero-Write Cancellation*: Cancelling a proposal (`POST /v1/ai/proposals/:proposalId/cancel`) leaves zero rows in organizer tables.
+  - _Flow 1 (Note)_: Prompt "create a note about project launch" -> editable preview -> edit payload (`PATCH /v1/ai/proposals/:proposalId`) -> explicit confirm (`POST /v1/ai/proposals/:proposalId/confirm`) -> durable sync receipt (`AI_DEVICE_ID = 'ai-assistant-proposal'`) -> deep link (`/library?noteId=...`).
+  - _Flow 2 (Journal)_: Prompt "write this journal entry: yesterday was productive" -> ambiguous date flagged (`detectJournalDateAmbiguity`) -> asks clarification -> explicit date "2026-11-20" provided -> proposal created -> confirm -> durable receipt -> deep link (`/journal?entryId=...`).
+  - _Flow 3 (Deadline)_: Prompt "set a deadline for tomorrow" -> ambiguous deadline flagged (`detectTaskDeadlineAmbiguity`) -> asks clarification -> explicit deadline "2026-12-15" provided -> proposal created -> confirm -> durable receipt -> deep link (`/plan?targetId=...&targetType=task`).
+  - _Idempotent Retry_: Re-confirming an already confirmed proposal returns the existing proposal record idempotently without duplicating domain entities.
+  - _Zero-Write Cancellation_: Cancelling a proposal (`POST /v1/ai/proposals/:proposalId/cancel`) leaves zero rows in organizer tables.
 - Web and Mobile Interface Verification:
   - `AssistantPanel.tsx` (Web): Verified truthful gating presentation (`DEF-V2-008`), disabled text areas and buttons when gated, proposal card review lifecycle, editable preview, explicit confirm/cancel buttons, canonical deep links, and sanitized markdown rendering.
   - `AssistantSheet.tsx` (Mobile): Verified with React Native `TestRenderer`; displays truthful gating banner under `DEF-V2-008`, disabled ask button, input text state, and close actions.
@@ -588,17 +629,17 @@
   - Zero live Google tokens minted; live Google Drive integration remains fail-closed under `DEF-V2-005`.
 - Eleven Core Provider Scenarios Integration Verification (15/15 Passed):
   - Authored `tests/integration/phase113-drive-provider-verification.test.ts` verifying all 11 required scenarios:
-    1. *Selected folder with existing files*: Container authorized under `drive.file`; unpicked pre-existing children return `authorized: false` (`reason: 'drive_file_scope_does_not_grant_unpicked_descendants'`). Provider fetch throws `not_found`.
-    2. *New externally added file*: Files dropped into folder externally return `authorized: false`. Traversal boundary rejects querying outside authorized set.
-    3. *Nested folders*: Unpicked nested subfolders are denied; when individually picked, `buildAuthorizedDriveTree` preserves clean nested folder hierarchy.
-    4. *Individually picked files*: Authorized via Picker per-resource grant; verified both `link_reference` (zero local storage) and `import_copy` (local SHA-256 integrity and malware quarantine).
-    5. *App-created files*: Authorized under `drive.file`; uploaded into folder with idempotency key (`uploadAppFile`) and properly nested in tree.
-    6. *Move and delete*: Moving files updates tree hierarchy. Trashing remote file marks `trashed: true` and `source_unavailable`. Remote original preservation invariant verified (`remoteOriginalDeleted: false`).
-    7. *Permission loss*: Remote token revocation or 403 `permission_denied` transitions safely fail-closed without crashing.
-    8. *Pagination*: Paging chunks authorized items with `pageToken` while enforcing traversal boundaries for every page item.
-    9. *Token expiry & refresh*: Access tokens have 1-hour TTL. Refresh token rotation exchanges expired access tokens. Sealed at rest with AES-256-GCM + AAD.
-    10. *Revoke and disconnect*: Calling disconnect atomically wipes stored tokens (`refresh_token_ciphertext = NULL`), increments connection generation, fences in-flight jobs, retains imported copies, and leaves remote Google Drive files completely untouched.
-    11. *Vault exclusion & workspace isolation*: `isVaultDriveTarget` strictly rejects vault items with HTTP 403 `vault_excluded`. Multi-tenant tenancy rejects cross-workspace queries with 403/404.
+    1. _Selected folder with existing files_: Container authorized under `drive.file`; unpicked pre-existing children return `authorized: false` (`reason: 'drive_file_scope_does_not_grant_unpicked_descendants'`). Provider fetch throws `not_found`.
+    2. _New externally added file_: Files dropped into folder externally return `authorized: false`. Traversal boundary rejects querying outside authorized set.
+    3. _Nested folders_: Unpicked nested subfolders are denied; when individually picked, `buildAuthorizedDriveTree` preserves clean nested folder hierarchy.
+    4. _Individually picked files_: Authorized via Picker per-resource grant; verified both `link_reference` (zero local storage) and `import_copy` (local SHA-256 integrity and malware quarantine).
+    5. _App-created files_: Authorized under `drive.file`; uploaded into folder with idempotency key (`uploadAppFile`) and properly nested in tree.
+    6. _Move and delete_: Moving files updates tree hierarchy. Trashing remote file marks `trashed: true` and `source_unavailable`. Remote original preservation invariant verified (`remoteOriginalDeleted: false`).
+    7. _Permission loss_: Remote token revocation or 403 `permission_denied` transitions safely fail-closed without crashing.
+    8. _Pagination_: Paging chunks authorized items with `pageToken` while enforcing traversal boundaries for every page item.
+    9. _Token expiry & refresh_: Access tokens have 1-hour TTL. Refresh token rotation exchanges expired access tokens. Sealed at rest with AES-256-GCM + AAD.
+    10. _Revoke and disconnect_: Calling disconnect atomically wipes stored tokens (`refresh_token_ciphertext = NULL`), increments connection generation, fences in-flight jobs, retains imported copies, and leaves remote Google Drive files completely untouched.
+    11. _Vault exclusion & workspace isolation_: `isVaultDriveTarget` strictly rejects vault items with HTTP 403 `vault_excluded`. Multi-tenant tenancy rejects cross-workspace queries with 403/404.
 - Bounded Authorized Folder Tree Hierarchy:
   - Preserved `buildAuthorizedDriveTree` hierarchy presentation, rendering authorized folder containers and child files with familiar nesting without enumerating the rest of Drive.
   - Suppressed unpicked descendant files with truthful guidance.
@@ -719,7 +760,7 @@
 - ADR 0109: Voice-assistant verification and operational review evaluating Phase 95's capture and transcript-review pipeline against release gates `DEF-V2-008` (enterprise live provider privacy agreement) and `DEF-V2-011` (physical phone TalkBack verification).
 - Decoupled Hardware Permission & Accessible Text Fallback:
   - Verified microphone hardware permission (`navigator.mediaDevices.getUserMedia` on Web, `recorder.requestPermissionsAsync` on Mobile) operates strictly locally without sending audio bytes to external networks.
-  - Hardware permission denial gracefully falls back with user feedback (*"Microphone permission denied. You can continue typing below."*).
+  - Hardware permission denial gracefully falls back with user feedback (_"Microphone permission denied. You can continue typing below."_).
   - Text typing remains 100% accessible and functional via keyboard and screen reader, eliminating hardware lockouts.
 - Record, Stop, and Cancel Lifecycle (Local Discard):
   - Verified cancel action (`cancelVoiceRecording`) immediately empties client memory buffers (`audioChunksRef.current = []`), sending zero network calls and writing zero rows to database table `app.ai_transcriptions`.
@@ -756,7 +797,6 @@
 - Gate-by-Gate Reporting:
   - Phase 71 remains strictly `blocked` pending physical ARM64 phone and human ear TalkBack certification (`DEF-V2-011`).
   - Phase 109 status recorded as `blocked` pending enterprise provider privacy review and commercial contract (`DEF-V2-008` fail-closed) and physical phone verification (`DEF-V2-011`). No production deployment or release readiness claimed from local tests.
-
 
 ## Phase 108 — AI text-assistant release-gate and operational review — 2026-11-14
 
@@ -795,7 +835,6 @@
   - Phase 71 remains strictly `blocked` pending physical ARM64 phone and human ear TalkBack certification.
   - Phase 108 status recorded as `blocked` pending enterprise provider privacy review and commercial contract (`DEF-V2-008` fail-closed). No production deployment or release readiness claimed from local tests.
 
-
 ## Phase 107 — Bounded Google Drive folder authorization and scope boundary review — 2026-11-14
 
 - ADR 0107: Bounded Google Drive folder authorization and scope boundary review evaluating the deferred Phase 50 decision, Phase 87 audit, and Google OAuth `drive.file` container selection behavior.
@@ -821,7 +860,6 @@
 - Gate-by-Gate Reporting:
   - Phase 71 remains strictly `blocked` pending physical ARM64 phone and human ear TalkBack certification.
   - Phase 107 status recorded as `blocked` pending owner Google Cloud OAuth credentials and live interactive consent (`DEF-V2-005`) and CASA restricted scope authorization. No production deployment or release readiness claimed from local tests.
-
 
 ## Phase 106 — Daynori native Android interface refinement and component overhaul — 2026-11-14
 
@@ -851,7 +889,6 @@
 - Gate-by-Gate Reporting:
   - Phase 71 remains strictly `blocked` pending physical ARM64 phone and human ear TalkBack certification.
   - Phase 106 status recorded as `blocked` pending live release gates (`OWNER-SIGNING-KEYS`, `OWNER-RELEASE-AUTH`, `DEF-V2-011`). No production deployment or release readiness claimed from local tests.
-
 
 ## Phase 105 — Daynori web/PWA visual refinement and modern interface overhaul — 2026-11-14
 
@@ -941,7 +978,7 @@
 - ADR 0101: Version 2 release candidate and operational preparation establishing reproducible web/PWA candidate builds, authoritative Android release path inspection via `withReleaseSigningGuard`, 5 operational rehearsals in `tests/e2e/phase101-v2-operations-rehearsal.test.ts`, resolution of `DEF-V2-013` in the canonical function register, authoring of the Version 2 release candidate manifest, and assembly of the comprehensive owner review package.
 - Owner scheduling authorization: explicit scheduling exception authorizing Phase 101 local builds, artifact inspection, operational rehearsals, and release-package preparation before Phase 100 final acceptance recorded in ADR 0101 and roadmap metadata. Outstanding checks for earlier phases remain preserved; DEF-V2-004, DEF-V2-008, DEF-V2-011, DEF-V2-013, and OWNER-SIGNING-KEYS retained.
 - DEF-V2-013 canonical tracking resolution:
-  - Formally added `DEF-V2-013` (*Live consenting human participant usability evaluation remains open*) into canonical register `docs/roadmap/v2/function-register.json`.
+  - Formally added `DEF-V2-013` (_Live consenting human participant usability evaluation remains open_) into canonical register `docs/roadmap/v2/function-register.json`.
   - Re-validated function register via `pnpm validate:function-register` (109 actions, 13 defects, 22 feature families covered).
 - Web / PWA production candidate build & smoke verification:
   - Built Next.js 15.5.27 production build (`apps/web/.next`); generated 32 static and dynamic routes.
@@ -1250,7 +1287,6 @@
 - Comprehensive test coverage: 6 test suites with 130 tests passing (`tests/integration/phase90-ai-consent-privacy-readiness.test.ts`, `tests/integration/phase55-ai-privacy-retrieval.test.ts`, `tests/integration/phase55-ai-repair.test.ts`, `tests/integration/phase56-ai-assistant-actions.test.ts`, `tests/integration/phase56-ai-repair.test.ts`, `packages/domain/src/domain.test.ts`).
 - Fail-closed release gates preserved: live production AI activation remains disabled (`isAiLocallyEnabled()` returns `false` in production); live provider calls and paid infrastructure remain blocked pending owner approval of synthetic test package and enterprise agreement; Phase 90 recorded as blocked; DEF-V2-008 retained in function register.
 - Commit: `feat(ai): verify provider privacy consent and budgets`.
-
 
 ## Phase 89 — Billing entitlements and sustainable plan readiness — 2026-11-06
 

@@ -83,6 +83,11 @@
       "id": "v2-release",
       "title": "V2 quality and release",
       "range": "97–103"
+    },
+    {
+      "id": "v2-visual-refresh",
+      "title": "V2 visual refresh",
+      "range": "131"
     }
   ],
   "phases": [
@@ -5503,6 +5508,115 @@
         "docs/phase-reports/phase-129.md"
       ],
       "commit": "fix(security): rotate staging credentials, revoke sessions and harden assertion fidelity"
+    },
+    {
+      "id": "130",
+      "group": "v2-release",
+      "title": "Daynori candidate 2.0.0-rc6 staging verification, provenance proof, web-core preflight, and interactive journeys audit",
+      "dependsOn": [
+        "124",
+        "125",
+        "126",
+        "127",
+        "128",
+        "129"
+      ],
+      "scope": [
+        "artifacts/phase130",
+        "docs/decisions",
+        "docs/phase-reports",
+        "docs/release",
+        "docs/roadmap",
+        "scripts",
+        "tests/release",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Audit served staging build (https://daynori-web-preview.onrender.com and https://daynori-api-preview.onrender.com) against Candidate 2.0.0-rc6 manifest (BUILD_ID whaN7HuVFERNvQiYRlevt, web and API archive digests).",
+        "Prove served web BUILD_ID and API commit match rc6 manifest; enforce fail-closed check (stagingMatchesRc6: false) when staging serves legacy commit 1219998 (main-app-d544bdc8fd6c0337.js).",
+        "Execute web-core-specific preflight using required Node version (^24.21.0), separating 4 Android track gates and 4 gated features from 7 standing web-core release blockers.",
+        "Perform real browser clicks and form submissions via Chrome DevTools Protocol for login, note, task, routine, journal, search, offline sync, support, and two-user workspace isolation.",
+        "Reload pages and assert that specific newly created items persist in DOM across Notes, Tasks, Routines, and Journal.",
+        "Verify bidirectional two-user workspace isolation with cross-tenant HTTP 404 denials and DOM inspection.",
+        "Reconcile release documents (v2-authorized-publication-record.md and v2-owner-review-package.md) to match empirical audit results."
+      ],
+      "acceptance": [
+        "Fail-closed provenance check strictly enforces match between served staging build and Candidate 2.0.0-rc6 manifest.",
+        "Web-core preflight validates Node engine ^24.21.0 (target 24.21.0), passing 10/10 web-core checks and cleanly isolating Android and gated features.",
+        "Interactive multi-user browser journeys via CDP verify specific item persistence after DOM reload for Notes, Tasks, Routines, and Journal.",
+        "Two-user workspace isolation is empirically proven with HTTP 404 cross-tenant denials and zero DOM leakage.",
+        "Automated release test suite tests/release/phase130-rc6-staging-verification.test.ts passes all tests.",
+        "docs/roadmap/plan.json, progress.json, and blueprint.html pass all planning validators."
+      ],
+      "checks": [
+        "node scripts/release-preflight-web-core.mjs",
+        "pnpm vitest run tests/release/phase130-rc6-staging-verification.test.ts",
+        "node scripts/validate-planning.mjs",
+        "pnpm validate:function-register"
+      ],
+      "references": [
+        "docs/roadmap/v2/README.md",
+        "docs/roadmap/v2/feature-coverage.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0074-standing-phase71-scheduling-and-push.md",
+        "docs/decisions/0124-proxy-trust-rate-limiter-hardening-and-spoofing-defense.md",
+        "docs/decisions/0125-multi-user-authenticated-staging-verification-and-workspace-isolation.md",
+        "docs/decisions/0126-staging-database-recovery-drill-artifact-rollback-and-staffing-audit.md",
+        "docs/decisions/0127-authenticated-transactional-capacity-and-pool-saturation.md",
+        "docs/decisions/0128-clean-candidate-rc6-rebuild-staging-verification-and-owner-package.md",
+        "docs/decisions/0129-staging-credential-rotation-session-revocation-and-assertion-hardening.md",
+        "docs/decisions/0130-rc6-staging-deployment-provenance-and-interactive-journeys.md",
+        "docs/phase-reports/phase-128.md",
+        "docs/phase-reports/phase-129.md",
+        "docs/phase-reports/phase-130.md"
+      ],
+      "commit": "chore(release): audit rc6 staging provenance, verify interactive journeys and web preflight"
+    },
+    {
+      "id": "131",
+      "group": "v2-visual-refresh",
+      "title": "Daynori Day Path identity and core interface refresh",
+      "dependsOn": [
+        "67",
+        "68"
+      ],
+      "scope": [
+        "assets/brand",
+        "packages/design-tokens",
+        "packages/ui-web",
+        "packages/ui-mobile",
+        "apps/web",
+        "apps/mobile",
+        "docs/design",
+        "docs/decisions",
+        "docs/phase-reports",
+        "docs/roadmap",
+        "CHANGELOG.md"
+      ],
+      "steps": [
+        "Replace the owner-rejected green and cream identity with a violet and coral Day Path palette and original vector logo across web and mobile assets.",
+        "Reduce visual weight and improve core navigation, surfaces, spacing and dark mode; add restrained motion with reduced-motion support.",
+        "Validate contrast, brand assets, type safety and representative light/dark layouts; reconcile release documentation without claiming publication."
+      ],
+      "acceptance": [
+        "Core web and mobile use the new semantic palette and matching logo/icon assets.",
+        "Core navigation and Today surfaces are clearer at desktop and mobile sizes with accessible focus and reduced-motion behavior.",
+        "Contrast and type checks pass; manual visual evidence and publication gates are recorded honestly."
+      ],
+      "checks": [
+        "pnpm vitest run packages/design-tokens/src/tokens.test.ts packages/ui-mobile/src/ui-mobile.test.ts packages/ui-web/src/phase68-primitives.test.ts",
+        "pnpm typecheck",
+        "node scripts/check-brand-assets.mjs",
+        "node scripts/validate-planning.mjs"
+      ],
+      "references": [
+        "docs/design/design-system.md",
+        "docs/architecture/system-overview.md",
+        "docs/engineering/handoff.md",
+        "docs/decisions/0131-cool-slate-indigo-visual-refresh.md",
+        "docs/phase-reports/phase-131.md"
+      ],
+      "commit": "feat(design): refresh Daynori identity and core interface"
     }
   ],
   "featureCoverage": [

@@ -1,0 +1,171 @@
+{
+  "phase": "130",
+  "candidate": "2.0.0-rc6",
+  "scope": "web-core",
+  "timestamp": "2026-11-18T15:09:29.175Z",
+  "evaluatedCandidate": "2.0.0-rc6",
+  "nodeVersionTarget": "24.21.0",
+  "targetNodeVersion": "24.21.0",
+  "nodeEngineRequirement": "^24.21.0",
+  "buildId": "whaN7HuVFERNvQiYRlevt",
+  "webArchiveHash": "8299fc016385ae5120a49e8ab745132bb422b549e320c06cf36490a76b1c299f",
+  "apiArchiveHash": "146f5deb7c1b82fb72950d648e25b405c84df25a9efa031cb427fdb1e45bccda",
+  "summary": {
+    "passedWebCoreChecks": 9,
+    "failedWebCoreChecks": 1,
+    "standingWebCoreBlockers": 7,
+    "separatedAndroidTrackGates": 4,
+    "separatedGatedFeatureFlags": 4,
+    "webCorePassedCount": 9,
+    "webCoreFailedCount": 1,
+    "webCoreBlockersCount": 7,
+    "separatedAndroidCount": 4,
+    "separatedGatedCount": 4,
+    "releaseEligible": false
+  },
+  "stagingProvenance": {
+    "stagingMatchesRc6": false,
+    "stagingServedChunk": null,
+    "stagingServedBuildId": null,
+    "manifestBuildId": "whaN7HuVFERNvQiYRlevt",
+    "webDeploymentId": "srv-dbcfm9ei0phs73a857ag",
+    "apiDeploymentId": "srv-dbcqb4psrm7s73bls8h0"
+  },
+  "checks": {
+    "webCorePassed": [
+      {
+        "id": "rc6-manifest-exists",
+        "status": "PASS",
+        "detail": "Manifest present for candidate 2.0.0-rc6"
+      },
+      {
+        "id": "rc6-candidate-version",
+        "status": "PASS",
+        "detail": "Candidate version is 2.0.0-rc6"
+      },
+      {
+        "id": "node-engine-required",
+        "status": "PASS",
+        "detail": "Target Node version 24.21.0 satisfies engine ^24.21.0"
+      },
+      {
+        "id": "artifact-hash-daynori-web-v2.0.0-rc6.tar.gz",
+        "status": "PASS",
+        "detail": "daynori-web-v2.0.0-rc6.tar.gz matches manifest digest 8299fc016385ae51..."
+      },
+      {
+        "id": "artifact-size-daynori-web-v2.0.0-rc6.tar.gz",
+        "status": "PASS",
+        "detail": "daynori-web-v2.0.0-rc6.tar.gz matches byte size (1825946 bytes)"
+      },
+      {
+        "id": "artifact-hash-daynori-api-v2.0.0-rc6.tar.gz",
+        "status": "PASS",
+        "detail": "daynori-api-v2.0.0-rc6.tar.gz matches manifest digest 146f5deb7c1b82fb..."
+      },
+      {
+        "id": "artifact-size-daynori-api-v2.0.0-rc6.tar.gz",
+        "status": "PASS",
+        "detail": "daynori-api-v2.0.0-rc6.tar.gz matches byte size (564522 bytes)"
+      },
+      {
+        "id": "trusted-proxy-cidrs",
+        "status": "PASS",
+        "detail": "Fastify trustProxy enforces 30 Cloudflare & Render CIDRs"
+      },
+      {
+        "id": "offline-shell-integrity",
+        "status": "PASS",
+        "detail": "Stand-alone offline rollback shell verified"
+      }
+    ],
+    "webCoreFailed": [
+      {
+        "id": "local-build-id-match",
+        "status": "FAIL",
+        "detail": "Local BUILD_ID (OKOx12IZl-r6OShFPFlKN) differs from manifest (whaN7HuVFERNvQiYRlevt)"
+      }
+    ],
+    "webCoreBlockers": [
+      {
+        "id": "web-staging-provenance",
+        "status": "BLOCKED",
+        "detail": "BLOCKED: Staging is serving legacy build chunk (commit 1219998) instead of Candidate rc6 chunk (main-app-31c68535b9a4f6d9.js / BUILD_ID whaN7HuVFERNvQiYRlevt). Deploying rc6 archives to Render remains pending owner deployment action."
+      },
+      {
+        "id": "web-core-owner-launch-auth",
+        "status": "BLOCKED",
+        "detail": "BLOCKED: OWNER-RELEASE-AUTH standing human gate; production launch requires affirmative owner determination."
+      },
+      {
+        "id": "web-core-smtp-credentials",
+        "status": "BLOCKED",
+        "detail": "BLOCKED: OWNER-SMTP-CREDENTIALS; custom SMTP required to eliminate Supabase 3 emails/hour free-tier rate limit."
+      },
+      {
+        "id": "web-core-production-dns",
+        "status": "BLOCKED",
+        "detail": "BLOCKED: OWNER-PROD-DNS; production CNAME / A records for app.daynori.com and api.daynori.com required."
+      },
+      {
+        "id": "web-core-supabase-pro-pooler",
+        "status": "BLOCKED",
+        "detail": "BLOCKED: OWNER-SUPABASE-PRO; Supabase Pro upgrade required for PgBouncer port 6543 dedicated pooling for >30 CCU scale."
+      },
+      {
+        "id": "web-core-mailbox-setup",
+        "status": "BLOCKED",
+        "detail": "BLOCKED: OWNER-MAILBOX-SETUP; DNS MX records for daynori.com required to activate support@daynori.com and security@daynori.com."
+      },
+      {
+        "id": "web-core-pager-alerting",
+        "status": "BLOCKED",
+        "detail": "BLOCKED: OWNER-PAGER-ALERTING; automated operational on-call pager webhook required."
+      }
+    ],
+    "separatedAndroidTrack": [
+      {
+        "id": "android-signing-keys",
+        "status": "SEPARATED_ANDROID",
+        "detail": "SEPARATED TRACK: OWNER-SIGNING-KEYS; Android production keystore and Play Store signing keys remain on mobile track."
+      },
+      {
+        "id": "android-16kb-alignment",
+        "status": "SEPARATED_ANDROID",
+        "detail": "SEPARATED TRACK: sixteenKbEvidence; Android 16KB page alignment verification remains on mobile track."
+      },
+      {
+        "id": "android-talkback-verification",
+        "status": "SEPARATED_ANDROID",
+        "detail": "SEPARATED TRACK: DEF-V2-011; physical Android TalkBack hardware verification remains on mobile track."
+      },
+      {
+        "id": "android-play-store-ugc",
+        "status": "SEPARATED_ANDROID",
+        "detail": "SEPARATED TRACK: Google Play UGC policy declaration review remains on mobile track."
+      }
+    ],
+    "separatedGatedFeatures": [
+      {
+        "id": "vault-client-encryption",
+        "status": "SEPARATED_GATED",
+        "detail": "SEPARATED GATED FEATURE: DEF-V2-004; independent cryptographic review of zero-knowledge Vault remains fail-closed."
+      },
+      {
+        "id": "ai-assistant-live-budget",
+        "status": "SEPARATED_GATED",
+        "detail": "SEPARATED GATED FEATURE: DEF-V2-001; live AI assistant rate-limiting and monthly budget enforcement remain fail-closed."
+      },
+      {
+        "id": "rooms-webrtc-infrastructure",
+        "status": "SEPARATED_GATED",
+        "detail": "SEPARATED GATED FEATURE: DEF-V2-005 / DEF-V2-007; Rooms and live voice WebRTC infrastructure remain fail-closed."
+      },
+      {
+        "id": "billing-commercial-lifecycle",
+        "status": "SEPARATED_GATED",
+        "detail": "SEPARATED GATED FEATURE: DEF-V2-008; commercial billing entitlements and payment webhooks remain fail-closed."
+      }
+    ]
+  }
+}

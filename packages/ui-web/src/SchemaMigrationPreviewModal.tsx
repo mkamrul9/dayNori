@@ -95,8 +95,8 @@ export const SchemaMigrationPreviewModal: React.FC<SchemaMigrationPreviewModalPr
             }}
           >
             {preview.affectedFields.map((impact, idx) => {
-              let badgeColor = '#526363';
-              let badgeBg = '#E4EFEA';
+              let badgeColor: string = palette.text.secondary;
+              let badgeBg: string = palette.surfaceRaised;
               if (impact.changeType === 'removed') {
                 badgeColor = '#991b1b';
                 badgeBg = '#fee2e2';
@@ -104,8 +104,8 @@ export const SchemaMigrationPreviewModal: React.FC<SchemaMigrationPreviewModalPr
                 badgeColor = '#92400e';
                 badgeBg = '#fef3c7';
               } else if (impact.changeType === 'added') {
-                badgeColor = '#166534';
-                badgeBg = '#dcfce7';
+                badgeColor = palette.status.success;
+                badgeBg = palette.status.successBg;
               }
 
               return (

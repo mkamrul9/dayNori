@@ -66,7 +66,7 @@ export const CreationMenu: React.FC<CreationMenuProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: themeMode === 'dark' ? 'rgba(0, 0, 0, 0.65)' : 'rgba(23, 44, 44, 0.35)',
+        backgroundColor: themeMode === 'dark' ? 'rgba(0, 0, 0, 0.65)' : 'rgba(23, 35, 58, 0.35)',
         backdropFilter: 'blur(2px)',
         display: 'flex',
         alignItems: 'flex-end',
@@ -172,7 +172,7 @@ export const CreationMenu: React.FC<CreationMenuProps> = ({
                       border:
                         themeMode === 'dark'
                           ? `1px solid ${palette.border.subtle}`
-                          : '1px solid rgba(20, 107, 99, 0.12)',
+                          : '1px solid rgba(98, 61, 232, 0.12)',
                       flexShrink: 0,
                     }}
                   >

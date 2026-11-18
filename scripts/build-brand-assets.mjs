@@ -16,18 +16,20 @@ const outputs = [];
 
 const svg = (viewBox, content) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" fill="none">${content}</svg>\n`;
-const mark = (color) =>
-  `<g fill="${color}" fill-rule="evenodd"><path d="${symbol.body}"/><path d="${symbol.fold}"/></g>`;
+const mark = (bodyColor, accentColor = bodyColor) =>
+  `<path d="${symbol.body}" fill="${bodyColor}" fill-rule="evenodd"/>` +
+  `<path d="${symbol.path}" fill="none" stroke="${accentColor}" stroke-width="7" stroke-linecap="round"/>` +
+  `<circle cx="${symbol.sun.cx}" cy="${symbol.sun.cy}" r="${symbol.sun.r}" fill="${accentColor}"/>`;
 const lettering = (color) =>
   `<g fill="${color}"><path fill-rule="evenodd" d="${wordmark.d}"/><circle cx="${wordmark.dot.cx}" cy="${wordmark.dot.cy}" r="${wordmark.dot.r}"/></g>` +
   `<path d="${wordmark.strokes}" fill="none" stroke="${color}" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/>`;
-const lockup = (symbolColor, textColor) =>
-  `<g transform="translate(0 -1)">${mark(symbolColor)}</g>` +
+const lockup = (symbolColor, accentColor, textColor) =>
+  `<g transform="translate(0 -1)">${mark(symbolColor, accentColor)}</g>` +
   `<g transform="translate(108 17) scale(1.03)">${lettering(textColor)}</g>`;
 const tile = (rounded = false) =>
   svg(
     '0 0 1024 1024',
-    `<rect width="1024" height="1024" rx="${rounded ? 224 : 0}" fill="${colors.teal}"/><g transform="translate(112 120) scale(8)">${mark(colors.white)}</g>`
+    `<rect width="1024" height="1024" rx="${rounded ? 224 : 0}" fill="${colors.violet}"/><g transform="translate(112 120) scale(8)">${mark(colors.white, colors.coralLight)}</g>`
   );
 const foreground = svg(
   '0 0 1024 1024',
@@ -45,12 +47,12 @@ async function png(relativePath, source, size) {
   await write(relativePath, bytes);
 }
 
-for (const [name, symbolColor, textColor] of [
-  ['logo', colors.teal, colors.ink],
-  ['logo-inverse', colors.paper, colors.paper],
-  ['logo-monochrome', '#000000', '#000000'],
+for (const [name, symbolColor, accentColor, textColor] of [
+  ['logo', colors.violet, colors.coral, colors.ink],
+  ['logo-inverse', colors.light, colors.coralLight, colors.light],
+  ['logo-monochrome', '#000000', '#000000', '#000000'],
 ]) {
-  const source = svg('0 0 332 96', lockup(symbolColor, textColor));
+  const source = svg('0 0 332 96', lockup(symbolColor, accentColor, textColor));
   await write(`assets/brand/daynori-${name}.svg`, source);
   await write(
     `assets/brand/daynori-${name}.png`,
@@ -58,12 +60,12 @@ for (const [name, symbolColor, textColor] of [
   );
   if (name !== 'logo-monochrome') await write(`apps/web/public/brand/daynori-${name}.svg`, source);
 }
-const symbolSvg = svg(symbol.viewBox, mark(colors.teal));
+const symbolSvg = svg(symbol.viewBox, mark(colors.violet, colors.coral));
 await write('assets/brand/daynori-symbol.svg', symbolSvg);
 await write('apps/web/public/brand/daynori-symbol.svg', symbolSvg);
 await write(
   'apps/web/public/brand/daynori-symbol-inverse.svg',
-  svg(symbol.viewBox, mark(colors.paper))
+  svg(symbol.viewBox, mark(colors.light, colors.coralLight))
 );
 await write('assets/brand/daynori-symbol-inverse.svg', svg(symbol.viewBox, mark(colors.white)));
 await write('assets/brand/daynori-app-icon.svg', tile());
@@ -79,7 +81,7 @@ await png(
 await png('apps/mobile/assets/brand/splash.png', symbolSvg, 512);
 await png(
   'apps/mobile/assets/brand/splash-inverse.png',
-  svg(symbol.viewBox, mark(colors.paper)),
+  svg(symbol.viewBox, mark(colors.light)),
   512
 );
 await png('packages/ui-mobile/assets/daynori-symbol.png', symbolSvg, 288);
@@ -119,22 +121,22 @@ await write('apps/web/public/favicon.ico', Buffer.concat([header, ...entries]));
 const preview = svg(
   '0 0 1440 960',
   `
-  <rect width="1440" height="960" fill="${colors.paper}"/>
+  <rect width="1440" height="960" fill="${colors.light}"/>
   <g font-family="Segoe UI, sans-serif" fill="${colors.ink}">
     <text x="80" y="78" font-size="16" letter-spacing="4">DAYNORI / VISUAL IDENTITY</text>
     <text x="1360" y="78" font-size="14" text-anchor="end">01</text>
-    <g transform="translate(335 197) scale(2.3)">${lockup(colors.teal, colors.ink)}</g>
-    <text x="720" y="484" font-size="24" text-anchor="middle" fill="#526363">Your day, gathered.</text>
-    <path d="M80 555H1360" stroke="#D9DFDC"/>
-    <text x="80" y="605" font-size="13" letter-spacing="2">THE FOLDED D</text>
-    <g transform="translate(105 652) scale(1.8)">${mark(colors.teal)}</g>
-    <rect x="438" y="637" width="228" height="228" rx="50" fill="${colors.teal}"/>
-    <g transform="translate(466.5 665.5) scale(1.78125)">${mark(colors.white)}</g>
+    <g transform="translate(335 197) scale(2.3)">${lockup(colors.violet, colors.coral, colors.ink)}</g>
+    <text x="720" y="484" font-size="24" text-anchor="middle" fill="#4F5877">Your day, gathered.</text>
+    <path d="M80 555H1360" stroke="#DDE0F1"/>
+    <text x="80" y="605" font-size="13" letter-spacing="2">THE DAY PATH</text>
+    <g transform="translate(105 652) scale(1.8)">${mark(colors.violet, colors.coral)}</g>
+    <rect x="438" y="637" width="228" height="228" rx="50" fill="${colors.violet}"/>
+    <g transform="translate(466.5 665.5) scale(1.78125)">${mark(colors.white, colors.coralLight)}</g>
     <text x="438" y="605" font-size="13" letter-spacing="2">APP ICON</text>
     <rect x="746" y="637" width="614" height="228" rx="20" fill="${colors.ink}"/>
-    <g transform="translate(806 679) scale(1.48)">${lockup(colors.paper, colors.paper)}</g>
+    <g transform="translate(806 679) scale(1.48)">${lockup(colors.light, colors.coralLight, colors.light)}</g>
     <text x="746" y="605" font-size="13" letter-spacing="2">REVERSED</text>
-    <text x="80" y="922" font-size="14" fill="#526363">Custom vector geometry. One color. Built to work small.</text>
+    <text x="80" y="922" font-size="14" fill="#4F5877">Custom vector geometry. A rising path for every day.</text>
   </g>`
 );
 await write('assets/brand/preview.svg', preview);

@@ -111,7 +111,7 @@ if (baseUrl) {
   const html = await (await fetch(new URL('/today', baseUrl))).text();
   assert.ok(html.includes('/brand/daynori-logo.svg'));
   assert.ok(html.includes('rel="apple-touch-icon"'));
-  assert.ok(html.includes('content="#146B63"'));
+  assert.ok(html.includes('content="#623DE8"'));
   console.log(
     `PASS: ${publicAssets.length} public assets served over HTTP; production HTML logo, Apple icon and theme metadata.`
   );

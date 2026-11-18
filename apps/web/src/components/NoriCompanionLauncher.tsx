@@ -1,7 +1,11 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { NoriCompanionPosition, NoriCompanionPreferences, NoriCompanionState } from '@daynori/contracts';
+import type {
+  NoriCompanionPosition,
+  NoriCompanionPreferences,
+  NoriCompanionState,
+} from '@daynori/contracts';
 import {
   calculateNoriSafeCoordinates,
   getNoriStateAccessibilityLabel,
@@ -181,12 +185,10 @@ export function NoriCompanionLauncher({
             padding: 0,
             borderRadius: radii.pill,
             backgroundColor: isDark ? palette.surfaceRaised : '#FFFFFF',
-            border: `2px solid ${
-              focused ? palette.border.focus : (isDark ? '#3D4D4D' : '#D9DFDC')
-            }`,
+            border: `2px solid ${focused ? palette.border.focus : palette.border.subtle}`,
             boxShadow: isDark
               ? '0 4px 16px rgba(0, 0, 0, 0.45)'
-              : '0 4px 14px rgba(20, 107, 99, 0.16)',
+              : '0 4px 14px rgba(98, 61, 232, 0.16)',
             cursor: 'pointer',
             outline: focused ? `2px solid ${palette.border.focus}` : 'none',
             outlineOffset: 2,
@@ -221,7 +223,7 @@ export function NoriCompanionLauncher({
             width: 20,
             height: 20,
             borderRadius: radii.pill,
-            backgroundColor: isDark ? '#253535' : '#E4EFEA',
+            backgroundColor: palette.surfaceRaised,
             border: `1px solid ${palette.border.subtle}`,
             color: palette.text.secondary,
             display: 'flex',
@@ -275,34 +277,34 @@ export function NoriCompanionLauncher({
             <div style={{ marginBottom: spacing.xs }}>
               <div style={{ fontSize: 12, marginBottom: 4 }}>Position:</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                {(['bottom-right', 'bottom-left', 'top-right', 'top-left'] as NoriCompanionPosition[]).map(
-                  (pos) => (
-                    <button
-                      key={pos}
-                      type="button"
-                      data-testid={`nori-pos-${pos}`}
-                      onClick={() => handlePositionChange(pos)}
-                      style={{
-                        padding: '4px 6px',
-                        fontSize: 11,
-                        borderRadius: radii.sm,
-                        border: `1px solid ${
-                          position === pos ? palette.action.primary : palette.border.subtle
-                        }`,
-                        backgroundColor:
-                          position === pos
-                            ? isDark
-                              ? '#173D39'
-                              : '#E4EFEA'
-                            : 'transparent',
-                        color: palette.text.primary,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {pos.replace('-', ' ')}
-                    </button>
-                  )
-                )}
+                {(
+                  [
+                    'bottom-right',
+                    'bottom-left',
+                    'top-right',
+                    'top-left',
+                  ] as NoriCompanionPosition[]
+                ).map((pos) => (
+                  <button
+                    key={pos}
+                    type="button"
+                    data-testid={`nori-pos-${pos}`}
+                    onClick={() => handlePositionChange(pos)}
+                    style={{
+                      padding: '4px 6px',
+                      fontSize: 11,
+                      borderRadius: radii.sm,
+                      border: `1px solid ${
+                        position === pos ? palette.action.primary : palette.border.subtle
+                      }`,
+                      backgroundColor: position === pos ? palette.action.subtle : 'transparent',
+                      color: palette.text.primary,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {pos.replace('-', ' ')}
+                  </button>
+                ))}
               </div>
             </div>
 

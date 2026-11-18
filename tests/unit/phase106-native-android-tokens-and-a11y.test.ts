@@ -35,9 +35,9 @@ describe('Phase 106: Native Android Tokens, Elevation, and Accessibility', () =>
   describe('2. Light & Dark Surface Contrast for Native Android', () => {
     it('verifies light theme surfaces and text contrast >= 4.5:1', () => {
       const light = colors.light;
-      expect(light.background).toBe('#F7F5EF');
+      expect(light.background).toBe('#F7F7FF');
       expect(light.surface).toBe('#FFFFFF');
-      expect(light.surfaceRaised).toBe('#FBF9F4');
+      expect(light.surfaceRaised).toBe('#EFEFFF');
 
       expect(meetsWcagAA(light.text.primary, light.background)).toBe(true);
       expect(meetsWcagAA(light.text.primary, light.surface)).toBe(true);
@@ -47,9 +47,9 @@ describe('Phase 106: Native Android Tokens, Elevation, and Accessibility', () =>
 
     it('verifies dark theme surfaces and text contrast >= 4.5:1', () => {
       const dark = colors.dark;
-      expect(dark.background).toBe('#0D1919');
-      expect(dark.surface).toBe('#132323');
-      expect(dark.surfaceRaised).toBe('#192C2C');
+      expect(dark.background).toBe('#0E1024');
+      expect(dark.surface).toBe('#181B36');
+      expect(dark.surfaceRaised).toBe('#24284B');
 
       expect(meetsWcagAA(dark.text.primary, dark.background)).toBe(true);
       expect(meetsWcagAA(dark.text.primary, dark.surface)).toBe(true);

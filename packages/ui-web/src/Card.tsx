@@ -8,8 +8,8 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * Notebook-inspired surface card.
- * Calmer modern styling with softer borders, subtle elevation variants, and warm paper feel.
+ * Shared surface card. Calm surfaces separate content by tone and spacing;
+ * outlined surfaces retain a visible boundary where grouping needs one.
  */
 export const Card: React.FC<CardProps> = ({
   themeMode = 'light',
@@ -24,7 +24,7 @@ export const Card: React.FC<CardProps> = ({
   let border =
     themeMode === 'dark'
       ? `1px solid ${palette.border.subtle}`
-      : '1px solid rgba(23, 44, 44, 0.09)';
+      : '1px solid rgba(23, 35, 58, 0.09)';
   let shadow = 'none';
 
   if (variant === 'flat') {
@@ -35,21 +35,18 @@ export const Card: React.FC<CardProps> = ({
     border =
       themeMode === 'dark'
         ? `1px solid ${palette.border.subtle}`
-        : '1px solid rgba(23, 44, 44, 0.08)';
+        : '1px solid rgba(23, 35, 58, 0.08)';
     shadow =
-      themeMode === 'dark'
-        ? '0 4px 16px rgba(0, 0, 0, 0.35)'
-        : '0 2px 10px rgba(23, 44, 44, 0.06)';
-  } else if (variant === 'calm' || variant === 'subtle') {
+      themeMode === 'dark' ? '0 4px 16px rgba(0, 0, 0, 0.35)' : '0 2px 10px rgba(23, 35, 58, 0.06)';
+  } else if (variant === 'calm') {
     bg = palette.surface;
-    border =
-      themeMode === 'dark'
-        ? `1px solid ${palette.border.subtle}`
-        : '1px solid rgba(23, 44, 44, 0.08)';
+    border = '1px solid transparent';
+    shadow = themeMode === 'dark' ? 'none' : '0 6px 24px rgba(27, 39, 74, 0.035)';
+  } else if (variant === 'subtle') {
+    bg = palette.surface;
+    border = themeMode === 'dark' ? `1px solid ${palette.border.subtle}` : '1px solid transparent';
     shadow =
-      themeMode === 'dark'
-        ? '0 1px 4px rgba(0, 0, 0, 0.25)'
-        : '0 1px 3px rgba(23, 44, 44, 0.03)';
+      themeMode === 'dark' ? '0 1px 4px rgba(0, 0, 0, 0.25)' : '0 4px 14px rgba(23, 35, 58, 0.045)';
   }
 
   return (

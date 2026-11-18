@@ -1,5 +1,5 @@
 // Daynori Service Worker (Phase 29/30/31 + Phase 77 trusted-device offline shell)
-const CACHE_VERSION = 'daynori-static-v9';
+const CACHE_VERSION = 'daynori-static-v11';
 
 // Strict allowlist: immutable public static assets only.
 // Root navigation ('/') and personalized views (Today, Plan, Journal, Settings) are strictly excluded.

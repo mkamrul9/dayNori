@@ -25,8 +25,8 @@ import {
 
 describe('UI Mobile Primitives', () => {
   it('provides light and dark mobile themes with correct token values', () => {
-    expect(lightMobileTheme.colors.background).toBe('#F7F5EF');
-    expect(darkMobileTheme.colors.background).toBe('#0D1919');
+    expect(lightMobileTheme.colors.background).toBe('#F7F7FF');
+    expect(darkMobileTheme.colors.background).toBe('#0E1024');
     expect(lightMobileTheme.spacing.base).toBe(16);
     expect(lightMobileTheme.touchTargets.mobileMin).toBe(48);
     // Semantic danger action tokens for mobile buttons (F03 fix)

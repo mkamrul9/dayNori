@@ -1141,7 +1141,7 @@ export default function JournalPage() {
           justifyContent: 'space-between',
           gap: `${spacing.sm}px`,
           padding: `${spacing.sm}px 0`,
-          borderBottom: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+          borderBottom: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 35, 58, 0.08)'}`,
           marginBottom: `${spacing.base}px`,
         }}
       >

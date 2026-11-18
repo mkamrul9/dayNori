@@ -23,7 +23,8 @@ const webRoot = path.join(REPO_ROOT, 'apps', 'web');
 const isAfter = process.argv.includes('--after');
 const mode = isAfter ? 'after' : 'before';
 
-const outDir = path.join(REPO_ROOT, 'artifacts', 'phase105', 'screenshots', mode);
+const capturePhase = process.env.DAYNORI_CAPTURE_PHASE || '105';
+const outDir = path.join(REPO_ROOT, 'artifacts', `phase${capturePhase}`, 'screenshots', mode);
 fs.mkdirSync(outDir, { recursive: true });
 
 function findChrome() {
@@ -219,6 +220,18 @@ const SCREENS = [
   },
 ];
 
+const requestedScreens = process.env.DAYNORI_CAPTURE_SCREENS?.split(',').map((id) => id.trim());
+const selectedScreens = requestedScreens
+  ? SCREENS.filter((screen) => requestedScreens.includes(screen.id))
+  : SCREENS;
+const requestedViewports = process.env.DAYNORI_CAPTURE_VIEWPORTS?.split(',').map((id) => id.trim());
+const selectedViewports = requestedViewports
+  ? VIEWPORTS.filter((viewport) => requestedViewports.includes(viewport.name))
+  : VIEWPORTS;
+if (selectedScreens.length === 0 || selectedViewports.length === 0) {
+  throw new Error('Capture selection must include at least one known screen and viewport');
+}
+
 async function main() {
   const chromePath = findChrome();
   if (!chromePath) {
@@ -259,12 +272,12 @@ async function main() {
   await sleep(1500);
 
   const manifest = {
-    phase: '105',
+    phase: capturePhase,
     mode,
     timestamp: new Date().toISOString(),
-    viewports: VIEWPORTS,
+    viewports: selectedViewports,
     themes: THEMES,
-    screens: SCREENS.map((s) => s.id),
+    screens: selectedScreens.map((s) => s.id),
     captures: [],
   };
 
@@ -285,8 +298,8 @@ async function main() {
 
     console.log(`Executing visual captures in mode: [${mode.toUpperCase()}]...`);
 
-    for (const screen of SCREENS) {
-      for (const vp of VIEWPORTS) {
+    for (const screen of selectedScreens) {
+      for (const vp of selectedViewports) {
         for (const theme of THEMES) {
           const filename = `${screen.id}_${vp.name}_${theme}.png`;
           const filePath = path.join(outDir, filename);
@@ -303,14 +316,55 @@ async function main() {
           await cdp.send('Page.navigate', { url: `${baseUrl}${screen.url}` });
           await sleep(600);
 
-          // Set theme
-          await cdp.send('Runtime.evaluate', {
-            expression: `(() => {
-              document.documentElement.setAttribute('data-theme', '${theme}');
-              window.localStorage.setItem('daynori_theme', '${theme}');
-            })()`,
+          // Set the React theme state; changing only the DOM attribute can label
+          // screenshots incorrectly while components keep the previous palette.
+          await cdp.send('Emulation.setEmulatedMedia', {
+            media: 'screen',
+            features: [{ name: 'prefers-color-scheme', value: theme }],
           });
-          await sleep(150);
+          const hydration = await cdp.send('Runtime.evaluate', {
+            expression: `new Promise((resolve) => {
+              let attempts = 0;
+              const check = () => {
+                if (window.__daynoriShell || ++attempts > 60) resolve(Boolean(window.__daynoriShell));
+                else setTimeout(check, 50);
+              };
+              check();
+            })`,
+            awaitPromise: true,
+            returnByValue: true,
+          });
+          if (hydration?.result?.value !== true) {
+            throw new Error(`Shell did not hydrate for ${screen.id} ${vp.name}`);
+          }
+          const themeSet = await cdp.send('Runtime.evaluate', {
+            expression: `window.__daynoriShell.setTheme('${theme}')`,
+          });
+          if (themeSet?.exceptionDetails) {
+            throw new Error(`Could not set ${theme} theme for ${screen.id} ${vp.name}`);
+          }
+          const verifiedTheme = await cdp.send('Runtime.evaluate', {
+            expression: `new Promise((resolve) => {
+              let attempts = 0;
+              const check = () => {
+                const actual = window.__daynoriShell?.getTheme();
+                const attribute = document.documentElement.getAttribute('data-theme');
+                if ((actual === '${theme}' && attribute === '${theme}') || ++attempts > 40) {
+                  requestAnimationFrame(() => requestAnimationFrame(() => resolve({ actual, attribute })));
+                } else setTimeout(check, 50);
+              };
+              check();
+            })`,
+            awaitPromise: true,
+            returnByValue: true,
+          });
+          const actualTheme = verifiedTheme?.result?.value;
+          if (actualTheme?.actual !== theme || actualTheme?.attribute !== theme) {
+            throw new Error(
+              `Theme mismatch for ${screen.id} ${vp.name}: ${JSON.stringify(actualTheme)}`
+            );
+          }
+          await sleep(220);
 
           // Screen preparation (modals, drawers, etc.)
           await screen.prepare(cdp, vp);
@@ -349,19 +403,75 @@ async function main() {
             width: vp.width,
             height: vp.height,
             theme,
+            actualTheme: actualTheme.actual,
             filename,
             sha256,
             bytes: buffer.length,
             horizontalOverflow: overflowInfo.hasOverflow,
           });
 
-          process.stdout.write(`\r  [${manifest.captures.length}/${SCREENS.length * VIEWPORTS.length * THEMES.length}] captured ${filename}`);
+          process.stdout.write(
+            `\r  [${manifest.captures.length}/${selectedScreens.length * selectedViewports.length * THEMES.length}] captured ${filename}`
+          );
         }
       }
     }
 
+    await cdp.send('Emulation.setEmulatedMedia', {
+      media: 'screen',
+      features: [
+        { name: 'prefers-color-scheme', value: THEMES[THEMES.length - 1] },
+        { name: 'prefers-reduced-motion', value: 'reduce' },
+      ],
+    });
+    const motionEval = await cdp.send('Runtime.evaluate', {
+      expression: `(() => {
+        const page = document.querySelector('.daynori-page');
+        const button = document.getElementById('global-create-btn');
+        return {
+          matches: matchMedia('(prefers-reduced-motion: reduce)').matches,
+          pageAnimation: page ? getComputedStyle(page).animationName : null,
+          buttonTransition: button ? getComputedStyle(button).transitionDuration : null,
+        };
+      })()`,
+      returnByValue: true,
+    });
+    const motion = motionEval?.result?.value;
+    if (
+      !motion?.matches ||
+      motion.pageAnimation !== 'none' ||
+      !motion.buttonTransition?.split(',').every((duration) => parseFloat(duration) <= 0.001)
+    ) {
+      throw new Error(`Reduced-motion override failed: ${JSON.stringify(motion)}`);
+    }
+    manifest.reducedMotion = motion;
+
+    if (selectedScreens.at(-1)?.id === 'menus' && selectedViewports.at(-1)?.isMobile) {
+      const focusEval = await cdp.send('Runtime.evaluate', {
+        expression: `(() => {
+          const dialog = document.querySelector('[role="dialog"]');
+          return {
+            open: Boolean(dialog),
+            focusInside: Boolean(dialog?.contains(document.activeElement)),
+            focusedLabel: document.activeElement?.getAttribute('aria-label'),
+          };
+        })()`,
+        returnByValue: true,
+      });
+      const focus = focusEval?.result?.value;
+      if (!focus?.open || !focus.focusInside) {
+        throw new Error(`Menu keyboard focus failed: ${JSON.stringify(focus)}`);
+      }
+      manifest.keyboardFocus = focus;
+    }
+
     console.log('\nAll captures completed successfully!');
-    const manifestPath = path.join(REPO_ROOT, 'artifacts', 'phase105', `capture-manifest-${mode}.json`);
+    const manifestPath = path.join(
+      REPO_ROOT,
+      'artifacts',
+      `phase${capturePhase}`,
+      `capture-manifest-${mode}.json`
+    );
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
     console.log(`Wrote manifest to: ${manifestPath}`);
 
@@ -384,4 +494,3 @@ main().catch((err) => {
   console.error('\nCapture failed:', err);
   process.exit(1);
 });
-

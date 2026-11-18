@@ -4,7 +4,19 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { colors, type ThemeMode } from '@daynori/design-tokens';
 
-export type ShellModal = 'search' | 'create' | 'help' | 'account' | 'onboarding' | 'onboarding-replay' | 'sync-diagnostics' | 'recovery-export' | 'conflict-review' | 'workspace-portability' | 'assistant' | null;
+export type ShellModal =
+  | 'search'
+  | 'create'
+  | 'help'
+  | 'account'
+  | 'onboarding'
+  | 'onboarding-replay'
+  | 'sync-diagnostics'
+  | 'recovery-export'
+  | 'conflict-review'
+  | 'workspace-portability'
+  | 'assistant'
+  | null;
 export type ThemePreference = 'system' | 'light' | 'dark';
 
 export interface ShellContextType {
@@ -252,6 +264,10 @@ export const ShellProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         dir={direction}
         style={{
           backgroundColor: palette.background,
+          backgroundImage:
+            themeMode === 'dark'
+              ? 'radial-gradient(circle at 82% 2%, rgba(139, 105, 255, 0.13), transparent 34%), radial-gradient(circle at 10% 70%, rgba(255, 121, 157, 0.06), transparent 30%)'
+              : 'radial-gradient(circle at 85% 0%, rgba(132, 102, 255, 0.12), transparent 34%), radial-gradient(circle at 4% 70%, rgba(255, 121, 157, 0.08), transparent 28%)',
           color: palette.text.primary,
           minHeight: '100vh',
           fontSize: `${(16 * textScale) / 100}px`,

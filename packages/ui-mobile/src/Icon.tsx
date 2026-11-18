@@ -10,7 +10,7 @@ export interface IconProps {
   style?: StyleProp<ImageStyle>;
 }
 
-export function Icon({ name, size = 20, color = '#172C2C', label, style }: IconProps) {
+export function Icon({ name, size = 20, color = '#1C2142', label, style }: IconProps) {
   return (
     <Image
       source={iconImages[resolveIconName(name)]}

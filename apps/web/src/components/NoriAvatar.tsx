@@ -27,30 +27,30 @@ export function NoriAvatar({
   className,
 }: NoriAvatarProps) {
   const isDark = themeMode === 'dark';
+  const palette = colors[themeMode];
 
-  // Daynori brand palette
   const frontFill = state === 'offline'
-    ? (isDark ? '#526363' : '#758680')
-    : (isDark ? '#2FA89A' : colors.light.action.primary); // #146B63
+    ? palette.text.muted
+    : palette.action.primary;
   const leftWingFill = state === 'offline'
-    ? (isDark ? '#3D4D4D' : '#526363')
-    : (isDark ? '#146B63' : '#0E524C');
+    ? palette.text.secondary
+    : palette.action.primaryHover;
   const rightWingFill = state === 'offline'
-    ? (isDark ? '#4A5C5C' : '#617272')
-    : (isDark ? '#38BDB0' : '#1D7F76');
+    ? palette.text.muted
+    : palette.action.primary;
 
   // Crest / Fold
-  let crestFill = isDark ? '#E5B55A' : '#D9A441';
+  let crestFill: string = palette.accent.warm;
   if (state === 'error') {
     crestFill = isDark ? colors.dark.status.danger : colors.light.status.danger;
   } else if (state === 'offline') {
-    crestFill = isDark ? '#6B7C7C' : '#8A9B9B';
+    crestFill = palette.text.muted;
   }
 
-  const inkColor = isDark ? '#FFFFFF' : '#172C2C';
-  const paperColor = isDark ? '#172C2C' : '#F7F5EF';
+  const inkColor = palette.text.primary;
+  const paperColor = palette.background;
   const alertColor = isDark ? colors.dark.status.danger : colors.light.status.danger;
-  const warmAccent = isDark ? '#E5B55A' : '#D9A441';
+  const warmAccent = palette.accent.warm;
 
   // Geometry
   const bodyLeftWing = 'M16 24 L32 56 L10 38 Z';

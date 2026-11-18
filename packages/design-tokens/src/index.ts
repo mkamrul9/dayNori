@@ -2,50 +2,50 @@
  * Daynori semantic design tokens
  * Source: docs/design/design-system.md & docs/design/accessibility.md
  *
- * Implements paper/ink/teal/amber direction for light and dark themes
+ * Implements the violet/coral Day Path identity for light and dark themes
  * with strict WCAG 2.2 AA contrast compliance.
  */
 
 export const colors = {
   light: {
-    background: '#F7F5EF', // Warm paper
+    background: '#F7F7FF',
     surface: '#FFFFFF', // Clean surface
-    surfaceRaised: '#FBF9F4', // Slightly raised card surface
+    surfaceRaised: '#EFEFFF',
     text: {
-      primary: '#172C2C', // Dark ink
-      secondary: '#526363', // Slate
-      muted: '#5A6B6B', // Warm notebook muted (≥4.5:1 on paper; Phase 67/68)
+      primary: '#1C2142',
+      secondary: '#4F5877',
+      muted: '#626B87',
       inverse: '#FFFFFF', // Pure white text for dark actions
     },
     action: {
-      primary: '#146B63', // Deep teal
-      primaryHover: '#0E524C',
+      primary: '#623DE8',
+      primaryHover: '#4F2CC8',
       label: '#FFFFFF', // Pure white label
-      subtle: '#E4EFEA', // Light teal tint
-      subtleText: '#105650', // High-contrast teal text on subtle bg
-      disabled: '#D3DAD7',
-      disabledText: '#7B8985',
+      subtle: '#EEE9FF',
+      subtleText: '#4724AB',
+      disabled: '#D8DBEC',
+      disabledText: '#65708A',
       danger: '#B3261E', // Deep red action
       dangerHover: '#8F1D18',
       dangerLabel: '#FFFFFF', // Pure white label on deep red (6.55:1)
     },
     accent: {
-      warm: '#D9A441', // Amber priority / highlight
-      label: '#172C2C', // Ink text on amber
-      subtle: '#FDF6E8',
+      warm: '#B93865', // Coral accent; retained key for shared contract compatibility
+      label: '#FFFFFF',
+      subtle: '#FFEAF1',
     },
     border: {
-      strong: '#758680', // Essential field/control border on paper (>=3:1)
-      subtle: '#D9DFDC', // Decorative card divider
-      focus: '#146B63', // Deep teal focus indicator
+      strong: '#7580A1',
+      subtle: '#DDE0F1',
+      focus: '#623DE8',
     },
     status: {
       danger: '#B3261E',
       dangerBg: '#FDF2F2',
       dangerBorder: '#F5C2C0',
-      success: '#1B6A3F',
-      successBg: '#F0FDF4',
-      successBorder: '#B6ECC8',
+      success: '#2854B8',
+      successBg: '#EAF0FF',
+      successBorder: '#B7CAFA',
       warning: '#8F4E00',
       warningBg: '#FFFBEB',
       warningBorder: '#FDE68A',
@@ -55,44 +55,44 @@ export const colors = {
     },
   },
   dark: {
-    background: '#0D1919', // Deep ink
-    surface: '#132323', // Dark teal-gray surface
-    surfaceRaised: '#192C2C', // Raised card surface
+    background: '#0E1024',
+    surface: '#181B36',
+    surfaceRaised: '#24284B',
     text: {
-      primary: '#E9F0ED', // Pale paper
-      secondary: '#AEC0BB', // Pale slate
-      muted: '#7E918C', // Muted pale slate
-      inverse: '#102020', // Dark ink text for soft actions
+      primary: '#F7F5FF',
+      secondary: '#C7C9E3',
+      muted: '#ADB3D4',
+      inverse: '#1B1735',
     },
     action: {
-      primary: '#73C2B6', // Soft teal
-      primaryHover: '#8BD1C6',
-      label: '#102020', // Dark ink label on soft teal
-      subtle: '#1C312E', // Dark subtle container
-      subtleText: '#73C2B6',
-      disabled: '#243533',
-      disabledText: '#5A6E6A',
+      primary: '#B8A3FF',
+      primaryHover: '#D0C1FF',
+      label: '#1B1735',
+      subtle: '#382B65',
+      subtleText: '#DDD3FF',
+      disabled: '#343955',
+      disabledText: '#98A0C0',
       danger: '#F2B8B5', // Soft coral red action
       dangerHover: '#F7C8C5',
       dangerLabel: '#381615', // High-contrast dark red ink label (9.58:1)
     },
     accent: {
-      warm: '#E6B85A', // Soft amber
-      label: '#102020', // Dark ink label
-      subtle: '#302613',
+      warm: '#FF9DBB',
+      label: '#37182A',
+      subtle: '#49243D',
     },
     border: {
-      strong: '#5C7670', // Essential field/control border in dark (>=3.0:1)
-      subtle: '#223432', // Decorative divider
-      focus: '#73C2B6', // Soft teal focus indicator
+      strong: '#8892B9',
+      subtle: '#373C60',
+      focus: '#B8A3FF',
     },
     status: {
       danger: '#F2B8B5',
       dangerBg: '#381615',
       dangerBorder: '#5C2220',
-      success: '#87D3A6',
-      successBg: '#122D1D',
-      successBorder: '#1F4F33',
+      success: '#B8A3FF',
+      successBg: '#202A50',
+      successBorder: '#43559A',
       warning: '#FFB951',
       warningBg: '#362208',
       warningBorder: '#5E3B0E',
@@ -113,7 +113,7 @@ export const spacing = {
   xxl: 48,
 } as const;
 
-/** Warm notebook radii (Phase 67 owner selection → Phase 68). */
+/** Shared radii retained across the Phase 131 palette refresh. */
 export const radii = {
   sm: 10, // Controls (buttons, inputs)
   md: 14, // Alias for card density
@@ -123,7 +123,7 @@ export const radii = {
   pill: 9999, // Tags, badges, filters
 } as const;
 
-/** Warm notebook density — page/card padding and list row gaps. */
+/** Shared density — page/card padding and list row gaps. */
 export const density = {
   padPage: 28,
   padCard: 20,

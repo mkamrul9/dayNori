@@ -12,7 +12,7 @@ const page = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Daynori · Product blueprint</title>
 <style>
-:root{color-scheme:light;--bg:#F7F5EF;--surface:#fff;--ink:#172C2C;--secondary:#526363;--line:#D7DEDA;--accent:#146B63;--soft:#E6F0EB;--warn:#895617}
+:root{color-scheme:light;--bg:#F7F7FF;--surface:#fff;--ink:#1C2142;--secondary:#4F5877;--line:#DDE0F1;--accent:#623DE8;--soft:#EEE9FF;--warn:#895617}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
 a{color:var(--accent);text-underline-offset:3px}
@@ -53,7 +53,7 @@ li{margin:7px 0}
 .reading a{font-size:14px}
 footer{border-top:1px solid var(--line);margin-top:40px;padding-top:20px;font-size:14px;color:var(--secondary)}
 @media(max-width:800px){header{padding:28px 20px 18px}main{padding:12px 20px 32px}h1{font-size:30px}.architecture{grid-template-columns:1fr;gap:20px}.explorer{grid-template-columns:1fr}.phase-list{max-height:240px}.detail{padding:20px}.stack{gap:8px}}
-@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0D1919;--surface:#132323;--ink:#E9F0ED;--secondary:#AEC0BB;--line:#40574B;--accent:#73C2B6;--soft:#26443A;--warn:#E0BC7C}.group[aria-pressed=true]{color:#0D1919}}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#0E1024;--surface:#181B36;--ink:#F7F5FF;--secondary:#C7C9E3;--line:#8892B9;--accent:#B8A3FF;--soft:#382B65;--warn:#E0BC7C}.group[aria-pressed=true]{color:#0E1024}}
 </style>
 </head>
 <body>

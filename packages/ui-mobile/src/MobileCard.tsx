@@ -59,7 +59,7 @@ export const MobileCard: React.FC<MobileCardProps> = ({
           backgroundColor: bg,
           borderColor,
           elevation,
-          shadowColor: themeMode === 'dark' ? '#000000' : '#172C2C',
+          shadowColor: themeMode === 'dark' ? '#000000' : palette.text.primary,
           shadowOffset: { width: 0, height: elevation > 0 ? 1 : 0 },
           shadowOpacity: elevation > 1 ? 0.12 : elevation > 0 ? 0.06 : 0,
           shadowRadius: elevation * 2,

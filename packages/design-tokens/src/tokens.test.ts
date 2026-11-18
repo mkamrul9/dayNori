@@ -14,20 +14,20 @@ import {
 
 describe('Design Tokens & Contrast Verification', () => {
   it('defines light theme color values with valid hex strings', () => {
-    expect(colors.light.background).toBe('#F7F5EF');
-    expect(colors.light.action.primary).toBe('#146B63');
-    expect(colors.light.text.primary).toBe('#172C2C');
-    expect(colors.light.accent.warm).toBe('#D9A441');
+    expect(colors.light.background).toBe('#F7F7FF');
+    expect(colors.light.action.primary).toBe('#623DE8');
+    expect(colors.light.text.primary).toBe('#1C2142');
+    expect(colors.light.accent.warm).toBe('#B93865');
   });
 
   it('defines dark theme color values with valid hex strings', () => {
-    expect(colors.dark.background).toBe('#0D1919');
-    expect(colors.dark.action.primary).toBe('#73C2B6');
-    expect(colors.dark.text.primary).toBe('#E9F0ED');
-    expect(colors.dark.accent.warm).toBe('#E6B85A');
+    expect(colors.dark.background).toBe('#0E1024');
+    expect(colors.dark.action.primary).toBe('#B8A3FF');
+    expect(colors.dark.text.primary).toBe('#F7F5FF');
+    expect(colors.dark.accent.warm).toBe('#FF9DBB');
   });
 
-  it('provides Warm notebook layout spacing, radii, and touch target scales', () => {
+  it('provides shared layout spacing, radii, and touch target scales', () => {
     expect(spacing.base).toBe(16);
     expect(radii.sm).toBe(10);
     expect(radii.card).toBe(14);
@@ -36,11 +36,11 @@ describe('Design Tokens & Contrast Verification', () => {
     expect(touchTargets.mobileMin).toBe(48);
   });
 
-  it('keeps muted text ≥4.5:1 on paper (Warm notebook repair)', () => {
-    expect(colors.light.text.muted).toBe('#5A6B6B');
-    expect(getContrastRatio(colors.light.text.muted, colors.light.background)).toBeGreaterThanOrEqual(
-      4.5
-    );
+  it('keeps muted text ≥4.5:1 on the current light background', () => {
+    expect(colors.light.text.muted).toBe('#626B87');
+    expect(
+      getContrastRatio(colors.light.text.muted, colors.light.background)
+    ).toBeGreaterThanOrEqual(4.5);
   });
 
   it('exposes reduced-motion duration equivalents', () => {
@@ -62,18 +62,21 @@ describe('Design Tokens & Contrast Verification', () => {
 
   describe('WCAG 2.2 Level AA Contrast Calculations', () => {
     it('verifies light theme normal text contrast >= 4.5:1', () => {
-      // Ink text on warm paper background
+      // Primary text on the light background
       const inkOnPaper = getContrastRatio(colors.light.text.primary, colors.light.background);
       expect(inkOnPaper).toBeGreaterThanOrEqual(4.5);
       expect(meetsWcagAA(colors.light.text.primary, colors.light.background)).toBe(true);
 
-      // Slate secondary text on warm paper background
+      // Secondary text on the light background
       const slateOnPaper = getContrastRatio(colors.light.text.secondary, colors.light.background);
       expect(slateOnPaper).toBeGreaterThanOrEqual(4.5);
 
-      // White label on deep teal action
-      const whiteOnTeal = getContrastRatio(colors.light.action.label, colors.light.action.primary);
-      expect(whiteOnTeal).toBeGreaterThanOrEqual(4.5);
+      // White label on violet action
+      const whiteOnViolet = getContrastRatio(
+        colors.light.action.label,
+        colors.light.action.primary
+      );
+      expect(whiteOnViolet).toBeGreaterThanOrEqual(4.5);
 
       // White label on deep red danger action (F03 fix)
       const whiteOnDanger = getContrastRatio(
@@ -92,9 +95,9 @@ describe('Design Tokens & Contrast Verification', () => {
       );
       expect(lightSelectedMeta).toBeGreaterThanOrEqual(4.5);
 
-      // Ink label on amber accent
-      const inkOnAmber = getContrastRatio(colors.light.accent.label, colors.light.accent.warm);
-      expect(inkOnAmber).toBeGreaterThanOrEqual(4.5);
+      // White label on coral accent
+      const whiteOnCoral = getContrastRatio(colors.light.accent.label, colors.light.accent.warm);
+      expect(whiteOnCoral).toBeGreaterThanOrEqual(4.5);
     });
 
     it('verifies dark theme normal text contrast >= 4.5:1', () => {
@@ -111,9 +114,9 @@ describe('Design Tokens & Contrast Verification', () => {
       const secondaryOnDark = getContrastRatio(colors.dark.text.secondary, colors.dark.surface);
       expect(secondaryOnDark).toBeGreaterThanOrEqual(4.5);
 
-      // Dark label on soft teal action
-      const darkOnSoftTeal = getContrastRatio(colors.dark.action.label, colors.dark.action.primary);
-      expect(darkOnSoftTeal).toBeGreaterThanOrEqual(4.5);
+      // Dark label on lavender action
+      const darkOnLavender = getContrastRatio(colors.dark.action.label, colors.dark.action.primary);
+      expect(darkOnLavender).toBeGreaterThanOrEqual(4.5);
 
       // Dark ink label on soft red danger action (F03 fix)
       const darkOnDanger = getContrastRatio(
@@ -132,9 +135,9 @@ describe('Design Tokens & Contrast Verification', () => {
       );
       expect(darkSelectedMeta).toBeGreaterThanOrEqual(4.5);
 
-      // Dark label on soft amber accent
-      const darkOnSoftAmber = getContrastRatio(colors.dark.accent.label, colors.dark.accent.warm);
-      expect(darkOnSoftAmber).toBeGreaterThanOrEqual(4.5);
+      // Dark label on soft coral accent
+      const darkOnSoftCoral = getContrastRatio(colors.dark.accent.label, colors.dark.accent.warm);
+      expect(darkOnSoftCoral).toBeGreaterThanOrEqual(4.5);
     });
 
     it('verifies essential UI component boundaries meet >= 3.0:1', () => {

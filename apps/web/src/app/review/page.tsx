@@ -2,7 +2,14 @@
 
 import { Icon } from '@daynori/ui-web';
 import React, { useState } from 'react';
-import { colors, spacing, touchTargets, typography, type ThemeMode } from '@daynori/design-tokens';
+import {
+  colors,
+  getContrastRatio,
+  spacing,
+  touchTargets,
+  typography,
+  type ThemeMode,
+} from '@daynori/design-tokens';
 import {
   Button,
   Card,
@@ -20,6 +27,69 @@ import {
   type FeedbackSeverity,
 } from '@daynori/ui-web';
 import { OperatorGate } from '../../components/OperatorGate';
+
+const contrastRows = [
+  {
+    label: 'Primary text on light background',
+    foreground: colors.light.text.primary,
+    background: colors.light.background,
+    target: 4.5,
+  },
+  {
+    label: 'Secondary text on light background',
+    foreground: colors.light.text.secondary,
+    background: colors.light.background,
+    target: 4.5,
+  },
+  {
+    label: 'Action label on light primary',
+    foreground: colors.light.action.label,
+    background: colors.light.action.primary,
+    target: 4.5,
+  },
+  {
+    label: 'Danger action label in light mode',
+    foreground: colors.light.action.dangerLabel,
+    background: colors.light.action.danger,
+    target: 4.5,
+  },
+  {
+    label: 'Selected row metadata in light mode',
+    foreground: colors.light.text.secondary,
+    background: colors.light.action.subtle,
+    target: 4.5,
+  },
+  {
+    label: 'Primary text on dark surface',
+    foreground: colors.dark.text.primary,
+    background: colors.dark.surface,
+    target: 4.5,
+  },
+  {
+    label: 'Secondary text on dark surface',
+    foreground: colors.dark.text.secondary,
+    background: colors.dark.surface,
+    target: 4.5,
+  },
+  {
+    label: 'Danger action label in dark mode',
+    foreground: colors.dark.action.dangerLabel,
+    background: colors.dark.action.danger,
+    target: 4.5,
+  },
+  {
+    label: 'Selected row metadata in dark mode',
+    foreground: colors.dark.text.secondary,
+    background: colors.dark.action.subtle,
+    target: 4.5,
+  },
+  {
+    label: 'Essential field border in dark mode',
+    foreground: colors.dark.border.strong,
+    background: colors.dark.surface,
+    target: 3,
+  },
+] as const;
 
 function ComponentReviewGallery() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
@@ -138,7 +208,16 @@ function ComponentReviewGallery() {
               onClick={() => setThemeMode((m) => (m === 'light' ? 'dark' : 'light'))}
               aria-label={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}
             >
-              Theme: {themeMode === 'light' ? (<><Icon name='sun' /> {'Light'}</>) : (<><Icon name='moon' /> {'Dark'}</>)}
+              Theme:{' '}
+              {themeMode === 'light' ? (
+                <>
+                  <Icon name="sun" /> {'Light'}
+                </>
+              ) : (
+                <>
+                  <Icon name="moon" /> {'Dark'}
+                </>
+              )}
             </Button>
 
             <Button
@@ -666,106 +745,35 @@ function ComponentReviewGallery() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>Ink text on Warm Paper (Light)</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#172C2C / #F7F5EF</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>13.44:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>Secondary Slate on Paper (Light)</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#526363 / #F7F5EF</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>5.80:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>
-                      White label on Primary Teal (Light)
-                    </td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#FFFFFF / #146B63</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>6.34:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>
-                      White label on Danger Action (Light)
-                    </td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#FFFFFF / #B3261E</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>6.55:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>Selected Row Metadata (Light)</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#526363 / #E4EFEA</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>5.30:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>
-                      Dark primary text on Dark Surface
-                    </td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#E9F0ED / #132323</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>14.05:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>
-                      Dark secondary text on Dark Surface
-                    </td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#AEC0BB / #132323</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>8.56:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>
-                      Dark Ink label on Danger Action (Dark)
-                    </td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#381615 / #F2B8B5</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>9.58:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: `1px solid ${palette.border.subtle}` }}>
-                    <td style={{ padding: `${spacing.sm}px` }}>Selected Row Metadata (Dark)</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#AEC0BB / #1C312E</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>7.26:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 4.5:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: `${spacing.sm}px` }}>Essential Field Border (Dark)</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>#5C7670 / #132323</td>
-                    <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>3.31:1</td>
-                    <td style={{ padding: `${spacing.sm}px` }}>&ge; 3.0:1</td>
-                    <td style={{ padding: `${spacing.sm}px`, color: palette.status.success }}>
-                      PASS AA
-                    </td>
-                  </tr>
+                  {contrastRows.map((row) => {
+                    const ratio = getContrastRatio(row.foreground, row.background);
+                    const passes = ratio >= row.target;
+                    return (
+                      <tr
+                        key={row.label}
+                        style={{ borderBottom: `1px solid ${palette.border.subtle}` }}
+                      >
+                        <td style={{ padding: `${spacing.sm}px` }}>{row.label}</td>
+                        <td style={{ padding: `${spacing.sm}px` }}>
+                          {row.foreground} / {row.background}
+                        </td>
+                        <td style={{ padding: `${spacing.sm}px`, fontWeight: 600 }}>
+                          {ratio.toFixed(2)}:1
+                        </td>
+                        <td style={{ padding: `${spacing.sm}px` }}>
+                          &ge; {row.target.toFixed(1)}:1
+                        </td>
+                        <td
+                          style={{
+                            padding: `${spacing.sm}px`,
+                            color: passes ? palette.status.success : palette.status.danger,
+                          }}
+                        >
+                          {passes ? 'PASS AA' : 'REVIEW'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

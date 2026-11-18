@@ -15,6 +15,7 @@ import {
   RoutineDetailEditor,
   RoutineHistoryViewer,
   SyncStatusBadge,
+  type SyncStatusKind,
 } from '@daynori/ui-web';
 import { useShell } from './ShellContext';
 import { useAuth } from './AuthContext';
@@ -26,6 +27,7 @@ import {
   type RoutineOccurrenceRecord,
   type TaskRecord,
   type ItemHeaderRecord,
+  type CloudSyncStatus,
 } from '@daynori/sync';
 import { ApiClientError } from '@daynori/api-client';
 import { createWebApiClient } from '../data/webApiClient';
@@ -101,6 +103,13 @@ function getRecentItemHref(item: RecentItemEntry): string {
     default:
       return '/';
   }
+}
+
+function toSyncBadgeStatus(status: CloudSyncStatus): SyncStatusKind {
+  if (status === 'synced') return 'synced';
+  if (status === 'saved_locally') return 'device';
+  if (status === 'error' || status === 'conflict' || status === 'needs_attention') return 'error';
+  return 'waiting';
 }
 
 export const TodayView: React.FC = () => {
@@ -181,6 +190,7 @@ export const TodayView: React.FC = () => {
 
   // Simulation & Feedback states
   const [isLoading, setIsLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<SyncStatusKind>('waiting');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liveAnnouncement, setLiveAnnouncement] = useState('');
 
@@ -206,6 +216,7 @@ export const TodayView: React.FC = () => {
     setPreferencesRevision(0);
     setConflictState(null);
     setHasUnsupportedVersion(false);
+    setSyncStatus('waiting');
   }, [workspaceId, user?.id]);
 
   // Open canonical routine from calendar / deep links (?routineId=)
@@ -290,12 +301,26 @@ export const TodayView: React.FC = () => {
 
         // Subscribe to synchronization updates so arriving records appear without manual reload
         engine.onEvent((event) => {
+          if (
+            activeScopeRef.current.workspaceId !== currentScope.workspaceId ||
+            activeScopeRef.current.userId !== currentScope.userId
+          )
+            return;
+          if (event.type === 'state_changed') {
+            setSyncStatus(toSyncBadgeStatus(event.status));
+          }
           if (event.type === 'sync_completed' && event.changesCount > 0) {
             void loadData();
           }
         });
 
         await engine.start();
+        if (
+          activeScopeRef.current.workspaceId === currentScope.workspaceId &&
+          activeScopeRef.current.userId === currentScope.userId
+        ) {
+          setSyncStatus(toSyncBadgeStatus(engine.getOverallCloudStatus()));
+        }
       }
 
       const repo = localRepoRef.current;
@@ -1470,16 +1495,18 @@ export const TodayView: React.FC = () => {
               })}
               <span style={{ color: palette.text.muted }}> · {viewingTimezone}</span>
             </p>
-            <div style={{ marginTop: spacing.sm }}>
-              <SyncStatusBadge
-                status={
-                  typeof navigator !== 'undefined' && navigator.onLine === false
-                    ? 'offline'
-                    : 'synced'
-                }
-                themeMode={themeMode}
-              />
-            </div>
+            {user && workspaceId ? (
+              <div style={{ marginTop: spacing.sm }}>
+                <SyncStatusBadge
+                  status={
+                    typeof navigator !== 'undefined' && navigator.onLine === false
+                      ? 'offline'
+                      : syncStatus
+                  }
+                  themeMode={themeMode}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div
@@ -1770,7 +1797,7 @@ export const TodayView: React.FC = () => {
             // 1. Tasks Card
             if (widget.id === 'tasks') {
               return (
-                <Card key={widget.id} variant="calm" themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode} style={{ padding: 0 }}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -1987,7 +2014,7 @@ export const TodayView: React.FC = () => {
             // 2. Routines Card
             if (widget.id === 'routines') {
               return (
-                <Card key={widget.id} variant="calm" themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode} style={{ padding: 0 }}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2148,7 +2175,7 @@ export const TodayView: React.FC = () => {
             // 3. Upcoming Summary Card (Next 7 Days)
             if (widget.id === 'upcoming_summary') {
               return (
-                <Card key={widget.id} variant="calm" themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode} style={{ padding: 0 }}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2251,7 +2278,7 @@ export const TodayView: React.FC = () => {
             // 4. Quick Capture Card
             if (widget.id === 'quick_capture') {
               return (
-                <Card key={widget.id} variant="calm" themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode} style={{ padding: 0 }}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <h2
                       id="quick-capture-heading"
@@ -2409,7 +2436,7 @@ export const TodayView: React.FC = () => {
             // 5. Journal Reflection Card (No body preview!)
             if (widget.id === 'journal_prompt') {
               return (
-                <Card key={widget.id} variant="calm" themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode} style={{ padding: 0 }}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2454,7 +2481,7 @@ export const TodayView: React.FC = () => {
                           boxShadow:
                             themeMode === 'dark'
                               ? '0 2px 8px rgba(0, 0, 0, 0.4)'
-                              : '0 2px 8px rgba(20, 107, 99, 0.2)',
+                              : '0 2px 8px rgba(98, 61, 232, 0.2)',
                           transition: 'background-color 140ms ease, transform 100ms ease',
                         }}
                       >
@@ -2469,7 +2496,7 @@ export const TodayView: React.FC = () => {
             // 6. Recent Items Card
             if (widget.id === 'recent_items') {
               return (
-                <Card key={widget.id} variant="calm" themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode} style={{ padding: 0 }}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{
@@ -2559,7 +2586,7 @@ export const TodayView: React.FC = () => {
               );
 
               return (
-                <Card key={widget.id} variant="calm" themeMode={themeMode}>
+                <Card key={widget.id} variant="calm" themeMode={themeMode} style={{ padding: 0 }}>
                   <div style={{ padding: `${cardPadding}px` }}>
                     <div
                       style={{

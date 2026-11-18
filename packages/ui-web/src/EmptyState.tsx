@@ -55,11 +55,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             : palette.surfaceRaised,
         border: isInline
           ? 'none'
-          : `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+          : `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 35, 58, 0.08)'}`,
         borderRadius: `${radii.card}px`,
         boxShadow:
           isCard && themeMode === 'light'
-            ? '0 1px 4px rgba(23, 44, 44, 0.04)'
+            ? '0 1px 4px rgba(23, 35, 58, 0.04)'
             : 'none',
         margin: isInline ? `${spacing.sm}px 0` : `${spacing.md}px 0`,
         boxSizing: 'border-box',
@@ -82,12 +82,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             border:
               themeMode === 'dark'
                 ? `1px solid ${palette.border.subtle}`
-                : '1px solid rgba(20, 107, 99, 0.12)',
+                : '1px solid rgba(98, 61, 232, 0.12)',
             marginBottom: `${spacing.md}px`,
             boxShadow:
               themeMode === 'dark'
                 ? '0 2px 8px rgba(0, 0, 0, 0.25)'
-                : '0 2px 8px rgba(20, 107, 99, 0.08)',
+                : '0 2px 8px rgba(98, 61, 232, 0.08)',
           }}
         >
           {icon}

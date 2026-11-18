@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport: Viewport = { themeColor: '#146B63' };
+export const viewport: Viewport = { themeColor: '#623DE8' };
 
 /**
  * Opt the tree into dynamic rendering so middleware CSP nonces can be applied to scripts.

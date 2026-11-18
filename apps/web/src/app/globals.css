@@ -1,8 +1,8 @@
 /* Global Styles & Reset for Daynori Web Application */
 
 :root {
-  --color-focus-ring: #146b63;
-  --color-focus-offset: #f7f5ef;
+  --color-focus-ring: #623de8;
+  --color-focus-offset: #f7f7ff;
   --font-sans:
     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-bangla: 'Hind Siliguri', 'Kalpurush', system-ui, -apple-system, sans-serif;
@@ -21,17 +21,17 @@
 }
 
 ::selection {
-  background-color: rgba(20, 107, 99, 0.18);
+  background-color: rgba(98, 61, 232, 0.18);
   color: inherit;
 }
 
 [data-theme='dark'] {
-  --color-focus-ring: #73c2b6;
-  --color-focus-offset: #0d1919;
+  --color-focus-ring: #b8a3ff;
+  --color-focus-offset: #0e1024;
 }
 
 [data-theme='dark'] ::selection {
-  background-color: rgba(115, 194, 182, 0.28);
+  background-color: rgba(184, 163, 255, 0.28);
   color: inherit;
 }
 
@@ -68,12 +68,39 @@ body {
   min-width: 0;
 }
 
+/* Short state changes keep controls responsive without moving content under a pointer. */
+:where(button, a, input, textarea, select, [role='tab']) {
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+:where(button:not(:disabled), a):active {
+  transform: translateY(1px);
+}
+
+.daynori-page {
+  animation: daynori-page-enter 180ms ease-out both;
+}
+
+@keyframes daynori-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .daynori-page {
   width: 100%;
-  max-width: 960px;
+  max-width: 1040px;
   margin: 0 auto;
-  /* Warm notebook density.padPage — keep in sync with design-tokens density.padPage */
-  padding: 28px 24px;
+  padding: 24px;
   box-sizing: border-box;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -86,7 +113,8 @@ body {
 }
 
 @media (max-width: 380px) {
-  .hide-below-380 {
+  .hide-below-380,
+  .mobile-only.hide-below-380 {
     display: none !important;
   }
 
@@ -239,7 +267,7 @@ body {
   position: fixed;
   top: 16px;
   left: 16px;
-  background-color: #146b63;
+  background-color: #623de8;
   color: #ffffff;
   padding: 10px 16px;
   border-radius: 8px;
@@ -248,15 +276,15 @@ body {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
-  outline: 2px solid #146b63;
+  outline: 2px solid #623de8;
   outline-offset: 2px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 [data-theme='dark'] .daynori-skip-link:focus {
-  background-color: #73c2b6;
-  color: #102020;
-  outline-color: #73c2b6;
+  background-color: #b8a3ff;
+  color: #1b1735;
+  outline-color: #b8a3ff;
 }
 
 /* Visually Hidden Utility for Screen Readers */
@@ -289,6 +317,12 @@ body {
 
 /* Respect Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
+  .daynori-page {
+    animation: none !important;
+  }
+  :where(button:not(:disabled), a):active {
+    transform: none !important;
+  }
   *,
   *::before,
   *::after {

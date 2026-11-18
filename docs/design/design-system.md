@@ -1,10 +1,14 @@
 # Design system direction
 
-Status: proposed visual specification aligned to **Warm notebook** (Phase 67 owner selection 2026-10-25, ADR 0069). These values are not alone proof of accessibility. Implement and validate shared semantic tokens and complete components in Phase 68. Interactive prototypes: [v2/phase67](v2/phase67/README.md).
+Status: the Warm notebook direction below is historical. The owner replaced it on 2026-11-18 and requested a more expressive violet-and-coral revision in [ADR 0131](../decisions/0131-cool-slate-indigo-visual-refresh.md). Current values live in `packages/design-tokens/src/index.ts`; the Phase 67 prototypes remain useful historical evidence.
+
+## Current direction (Phase 131, revised)
+
+Light: cool lilac background `#F7F7FF`, white surfaces, ink text `#1C2142`, violet action `#623DE8`, and coral `#B93865` as a secondary action accent. Dark: midnight background `#0E1024`, violet-tinted surfaces, light text `#F7F5FF`, lavender action `#B8A3FF`, and soft coral `#FF9DBB`. The brand mark uses brighter decorative coral `#FF799D`. Use subtle ambient color behind content and a violet-to-coral gradient only on prominent actions and selected navigation. Respect reduced motion and keep focus/contrast requirements intact. The old palette values below document the superseded decision and must not be used for new UI.
 
 ## Visual character
 
-The local application logo and platform exports are in the [Daynori logo kit](../../assets/brand/README.md). The folded D and custom vector wordmark implement this palette; [ADR 0059](../decisions/0059-daynori-vector-identity-and-platform-assets.md) records the asset and platform ownership. Public brand clearance remains pending.
+The local application logo and platform exports are in the [Daynori logo kit](../../assets/brand/README.md). The rounded D, rising path, and custom vector wordmark implement this palette; [ADR 0059](../decisions/0059-daynori-vector-identity-and-platform-assets.md) records the asset and platform ownership. Public brand clearance remains pending.
 
 The app should feel like a well-made personal notebook with the clarity of a dependable tool: warm paper, dark ink, deep teal actions and small amber emphasis. Use generous spacing, clear alignment and modest rounded corners. Keep backgrounds quiet so notes, deadlines and personal writing are prominent.
 

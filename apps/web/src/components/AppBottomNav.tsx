@@ -45,12 +45,12 @@ export const AppBottomNav: React.FC = () => {
         left: 0,
         right: 0,
         minHeight: 'var(--daynori-bottom-nav-height)',
-        backgroundColor: palette.surface,
-        borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+        backgroundColor: palette.surfaceRaised,
+        borderTop: `1px solid ${palette.border.subtle}`,
         boxShadow:
           themeMode === 'dark'
             ? '0 -2px 10px rgba(0, 0, 0, 0.35)'
-            : '0 -2px 8px rgba(23, 44, 44, 0.04)',
+            : '0 -2px 8px rgba(23, 35, 58, 0.04)',
         display: 'flex',
         alignItems: 'stretch',
         justifyContent: 'space-around',
@@ -101,6 +101,9 @@ export const AppBottomNav: React.FC = () => {
                   padding: '3px 12px',
                   borderRadius: `${radii.pill}px`,
                   backgroundColor: isActive ? palette.action.subtle : 'transparent',
+                  backgroundImage: isActive
+                    ? `linear-gradient(120deg, ${palette.action.subtle}, ${palette.accent.subtle})`
+                    : undefined,
                   color: isActive ? palette.action.primary : palette.text.secondary,
                   transition: 'background-color 140ms ease, color 140ms ease',
                   marginBottom: '2px',

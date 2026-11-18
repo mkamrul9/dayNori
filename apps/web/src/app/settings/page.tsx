@@ -31,7 +31,7 @@ export default function SettingsPage() {
             boxShadow:
               themeMode === 'dark'
                 ? '0 1px 4px rgba(0, 0, 0, 0.3)'
-                : '0 1px 4px rgba(23, 44, 44, 0.04)',
+                : '0 1px 4px rgba(23, 35, 58, 0.04)',
             overflow: 'hidden',
           }}
         >

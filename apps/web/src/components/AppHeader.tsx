@@ -44,6 +44,7 @@ export const AppHeader: React.FC = () => {
     borderRadius: `${radii.sm}px`,
     border: `1px solid ${palette.action.primary}`,
     backgroundColor: palette.action.primary,
+    backgroundImage: `linear-gradient(115deg, ${palette.action.primary}, ${palette.accent.warm})`,
     color: palette.action.label,
     cursor: 'pointer',
     fontSize: '14px',
@@ -52,9 +53,7 @@ export const AppHeader: React.FC = () => {
     boxSizing: 'border-box',
     transition: 'background-color 140ms ease, transform 100ms ease, box-shadow 140ms ease',
     boxShadow:
-      themeMode === 'dark'
-        ? '0 2px 8px rgba(0, 0, 0, 0.45)'
-        : '0 2px 8px rgba(20, 107, 99, 0.22)',
+      themeMode === 'dark' ? '0 2px 8px rgba(0, 0, 0, 0.45)' : '0 4px 14px rgba(98, 61, 232, 0.22)',
     flexShrink: 0,
   };
 
@@ -71,7 +70,7 @@ export const AppHeader: React.FC = () => {
         minHeight: 'var(--daynori-header-height)',
         height: 'var(--daynori-header-height)',
         backgroundColor: palette.surface,
-        borderBottom: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+        borderBottom: `1px solid ${palette.border.subtle}`,
         position: 'sticky',
         top: 0,
         zIndex: 100,
@@ -176,6 +175,7 @@ export const AppHeader: React.FC = () => {
             type="button"
             id="global-search-btn"
             aria-label="Search items (Shortcut /)"
+            className="hide-below-380"
             onClick={() => openModal('search')}
             style={ghostButtonStyle}
             onMouseEnter={(e) => {
@@ -213,8 +213,8 @@ export const AppHeader: React.FC = () => {
             type="button"
             id="global-assistant-btn"
             data-testid="global-assistant-btn"
-            aria-label="Ask Nori assistant (Gated under DEF-V2-008)"
-            title="Ask Nori assistant (Gated under DEF-V2-008)"
+            aria-label="Ask Nori assistant (coming later)"
+            title="Ask Nori assistant (coming later)"
             onClick={() => openModal('assistant')}
             style={ghostButtonStyle}
             className="hide-below-380"
@@ -242,10 +242,12 @@ export const AppHeader: React.FC = () => {
             onClick={() => openModal('create')}
             style={createButtonStyle}
             onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundImage = 'none';
               e.currentTarget.style.backgroundColor = palette.action.primaryHover;
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = palette.action.primary;
+              e.currentTarget.style.backgroundImage = `linear-gradient(115deg, ${palette.action.primary}, ${palette.accent.warm})`;
             }}
           >
             <span aria-hidden="true" style={{ fontWeight: 'bold' }}>

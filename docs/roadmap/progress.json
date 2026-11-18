@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-11-16T06:30:00.000Z",
-  "activePhase": "129",
+  "updatedAt": "2026-11-18",
+  "activePhase": null,
   "nextPhase": null,
-  "schedulingDecision": "Owner scheduling authorization: Select Phase 129 (Daynori staging credential rotation, session revocation, secure runtime secrets integration, and multi-user assertion fidelity hardening) under ADR 0129. Standing push under ADR 0074.",
+  "schedulingDecision": "Owner selected Phase 131 visual refresh on 2026-11-18; its bounded local design acceptance is complete. Phase 130 and public release remain blocked pending a new candidate, authenticated staging evidence, scale, and external operations gates.",
   "note": "Phase 37 release gate, Phase 38 private beta, and phases 39-45 remain recorded as blocked / provisional pending external infrastructure, independent external security audit, physical hardware, and release gates. Phases 61–62 blocked on Mac/device/TestFlight/store evidence. Phase 63 not started. Phase 102 assembled canonical owner publication review record (docs/release/v2-authorized-publication-record.md) and machine-readable register (artifacts/phase102/publication-review-record.json), separated bounded beta from full V2, recorded web readiness independently from Android, executed 7 publication rehearsals in tests/e2e/phase102-v2-publication-rehearsal.test.ts, and reconciled 11 gates; release signing credentials (OWNER-SIGNING-KEYS), owner release authorization (OWNER-RELEASE-AUTH), live human research (DEF-V2-013), physical TalkBack (DEF-V2-011), and external audits (DEF-V2-004, DEF-V2-008) remain open.",
   "phases": [
     {
@@ -759,6 +759,18 @@
       "status": "blocked",
       "report": "docs/phase-reports/phase-129.md",
       "reason": "Daynori staging credential rotation, session revocation, secure runtime secrets integration, and multi-user assertion fidelity hardening delivered: rotated staging account credentials for User A (kamrul@daynori.com) and User B (shahrin@daynori.com) in hosted Supabase database using high-entropy random secrets and crypt(..., gen_salt('bf', 10)); permanently revoked all 44 active sessions and 50 refresh tokens in auth.sessions and auth.refresh_tokens; inspected staging access logs in auth.audit_log_entries and recorded audit in artifacts/phase129/staging-access-log-audit.json; replaced static credentials in scripts/run-phase125-multi-user-staging-audit.mjs and scripts/run-phase127-capacity-load-test.mjs with secure runtime secrets helper getStagingCredentials() without printing or committing secrets or rewriting Git history; hardened Phase 125 multi-user assertions by strictly requiring HTTP 201/200 on auth probes (truthfully recording failure under Supabase free-tier email rate limiting), asserting specific newly created item persistence in DOM after page reload (hasSpecificItemAfterReload), eliminating unconditional boolean assignments, and accurately distinguishing ui_and_api journeys (9 workflows) from api_only protocol tests (1 workflow); authored ADR 0129, phase report docs/phase-reports/phase-129.md, and verified automated test suite tests/release/phase125-multi-user-staging-audit.test.ts (10 passed; 49 total release regression tests passed); status recorded as honestly blocked pending explicit affirmative owner launch authorization under OWNER-RELEASE-AUTH and standing external release gates (OWNER-SUPPORT-STAFFING, OWNER-MAILBOX-SETUP, OWNER-PAGER-ALERTING, OWNER-PROD-DNS, OWNER-SUPABASE-PRO, OWNER-SIGNING-KEYS, OWNER-SMTP-CREDENTIALS, DEF-V2-001, DEF-V2-004, DEF-V2-005, DEF-V2-007, DEF-V2-008, DEF-V2-011, DEF-V2-013, Phase 71). See docs/phase-reports/phase-129.md."
+    },
+    {
+      "id": "130",
+      "status": "blocked",
+      "report": "docs/phase-reports/phase-130.md",
+      "reason": "Phase 130 remains blocked. Historical staging audit observed a web chunk different from rc6; served BUILD_ID and API commit were not independently attested. Web-core preflight recorded 10 local passes and 7 standing blockers. The historical runner recorded 5 of 9 workflows passing, but task and routine stopped before mutation; search parsed the wrong API response shape; note creation was masked by a second API-created record; UI tenant isolation lacked a positive User B loading control; and the API-only conflict check did not verify browser offline drafts. The hardened runner now uses authenticated provisioned workspace IDs, verifies UI-created notes and routines through the API, checks actual page loading, matches the specific search result, and requires a User B positive control. It fails provenance closed without independent runtime attestations. These changes have not been replayed against staging. Exact candidate deployment, staging replay, owner launch authorization, and standing production gates remain open. See docs/phase-reports/phase-130.md."
+    },
+    {
+      "id": "131",
+      "status": "complete",
+      "report": "docs/phase-reports/phase-131.md",
+      "reason": "Day Path violet/coral identity and core web/mobile tokens, assets, navigation, cards, and motion delivered. Final full build and typecheck passed; 94 focused visual/accessibility/gating tests passed. Forty-two synthetic desktop/phone light/dark captures showed no overflow or theme mismatch, and reduced motion and Menu focus checks passed. This completes Phase 131's bounded visual acceptance only. Full test suite, new release candidate, authenticated staging, capacity, and standing publication gates remain open."
     }
   ]
 }

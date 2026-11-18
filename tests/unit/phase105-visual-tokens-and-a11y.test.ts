@@ -18,13 +18,13 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 
 describe('Phase 105: Visual Tokens, Accessibility, and Contrast Matrix', () => {
   describe('1. Color Palette and WCAG 2.2 AA Contrast Compliance', () => {
-    it('verifies light theme paper surfaces and text contrast ratios', () => {
+    it('verifies light theme surfaces and text contrast ratios', () => {
       const light = colors.light;
 
       // Base background & surfaces
-      expect(light.background).toBe('#F7F5EF'); // Warm paper
+      expect(light.background).toBe('#F7F7FF'); // Cool lilac
       expect(light.surface).toBe('#FFFFFF'); // Clean surface
-      expect(light.surfaceRaised).toBe('#FBF9F4'); // Raised card surface
+      expect(light.surfaceRaised).toBe('#EFEFFF'); // Raised card surface
 
       // Primary text contrast >= 4.5:1
       const textOnPaper = getContrastRatio(light.text.primary, light.background);
@@ -41,7 +41,7 @@ describe('Phase 105: Visual Tokens, Accessibility, and Contrast Matrix', () => {
       expect(secOnPaper).toBeGreaterThanOrEqual(4.5);
       expect(secOnSurface).toBeGreaterThanOrEqual(4.5);
 
-      // Muted text on paper >= 4.5:1 (Phase 67/68 notebook muted token)
+      // Muted text on the light background >= 4.5:1
       const mutedOnPaper = getContrastRatio(light.text.muted, light.background);
       expect(mutedOnPaper).toBeGreaterThanOrEqual(4.5);
 
@@ -62,9 +62,9 @@ describe('Phase 105: Visual Tokens, Accessibility, and Contrast Matrix', () => {
       const dark = colors.dark;
 
       // Base dark surfaces
-      expect(dark.background).toBe('#0D1919'); // Deep ink
-      expect(dark.surface).toBe('#132323'); // Dark surface
-      expect(dark.surfaceRaised).toBe('#192C2C'); // Raised dark card
+      expect(dark.background).toBe('#0E1024'); // Deep ink
+      expect(dark.surface).toBe('#181B36'); // Dark surface
+      expect(dark.surfaceRaised).toBe('#24284B'); // Raised dark card
 
       // Primary text contrast >= 4.5:1
       const textOnInk = getContrastRatio(dark.text.primary, dark.background);

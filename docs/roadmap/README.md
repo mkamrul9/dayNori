@@ -1,6 +1,6 @@
 # Delivery roadmap
 
-This roadmap contains **104 bounded phases, numbered 00–103**. Original phases 00–63 retain their history; [Version 2](v2/README.md) appends phases 64–103. Phase 00 is original planning; Phase 01 establishes runnable foundations. Phase 64 is V2 planning only, and Phase 65 is its first implementation selection. Each phase has its own instructions, acceptance, verification, references and suggested commit. There are no calendar promises or estimated completion dates. Size phases by reviewable outcomes; split a phase when implementation exposes more work.
+This roadmap contains **132 bounded phases, numbered 00–131**. Original phases 00–63 retain their history; [Version 2](v2/README.md) introduced phases 64–103, and subsequent amendments added phases 104–131. Phase 00 is original planning; Phase 01 establishes runnable foundations. Phase 64 is V2 planning only, and Phase 65 is its first implementation selection. Each phase has its own instructions, acceptance, verification, references and suggested commit. There are no calendar promises or estimated completion dates. Size phases by reviewable outcomes; split a phase when implementation exposes more work.
 
 ## Current state
 

@@ -24,7 +24,9 @@ describe('Phase 114: Ask Nori Web and Mobile Interface Verification', () => {
       expect(content).toContain('DEF-V2-008');
       expect(content).toContain("cursor: isGated ? 'not-allowed' : 'text'");
       expect(content).toContain('disabled={isGated}');
-      expect(content).toContain('disabled={isGated || busy || !personalWorkspaceId || !question.trim()}');
+      expect(content).toContain(
+        'disabled={isGated || busy || !personalWorkspaceId || !question.trim()}'
+      );
 
       // Auxiliary controls (knowledge sources, starter suggestions, voice recording) collapsed when gated
       expect(content).toContain('!isGated && (');
@@ -61,12 +63,12 @@ describe('Phase 114: Ask Nori Web and Mobile Interface Verification', () => {
     it('verifies Desktop Header and Sidebar surface Ask Nori with truthful gated presentation', () => {
       const headerFile = path.join(repoRoot, 'apps/web/src/components/AppHeader.tsx');
       const headerContent = fs.readFileSync(headerFile, 'utf8');
-      expect(headerContent).toContain('Ask Nori assistant (Gated under DEF-V2-008)');
+      expect(headerContent).toContain('Ask Nori assistant (coming later)');
 
       const sidebarFile = path.join(repoRoot, 'apps/web/src/components/AppSidebar.tsx');
       const sidebarContent = fs.readFileSync(sidebarFile, 'utf8');
       expect(sidebarContent).toContain('Ask Nori');
-      expect(sidebarContent).toContain('Gated');
+      expect(sidebarContent).toContain('Soon');
     });
   });
 
@@ -93,8 +95,12 @@ describe('Phase 114: Ask Nori Web and Mobile Interface Verification', () => {
   describe('3. Canonical Deep Link Generator Invariants', () => {
     it('generates canonical deep links for note, task, and journal entities', () => {
       expect(getOrganizerDeepLink('note', 'note-uuid-001')).toBe('/library?noteId=note-uuid-001');
-      expect(getOrganizerDeepLink('task', 'task-uuid-002')).toBe('/plan?targetId=task-uuid-002&targetType=task');
-      expect(getOrganizerDeepLink('journal_entry', 'entry-uuid-003')).toBe('/journal?entryId=entry-uuid-003');
+      expect(getOrganizerDeepLink('task', 'task-uuid-002')).toBe(
+        '/plan?targetId=task-uuid-002&targetType=task'
+      );
+      expect(getOrganizerDeepLink('journal_entry', 'entry-uuid-003')).toBe(
+        '/journal?entryId=entry-uuid-003'
+      );
     });
 
     it('sanitizes assistant markdown to prevent XSS and malicious scripts', () => {

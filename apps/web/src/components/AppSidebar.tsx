@@ -10,9 +10,8 @@ import { useFeatureNavigation } from '../navigation/useFeatureNavigation';
 import { TourTarget } from '../tours/TourTarget';
 
 /**
- * Modern desktop navigation sidebar.
- * Features a calm warm-notebook visual hierarchy with soft pill active states,
- * distinct section categorizations, and accessible focus outlines.
+ * Desktop navigation keeps the four core destinations visible and secondary
+ * tools quiet, with an active state that remains legible in either theme.
  */
 export const AppSidebar: React.FC = () => {
   const pathname = usePathname();
@@ -52,17 +51,19 @@ export const AppSidebar: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'space-between',
             minHeight: `${touchTargets.webMin}px`,
-            padding: `6px ${spacing.sm}px 6px ${isNested ? spacing.lg : spacing.sm}px`,
+            padding: `6px ${spacing.md}px 6px ${isNested ? spacing.lg : spacing.md}px`,
             borderRadius: `${radii.sm}px`,
             backgroundColor: isActive ? palette.action.subtle : 'transparent',
+            backgroundImage: isActive
+              ? `linear-gradient(110deg, ${palette.action.subtle}, ${palette.accent.subtle})`
+              : undefined,
             color: isActive ? palette.action.primary : palette.text.primary,
-            fontWeight: isActive ? 600 : 500,
+            fontWeight: isActive ? 650 : 500,
             textDecoration: 'none',
             fontSize: isNested ? '13px' : '14px',
-            borderLeft: isActive ? `3px solid ${palette.action.primary}` : '3px solid transparent',
-            marginBottom: '3px',
+            marginBottom: '2px',
             boxSizing: 'border-box',
-            transition: 'background-color 140ms ease, color 140ms ease',
+            transition: 'background-color 180ms ease, color 180ms ease',
           }}
           onMouseEnter={(e) => {
             if (!isActive) e.currentTarget.style.backgroundColor = palette.surfaceRaised;
@@ -100,9 +101,9 @@ export const AppSidebar: React.FC = () => {
       style={{
         flexDirection: 'column',
         justifyContent: 'space-between',
-        padding: `${spacing.base}px ${spacing.sm}px`,
-        backgroundColor: palette.surface,
-        borderRight: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+        padding: `${spacing.base}px ${spacing.md}px`,
+        backgroundColor: palette.surfaceRaised,
+        borderRight: `1px solid ${palette.border.subtle}`,
         boxSizing: 'border-box',
         minHeight: `calc(100vh - ${density.headerHeight}px)`,
         flexShrink: 0,
@@ -120,7 +121,7 @@ export const AppSidebar: React.FC = () => {
             fontWeight: 700,
           }}
         >
-          Primary
+          Workspace
         </div>
         {primaryTabs.map((tab) =>
           renderNavLink({ href: tab.webPath, label: tab.label, icon: tab.icon })
@@ -135,7 +136,7 @@ export const AppSidebar: React.FC = () => {
             fontWeight: 700,
           }}
         >
-          Pins
+          Pinned
         </div>
         {pins.length > 0 ? (
           pins.map((pin) =>
@@ -157,7 +158,7 @@ export const AppSidebar: React.FC = () => {
 
       <div
         style={{
-          borderTop: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 44, 44, 0.08)'}`,
+          borderTop: `1px solid ${palette.border.subtle}`,
           paddingTop: `${spacing.sm}px`,
         }}
       >
@@ -171,12 +172,12 @@ export const AppSidebar: React.FC = () => {
             fontWeight: 700,
           }}
         >
-          Utilities
+          More
         </div>
         <button
           type="button"
           data-testid="sidebar-assistant-btn"
-          aria-label="Ask Nori assistant (Gated under DEF-V2-008)"
+          aria-label="Ask Nori assistant (coming later)"
           onClick={() => openModal('assistant')}
           style={{
             display: 'flex',
@@ -233,7 +234,7 @@ export const AppSidebar: React.FC = () => {
               border: `1px solid ${palette.border.subtle}`,
             }}
           >
-            Gated
+            Soon
           </span>
         </button>
         {utilityItems.map((item) => renderNavLink(item))}

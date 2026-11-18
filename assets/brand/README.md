@@ -1,10 +1,10 @@
 # Daynori logo kit
 
-The folded D combines a page corner with the first letter of Daynori. Its open counter, diagonal cut and detached fold form the same silhouette in every application. The wordmark is custom vector lettering; it contains no font dependency or stock artwork.
+The rounded D holds a coral path rising toward a sun. It ties the name to the idea of moving through a day while keeping the silhouette readable at app-icon size. The wordmark is custom vector lettering; it contains no font dependency or stock artwork.
 
 Start with `daynori-logo.svg` for the primary horizontal logo and `daynori-symbol.svg` for compact placements. The matching PNG wordmarks are 1328 × 384 with transparent backgrounds. `daynori-logo-inverse` is for dark surfaces; `daynori-logo-monochrome` is black for one-color reproduction. `daynori-app-icon-1024.png` is the opaque square master; platforms apply their own icon masks. `preview.png` shows the identity together.
 
-Keep the logo's proportions. Leave at least one stem-width of clear space around the visible artwork. Use the symbol below a 120 px-wide wordmark placement, and avoid displaying the symbol below 16 px. Use teal `#146B63` and ink `#172C2C` on light surfaces, or paper `#F7F5EF` on dark surfaces. Do not add gradients, outlines, drop shadows or extra decorative shapes. The inverse and monochrome versions preserve the full geometry.
+Keep the logo's proportions. Leave at least one stem-width of clear space around the visible artwork. Use the symbol below a 120 px-wide wordmark placement, and avoid displaying the symbol below 16 px. Use violet `#623DE8`, coral `#FF799D`, and ink `#1C2142` on light surfaces, or cool white `#F7F7FF` and soft coral `#FF9DBB` on dark surfaces. The rising-path mark is original project geometry. The monochrome version preserves the full silhouette for one-color reproduction.
 
 Edit [geometry.json](geometry.json), then run from the repository root:
 

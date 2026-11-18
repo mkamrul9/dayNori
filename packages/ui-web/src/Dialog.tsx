@@ -121,14 +121,14 @@ export const Dialog: React.FC<DialogProps> = ({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        backgroundColor: themeMode === 'dark' ? 'rgba(0, 0, 0, 0.65)' : 'rgba(23, 35, 58, 0.35)',
         display: 'flex',
         alignItems: 'flex-end',
         justifyContent: 'center',
         zIndex: 1000,
         padding: `${spacing.base}px`,
         paddingBottom: `max(${spacing.base}px, env(safe-area-inset-bottom, 0px))`,
-        backdropFilter: 'blur(2px)',
+        backdropFilter: 'blur(3px)',
         boxSizing: 'border-box',
       }}
       className="daynori-dialog-backdrop"
@@ -145,12 +145,15 @@ export const Dialog: React.FC<DialogProps> = ({
           backgroundColor: palette.surface,
           color: palette.text.primary,
           borderRadius: `${radii.sheet}px`,
-          border: `1px solid ${palette.border.subtle}`,
+          border: `1px solid ${themeMode === 'dark' ? palette.border.subtle : 'rgba(23, 35, 58, 0.08)'}`,
           padding: `${spacing.base}px`,
           maxWidth: '520px',
           width: '100%',
           minWidth: 0,
-          boxShadow: '0 12px 36px rgba(0, 0, 0, 0.28)',
+          boxShadow:
+            themeMode === 'dark'
+              ? '0 16px 40px rgba(0, 0, 0, 0.45)'
+              : '0 16px 40px rgba(23, 35, 58, 0.12)',
           outline: 'none',
           boxSizing: 'border-box',
           position: 'relative',

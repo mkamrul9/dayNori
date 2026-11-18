@@ -46,11 +46,26 @@ describe('Phase 105: Web/PWA Visual Refinement and Modern Interface E2E Evidence
     expect(manifestBefore.mode).toBe('before');
     expect(manifestAfter.mode).toBe('after');
 
-    const expectedScreens = ['today', 'plan', 'library', 'journal', 'settings', 'create', 'menus', 'assistant'];
+    const expectedScreens = [
+      'today',
+      'plan',
+      'library',
+      'journal',
+      'settings',
+      'create',
+      'menus',
+      'assistant',
+    ];
     expect(manifestBefore.screens).toEqual(expectedScreens);
     expect(manifestAfter.screens).toEqual(expectedScreens);
 
-    const expectedViewports = ['desktop-1280', 'mobile-412', 'mobile-390', 'mobile-360', 'mobile-320'];
+    const expectedViewports = [
+      'desktop-1280',
+      'mobile-412',
+      'mobile-390',
+      'mobile-360',
+      'mobile-320',
+    ];
     expect(manifestBefore.viewports.map((v) => v.name)).toEqual(expectedViewports);
     expect(manifestAfter.viewports.map((v) => v.name)).toEqual(expectedViewports);
 
@@ -134,7 +149,9 @@ describe('Phase 105: Web/PWA Visual Refinement and Modern Interface E2E Evidence
     expect(content).toContain('minWidth: `${touchTargets.webMin}px`');
     expect(content).toContain('aria-label="Create item (Shortcut C)"');
     expect(content).toContain('aria-label="Search items (Shortcut /)"');
-    expect(content).toContain("aria-label={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}");
+    expect(content).toContain(
+      "aria-label={`Switch to ${themeMode === 'light' ? 'dark' : 'light'} theme`}"
+    );
   });
 
   it('verifies AppBottomNav mobile navigation height and active pill indicator', () => {
@@ -148,17 +165,17 @@ describe('Phase 105: Web/PWA Visual Refinement and Modern Interface E2E Evidence
     expect(content).toContain('daynori-bottom-nav-label');
   });
 
-  it('verifies AppSidebar active pill styling and uppercase category hierarchy', () => {
+  it('verifies AppSidebar active pill styling and current category hierarchy', () => {
     const sidebarPath = path.join(repoRoot, 'apps/web/src/components/AppSidebar.tsx');
     const content = fs.readFileSync(sidebarPath, 'utf8');
 
     expect(content).toContain("letterSpacing: '0.06em'");
     expect(content).toContain("textTransform: 'uppercase'");
-    expect(content).toContain('Primary');
-    expect(content).toContain('Pins');
-    expect(content).toContain('Utilities');
+    expect(content).toContain('Workspace');
+    expect(content).toContain('Pinned');
+    expect(content).toContain('More');
     expect(content).toContain("backgroundColor: isActive ? palette.action.subtle : 'transparent'");
-    expect(content).toContain("color: isActive ? palette.action.primary : palette.text.primary");
+    expect(content).toContain('color: isActive ? palette.action.primary : palette.text.primary');
   });
 
   it('verifies TodayView first viewport desktop layout and softened stat cards', () => {
@@ -180,7 +197,9 @@ describe('Phase 105: Web/PWA Visual Refinement and Modern Interface E2E Evidence
 
     // Settings consolidated card
     expect(settingsContent).toContain('SETTINGS_GROUPS.map((group, index)');
-    expect(settingsContent).toContain("borderBottom: isLast ? 'none' : `1px solid ${palette.border.subtle}`");
+    expect(settingsContent).toContain(
+      "borderBottom: isLast ? 'none' : `1px solid ${palette.border.subtle}`"
+    );
 
     // Library clean search and bullet separator
     expect(libraryContent).toContain('placeholder="Search notes and folders..."');

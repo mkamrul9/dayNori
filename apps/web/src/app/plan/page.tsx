@@ -1246,8 +1246,8 @@ export default function PlanPage() {
           style={{
             marginBottom: `${spacing.md}px`,
             padding: `${spacing.base}px`,
-            backgroundColor: themeMode === 'dark' ? 'rgba(234, 179, 8, 0.1)' : '#fffbeb',
-            border: '1px solid #f59e0b',
+            backgroundColor: palette.action.subtle,
+            border: `1px solid ${palette.border.subtle}`,
           }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
